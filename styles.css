@@ -79,7 +79,7 @@ body {
 
 /* Sidebar */
 .crm-sidebar {
-  width: 256px;
+  width: 252px;
   background: var(--sidebar-bg);
   color: var(--sidebar-text);
   display: flex;
@@ -96,7 +96,7 @@ body {
 .sidebar-top {
   display: flex;
   flex-direction: column;
-  gap: 1.75rem;
+  gap: 1.5rem;
 }
 
 .brand {
@@ -185,16 +185,16 @@ body {
   background: var(--sidebar-surface);
   border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: var(--radius-md);
-  padding: 0.9rem 0.75rem;
+  padding: 0.85rem 0.75rem;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.45rem;
 }
 
 .mini-funnel-list {
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
+  gap: 0.4rem;
 }
 
 .mini-funnel-row {
@@ -234,14 +234,6 @@ body {
   gap: 0.5rem;
   padding-top: 1rem;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.sidebar-footer .btn-ghost {
-  color: #cbd5e1;
-}
-.sidebar-footer .btn-ghost:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
 }
 
 /* Main CRM Content Area */
@@ -309,7 +301,7 @@ body {
 }
 
 .crm-content {
-  padding: 1.5rem 1.75rem 3.5rem;
+  padding: 1.4rem 1.75rem 3.5rem;
   max-width: 1360px;
   width: 100%;
   margin: 0 auto;
@@ -320,11 +312,11 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.45rem;
+  gap: 0.42rem;
   font-family: inherit;
-  font-size: 0.86rem;
+  font-size: 0.85rem;
   font-weight: 600;
-  padding: 0.55rem 0.95rem;
+  padding: 0.52rem 0.92rem;
   border-radius: var(--radius-sm);
   border: 1px solid transparent;
   cursor: pointer;
@@ -333,16 +325,21 @@ body {
   white-space: nowrap;
 }
 
+.btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
 .btn-sm {
   font-size: 0.78rem;
-  padding: 0.38rem 0.75rem;
+  padding: 0.38rem 0.72rem;
 }
 
 .btn-primary {
   background: var(--primary);
   color: #ffffff;
 }
-.btn-primary:hover {
+.btn-primary:hover:not(:disabled) {
   background: var(--primary-hover);
 }
 
@@ -351,15 +348,24 @@ body {
   color: var(--text);
   border-color: var(--border-strong);
 }
-.btn-secondary:hover {
+.btn-secondary:hover:not(:disabled) {
   background: var(--surface-alt);
+}
+
+.btn-whatsapp {
+  background: #dcfce7;
+  color: #15803d;
+  border-color: #bbf7d0;
+}
+.btn-whatsapp:hover {
+  background: #bbf7d0;
 }
 
 .btn-ghost {
   background: transparent;
   color: var(--text-muted);
 }
-.btn-ghost:hover {
+.btn-ghost:hover:not(:disabled) {
   background: var(--surface-alt);
   color: var(--text);
 }
@@ -368,24 +374,16 @@ body {
   background: var(--danger);
   color: #fff;
 }
-.btn-danger:hover {
+.btn-danger:hover:not(:disabled) {
   background: var(--danger-hover);
 }
 
 .btn-outline-danger {
   background: transparent;
-  color: #f87171;
-  border-color: rgba(248, 113, 113, 0.35);
-}
-.btn-outline-danger:hover {
-  background: rgba(220, 38, 38, 0.12);
-}
-
-.profile-actions .btn-outline-danger {
   color: var(--danger);
   border-color: var(--danger-border);
 }
-.profile-actions .btn-outline-danger:hover {
+.btn-outline-danger:hover:not(:disabled) {
   background: var(--danger-soft);
 }
 
@@ -395,20 +393,38 @@ body {
   align-items: flex-end;
   justify-content: space-between;
   gap: 1rem;
-  margin-bottom: 1.35rem;
+  margin-bottom: 1.15rem;
   flex-wrap: wrap;
 }
 
+.header-controls-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.checkbox-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+
 .page-title {
-  font-size: 1.55rem;
+  font-size: 1.5rem;
   font-weight: 700;
   letter-spacing: -0.02em;
 }
 
 .page-subtitle {
   color: var(--text-muted);
-  font-size: 0.9rem;
-  margin-top: 0.15rem;
+  font-size: 0.88rem;
+  margin-top: 0.1rem;
 }
 
 .view-switcher {
@@ -423,10 +439,10 @@ body {
   border: none;
   background: transparent;
   font-family: inherit;
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   font-weight: 600;
   color: var(--text-muted);
-  padding: 0.42rem 0.85rem;
+  padding: 0.4rem 0.8rem;
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.15s;
@@ -438,22 +454,32 @@ body {
   box-shadow: var(--shadow-sm);
 }
 
+.filter-info-banner {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e40af;
+  padding: 0.6rem 0.95rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  margin-bottom: 1.1rem;
+}
+
 /* ==================== KPI STATS ==================== */
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 1rem;
-  margin-bottom: 1.25rem;
+  margin-bottom: 1.15rem;
 }
 
 .stat-card {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  padding: 1.05rem 1.2rem;
+  padding: 1rem 1.15rem;
   display: flex;
   align-items: center;
-  gap: 0.95rem;
+  gap: 0.9rem;
   box-shadow: var(--shadow-sm);
 }
 
@@ -467,40 +493,35 @@ body {
   flex-shrink: 0;
 }
 
-.stat-icon-indigo {
-  background: var(--primary-soft);
-  color: var(--primary);
-}
-.stat-icon-slate {
-  background: #f1f5f9;
-  color: #334155;
-}
-.stat-icon-emerald {
-  background: var(--emerald-bg);
-  color: var(--emerald-text);
-}
-.stat-icon-amber {
-  background: var(--amber-bg);
-  color: var(--amber-text);
-}
+.stat-icon-indigo { background: var(--primary-soft); color: var(--primary); }
+.stat-icon-slate { background: #f1f5f9; color: #334155; }
+.stat-icon-emerald { background: var(--emerald-bg); color: var(--emerald-text); }
+.stat-icon-amber { background: var(--amber-bg); color: var(--amber-text); }
 
 .stat-info {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .stat-label {
-  font-size: 0.78rem;
-  font-weight: 500;
+  font-size: 0.77rem;
+  font-weight: 600;
   color: var(--text-muted);
 }
 
 .stat-value {
-  font-size: 1.5rem;
+  font-size: 1.48rem;
   font-weight: 700;
   color: var(--text);
   line-height: 1.2;
-  margin-top: 0.1rem;
+  margin-top: 0.08rem;
+}
+
+.stat-sub {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-top: 0.12rem;
 }
 
 /* ==================== SEARCH & PIPELINE STRIP ==================== */
@@ -542,7 +563,7 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  margin-bottom: 1.25rem;
+  margin-bottom: 1.2rem;
   flex-wrap: wrap;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -562,12 +583,12 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
-  padding: 0.38rem 0.75rem;
+  padding: 0.36rem 0.72rem;
   border-radius: 999px;
   border: 1px solid var(--border);
   background: var(--surface-alt);
   font-family: inherit;
-  font-size: 0.78rem;
+  font-size: 0.77rem;
   font-weight: 600;
   color: var(--text-muted);
   cursor: pointer;
@@ -607,9 +628,10 @@ body {
 .toolbar-legend {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
-  font-size: 0.76rem;
+  gap: 0.5rem;
+  font-size: 0.75rem;
   color: var(--text-muted);
+  flex-wrap: wrap;
 }
 
 .legend-dot {
@@ -625,22 +647,21 @@ body {
 /* ==================== CLIENTS GRID & CRM CARDS ==================== */
 .clients-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-  gap: 1.15rem;
+  grid-template-columns: repeat(auto-fill, minmax(345px, 1fr));
+  gap: 1.1rem;
 }
 
 .client-card {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  padding: 1.2rem;
+  padding: 1.15rem;
   box-shadow: var(--shadow-sm);
   transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
-  cursor: pointer;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  gap: 0.95rem;
+  gap: 0.85rem;
   position: relative;
 }
 
@@ -650,14 +671,14 @@ body {
   border-color: var(--border-strong);
 }
 
-/* Red highlight for clients near or at contract limit */
-.client-card.near-limit {
+/* Cards de cliente destacam em vermelho APENAS quando um contrato está em atraso */
+.client-card.card-overdue {
   border-color: var(--danger-border);
-  background: linear-gradient(180deg, #fff5f5 0%, #ffffff 42%);
+  background: linear-gradient(180deg, #fff5f5 0%, #ffffff 35%);
 }
 
-.client-card.near-limit:hover {
-  border-color: var(--danger);
+.client-card.card-due-soon {
+  border-color: var(--amber-border);
 }
 
 .client-card-top {
@@ -697,10 +718,10 @@ body {
 }
 
 .avatar-lg {
-  width: 70px;
-  height: 70px;
-  border-radius: 16px;
-  font-size: 1.45rem;
+  width: 66px;
+  height: 66px;
+  border-radius: 14px;
+  font-size: 1.4rem;
 }
 
 .client-title-wrap {
@@ -708,12 +729,16 @@ body {
 }
 
 .client-name {
-  font-size: 1.02rem;
+  font-size: 1.03rem;
   font-weight: 700;
   color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  cursor: pointer;
+}
+.client-name:hover {
+  color: var(--primary);
 }
 
 .client-company {
@@ -724,97 +749,75 @@ body {
   text-overflow: ellipsis;
 }
 
+.client-links-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin-top: 0.15rem;
+  flex-wrap: wrap;
+}
+
 .client-handle {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
   font-size: 0.8rem;
   font-weight: 600;
   color: var(--primary);
-  margin-top: 0.1rem;
+  text-decoration: none;
+}
+.client-handle:hover {
+  text-decoration: underline;
 }
 
-.limit-alert-badge {
+.whatsapp-mini-link {
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
-  font-size: 0.7rem;
-  font-weight: 700;
-  padding: 0.22rem 0.55rem;
-  border-radius: 999px;
-  background: #fee2e2;
-  color: #b91c1c;
-  border: 1px solid #fca5a5;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.crm-card-contracts-row {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  flex-wrap: wrap;
-}
-
-.contract-month-tag {
-  font-size: 0.72rem;
+  gap: 0.2rem;
+  font-size: 0.74rem;
   font-weight: 600;
-  padding: 0.15rem 0.5rem;
-  border-radius: 6px;
-  background: #f1f5f9;
-  color: #334155;
-  border: 1px solid var(--border);
+  color: #15803d;
+  background: #dcfce7;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  text-decoration: none;
+}
+.whatsapp-mini-link:hover {
+  background: #bbf7d0;
 }
 
-.client-metrics {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
+.contract-summary-line {
+  font-size: 0.8rem;
+  color: var(--text);
   background: var(--surface-alt);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 0.6rem 0.45rem;
-  text-align: center;
-  gap: 0.25rem;
-}
-
-.client-card.near-limit .client-metrics {
-  background: #fef2f2;
-  border-color: #fecaca;
-}
-
-.metric-box {
+  padding: 0.5rem 0.7rem;
   display: flex;
   flex-direction: column;
+  gap: 0.22rem;
 }
 
-.metric-num {
-  font-size: 1.05rem;
-  font-weight: 700;
+.contract-summary-period {
+  font-weight: 600;
   color: var(--text);
-}
-
-.metric-num.danger-text {
-  color: var(--danger);
-}
-
-.metric-lbl {
-  font-size: 0.7rem;
-  color: var(--text-muted);
-  font-weight: 500;
-}
-
-/* CRM Status breakdown pills inside client card */
-.crm-status-mini-row {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
-  flex-wrap: wrap;
-  padding-top: 0.2rem;
-  border-top: 1px dashed var(--border);
+  justify-content: space-between;
+  gap: 0.4rem;
 }
 
-.mini-status-chip {
-  font-size: 0.7rem;
-  font-weight: 600;
-  padding: 0.12rem 0.48rem;
+.contract-summary-numbers {
+  font-size: 0.79rem;
+  color: var(--text-muted);
+}
+
+.excess-pill {
+  display: inline-block;
+  font-size: 0.71rem;
+  font-weight: 700;
+  color: #15803d;
+  background: #dcfce7;
+  padding: 0.08rem 0.45rem;
   border-radius: 999px;
 }
 
@@ -822,7 +825,7 @@ body {
 .progress-wrap {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  gap: 0.28rem;
 }
 
 .progress-meta {
@@ -848,83 +851,53 @@ body {
   transition: width 0.3s ease;
 }
 
-.progress-bar-fill.fill-danger {
-  background: var(--danger);
-}
+/* Cores de Progresso das Entregas:
+   - Verde: entregas concluídas
+   - Azul/Roxo: em andamento
+   - Amarelo: prazo próximo (<= 3 dias com saldo)
+   - Vermelho: em atraso (prazo encerrado com saldo)
+   - Cinza: cancelado
+*/
+.progress-bar-fill.fill-entregue { background: #16a34a; }
+.progress-bar-fill.fill-andamento { background: #4f46e5; }
+.progress-bar-fill.fill-prazo-proximo { background: #d97706; }
+.progress-bar-fill.fill-atraso { background: #dc2626; }
+.progress-bar-fill.fill-cancelado { background: #94a3b8; }
 
-.progress-bar-fill.fill-emerald {
-  background: #16a34a;
-}
-
-/* ==================== GLOBAL POSTS CRM TABLE CARD ==================== */
-.crm-table-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 1.25rem 1.4rem;
-  box-shadow: var(--shadow-sm);
-}
-
-.crm-table-header {
+.client-card-actions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 1rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid var(--border);
+  gap: 0.5rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--border);
 }
 
-.crm-table-header h3 {
-  font-size: 1.05rem;
-  font-weight: 700;
+.client-card-actions .btn {
+  flex: 1;
 }
 
-.crm-table-count {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  background: var(--surface-alt);
-  padding: 0.25rem 0.65rem;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-}
-
-.post-client-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: 0.76rem;
-  font-weight: 700;
-  color: var(--primary);
-  background: var(--primary-soft);
-  padding: 0.2rem 0.6rem;
-  border-radius: 6px;
-  cursor: pointer;
-}
-.post-client-pill:hover {
-  text-decoration: underline;
-}
-
-/* ==================== BADGES ==================== */
+/* ==================== BADGES DE STATUS E PROGRESSO ==================== */
 .badge {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
-  padding: 0.2rem 0.62rem;
+  gap: 0.28rem;
+  padding: 0.18rem 0.58rem;
   border-radius: 999px;
-  font-size: 0.74rem;
+  font-size: 0.73rem;
   font-weight: 600;
   border: 1px solid transparent;
   white-space: nowrap;
 }
 
-.badge-pendente {
+.badge-pendente,
+.badge-prazo-proximo {
   background: var(--amber-bg);
   color: var(--amber-text);
   border-color: var(--amber-border);
 }
 
-.badge-producao {
+.badge-producao,
+.badge-andamento {
   background: var(--blue-bg);
   color: var(--blue-text);
   border-color: var(--blue-border);
@@ -937,19 +910,21 @@ body {
 }
 
 .badge-publicado,
-.badge-ativo {
+.badge-ativo,
+.badge-entregue {
   background: var(--emerald-bg);
   color: var(--emerald-text);
   border-color: var(--emerald-border);
 }
 
-.badge-concluido {
+.badge-concluido,
+.badge-cancelado-cinza {
   background: var(--gray-bg);
   color: var(--gray-text);
   border-color: var(--gray-border);
 }
 
-.badge-cancelado {
+.badge-atraso {
   background: var(--danger-soft);
   color: var(--danger);
   border-color: var(--danger-border);
@@ -961,65 +936,75 @@ body {
   border-color: var(--border-strong);
 }
 
-/* ==================== PROFILE VIEW ==================== */
+.contract-month-tag {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.14rem 0.48rem;
+  border-radius: 6px;
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid var(--border);
+}
+
+/* ==================== PROFILE VIEW COMPACT ==================== */
 .breadcrumb-bar {
-  margin-bottom: 1rem;
+  margin-bottom: 0.85rem;
 }
 
 .profile-header-card {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 1.4rem;
+  padding: 1.15rem 1.35rem;
   box-shadow: var(--shadow-sm);
-  margin-bottom: 1.2rem;
+  margin-bottom: 1rem;
 }
 
 .profile-top {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 1.25rem;
+  gap: 1rem;
   flex-wrap: wrap;
 }
 
 .profile-main-info {
   display: flex;
-  align-items: flex-start;
-  gap: 1.15rem;
+  align-items: center;
+  gap: 1rem;
   flex-wrap: wrap;
 }
 
 .profile-details h1 {
-  font-size: 1.45rem;
+  font-size: 1.35rem;
   font-weight: 700;
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.55rem;
   flex-wrap: wrap;
 }
 
 .profile-meta-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.6rem 1.25rem;
-  margin-top: 0.45rem;
-  font-size: 0.86rem;
+  gap: 0.5rem 1.1rem;
+  margin-top: 0.3rem;
+  font-size: 0.84rem;
   color: var(--text-muted);
 }
 
 .profile-meta-item {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.3rem;
 }
 
 .profile-notes {
-  margin-top: 0.85rem;
-  padding: 0.7rem 0.95rem;
+  margin-top: 0.7rem;
+  padding: 0.55rem 0.85rem;
   background: var(--surface-alt);
   border-radius: var(--radius-sm);
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   color: var(--text);
   border-left: 3px solid var(--primary);
 }
@@ -1027,148 +1012,259 @@ body {
 .profile-actions {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.5rem;
   flex-wrap: wrap;
 }
 
 .profile-stats-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 1rem;
-  margin-bottom: 1.5rem;
+  gap: 0.85rem;
+  margin-bottom: 1.1rem;
 }
 
-/* ==================== SECTIONS (CONTRACTS & POSTS) ==================== */
+/* ==================== COMPACT CONTRACTS LIST (HORIZONTAL CARDS) ==================== */
 .section-block {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 1.4rem;
+  padding: 1.2rem 1.35rem;
   box-shadow: var(--shadow-sm);
-  margin-bottom: 1.4rem;
+  margin-bottom: 1.15rem;
+}
+
+.section-compact {
+  padding: 1rem 1.25rem;
 }
 
 .section-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1.15rem;
+  gap: 0.85rem;
+  margin-bottom: 0.95rem;
   flex-wrap: wrap;
 }
 
+.section-header-compact {
+  margin-bottom: 0.75rem;
+}
+
 .section-title {
-  font-size: 1.12rem;
+  font-size: 1.05rem;
   font-weight: 700;
 }
 
 .section-subtitle {
-  font-size: 0.83rem;
+  font-size: 0.8rem;
   color: var(--text-muted);
 }
 
 .section-actions {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.55rem;
   flex-wrap: wrap;
 }
 
 .select-filter {
-  padding: 0.48rem 0.75rem;
+  padding: 0.42rem 0.7rem;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-strong);
   font-family: inherit;
-  font-size: 0.83rem;
+  font-size: 0.81rem;
   font-weight: 500;
   background: var(--surface);
   color: var(--text);
 }
 
-/* Contracts Grid */
-.contracts-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(295px, 1fr));
-  gap: 1rem;
-}
-
-.contract-card {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 1.1rem;
-  background: var(--surface-alt);
+.contracts-compact-list {
   display: flex;
   flex-direction: column;
-  gap: 0.8rem;
+  gap: 0.6rem;
+}
+
+.contract-row-card {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.3fr) minmax(190px, 1.4fr) minmax(150px, 1.1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-alt);
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
-.contract-card.contract-selected {
+.contract-row-card.contract-selected {
   border-color: var(--primary);
-  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.15);
+  background: #f5f7ff;
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.12);
 }
 
-.contract-card.contract-near-limit {
+.contract-row-card.contract-overdue {
   border-color: var(--danger-border);
   background: #fff8f8;
 }
 
-.contract-header {
+.contract-col-main {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.5rem;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
 }
 
-.contract-period {
+.contract-period-line {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.contract-period-title {
   font-weight: 700;
-  font-size: 1rem;
+  font-size: 0.94rem;
+  color: var(--text);
   cursor: pointer;
 }
-.contract-period:hover {
+.contract-period-title:hover {
   color: var(--primary);
 }
 
-.contract-types {
-  font-size: 0.8rem;
+.contract-meta-sub {
+  font-size: 0.76rem;
   color: var(--text-muted);
-  margin-top: 0.15rem;
-}
-
-.contract-value {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.contract-stats-row {
   display: flex;
-  justify-content: space-between;
-  font-size: 0.8rem;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.contract-col-counts {
+  font-size: 0.81rem;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.contract-col-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 0.22rem;
+}
+
+.contract-col-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  justify-content: flex-end;
+  position: relative;
+}
+
+/* Menu Mais Opções do Contrato */
+.dropdown-wrap {
+  position: relative;
+}
+
+.dropdown-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
   background: var(--surface);
-  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  min-width: 170px;
+  z-index: 30;
+  padding: 0.3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.dropdown-item {
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: 0.42rem 0.65rem;
+  font-family: inherit;
+  font-size: 0.79rem;
+  font-weight: 500;
+  color: var(--text);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.dropdown-item:hover {
+  background: var(--surface-alt);
+}
+.dropdown-item.danger {
+  color: var(--danger);
+}
+.dropdown-item.danger:hover {
+  background: var(--danger-soft);
+}
+
+/* ==================== POSTS LIST ==================== */
+.crm-table-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.2rem 1.35rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.crm-table-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.9rem;
+  padding-bottom: 0.7rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.crm-table-header h3 {
+  font-size: 1.02rem;
+  font-weight: 700;
+}
+
+.crm-table-count {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--surface-alt);
+  padding: 0.22rem 0.6rem;
+  border-radius: 999px;
   border: 1px solid var(--border);
 }
 
-.contract-footer {
-  display: flex;
-  justify-content: space-between;
+.post-client-pill {
+  display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--primary);
+  background: var(--primary-soft);
+  padding: 0.18rem 0.55rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.post-client-pill:hover {
+  text-decoration: underline;
 }
 
-/* Posts List */
 .posts-list {
   display: flex;
   flex-direction: column;
-  gap: 0.7rem;
+  gap: 0.6rem;
 }
 
 .post-item {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  padding: 0.95rem 1.1rem;
+  padding: 0.85rem 1.05rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1185,7 +1281,7 @@ body {
 .post-left {
   display: flex;
   flex-direction: column;
-  gap: 0.32rem;
+  gap: 0.28rem;
   flex: 1;
   min-width: 240px;
 }
@@ -1193,38 +1289,51 @@ body {
 .post-badges {
   display: flex;
   align-items: center;
-  gap: 0.42rem;
+  gap: 0.4rem;
   flex-wrap: wrap;
 }
 
 .post-date {
-  font-size: 0.78rem;
+  font-size: 0.77rem;
   color: var(--text-muted);
   font-weight: 500;
 }
 
 .post-title {
   font-weight: 600;
-  font-size: 0.95rem;
+  font-size: 0.93rem;
   color: var(--text);
 }
 
 .post-notes {
-  font-size: 0.8rem;
+  font-size: 0.79rem;
   color: var(--text-muted);
 }
 
 .post-right {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.45rem;
   flex-wrap: wrap;
 }
 
-/* Empty State */
+/* ==================== SETTINGS VIEW ==================== */
+.settings-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-width: 760px;
+}
+
+.danger-zone-block {
+  border-color: var(--danger-border);
+  background: #fffafa;
+}
+
+/* ==================== EMPTY STATE ==================== */
 .empty-state {
   text-align: center;
-  padding: 2.25rem 1rem;
+  padding: 2rem 1rem;
   color: var(--text-muted);
   border: 1px dashed var(--border-strong);
   border-radius: var(--radius-md);
@@ -1233,13 +1342,13 @@ body {
 
 .empty-state h4 {
   color: var(--text);
-  font-size: 0.98rem;
+  font-size: 0.96rem;
   margin-bottom: 0.25rem;
 }
 
 .empty-state p {
-  font-size: 0.84rem;
-  margin-bottom: 0.9rem;
+  font-size: 0.83rem;
+  margin-bottom: 0.85rem;
 }
 
 /* ==================== MODALS & FORMS ==================== */
@@ -1268,7 +1377,11 @@ body {
 }
 
 .modal-sm {
-  max-width: 420px;
+  max-width: 430px;
+}
+
+.modal-lg {
+  max-width: 740px;
 }
 
 @keyframes modalIn {
@@ -1284,15 +1397,21 @@ body {
 
 .modal-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  padding: 1.1rem 1.35rem;
+  padding: 1.05rem 1.35rem;
   border-bottom: 1px solid var(--border);
 }
 
 .modal-title {
   font-size: 1.08rem;
   font-weight: 700;
+}
+
+.modal-subtitle {
+  font-size: 0.79rem;
+  color: var(--text-muted);
+  margin-top: 0.1rem;
 }
 
 .btn-icon-close {
@@ -1311,10 +1430,10 @@ body {
 }
 
 .modal-body {
-  padding: 1.25rem 1.35rem;
+  padding: 1.2rem 1.35rem;
   display: flex;
   flex-direction: column;
-  gap: 0.95rem;
+  gap: 0.9rem;
 }
 
 .form-row {
@@ -1326,13 +1445,28 @@ body {
 .form-group {
   display: flex;
   flex-direction: column;
-  gap: 0.32rem;
+  gap: 0.3rem;
 }
 
 .form-group label {
   font-size: 0.8rem;
   font-weight: 600;
   color: var(--text);
+}
+
+.field-hint {
+  font-size: 0.73rem;
+  color: var(--text-muted);
+}
+
+.field-warning {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #b45309;
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+  padding: 0.42rem 0.65rem;
+  border-radius: 6px;
 }
 
 .req {
@@ -1342,7 +1476,7 @@ body {
 .form-group input,
 .form-group select,
 .form-group textarea {
-  padding: 0.58rem 0.78rem;
+  padding: 0.56rem 0.76rem;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
   font-family: inherit;
@@ -1362,7 +1496,34 @@ body {
 
 .file-input {
   font-size: 0.8rem !important;
-  padding: 0.42rem !important;
+  padding: 0.4rem !important;
+}
+
+.btn-more-options {
+  background: none;
+  border: none;
+  color: var(--primary);
+  font-family: inherit;
+  font-size: 0.81rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0;
+}
+.btn-more-options:hover {
+  text-decoration: underline;
+}
+
+.more-options-box {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
 .modal-footer {
@@ -1371,12 +1532,119 @@ body {
   gap: 0.6rem;
   padding-top: 0.5rem;
   border-top: 1px solid var(--border);
-  margin-top: 0.25rem;
+  margin-top: 0.2rem;
 }
 
 .confirm-text {
   font-size: 0.9rem;
   color: var(--text-muted);
+}
+
+/* ==================== RELATÓRIO DE ENTREGAS ==================== */
+.report-controls {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.report-actions-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.printable-report {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1.5rem;
+  color: #0f172a;
+}
+
+.report-doc-header {
+  border-bottom: 2px solid #0f172a;
+  padding-bottom: 0.85rem;
+  margin-bottom: 1rem;
+}
+
+.report-doc-tag {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #4f46e5;
+}
+
+.report-doc-title {
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin-top: 0.15rem;
+}
+
+.report-doc-handle {
+  font-size: 0.86rem;
+  color: #475569;
+  font-weight: 500;
+}
+
+.report-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(125px, 1fr));
+  gap: 0.75rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-sm);
+  padding: 0.85rem;
+  margin-bottom: 1.2rem;
+}
+
+.report-stat-box {
+  display: flex;
+  flex-direction: column;
+}
+
+.report-stat-label {
+  font-size: 0.73rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.report-stat-val {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.report-deliveries-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.report-delivery-item {
+  padding: 0.65rem 0.8rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.report-delivery-main {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.report-delivery-link {
+  font-size: 0.78rem;
+  color: #4f46e5;
+  word-break: break-all;
+  text-decoration: none;
 }
 
 /* ==================== AUTH SCREEN & DB STATUS ==================== */
@@ -1464,7 +1732,6 @@ body {
   gap: 0.35rem;
   padding-bottom: 0.5rem;
   margin-bottom: 0.25rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .logged-user-email {
@@ -1508,35 +1775,60 @@ body {
     width: 100%;
     height: auto;
     position: static;
-    padding: 1rem;
+    padding: 0.9rem 1rem;
   }
 
+  .sidebar-top {
+    gap: 0.85rem;
+  }
+
+  .sidebar-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .nav-item {
+    width: auto;
+    padding: 0.45rem 0.75rem;
+  }
+
+  .nav-section-label,
   .sidebar-pipeline-box {
     display: none;
-  }
-
-  .sidebar-footer {
-    flex-direction: row;
-    margin-top: 0.75rem;
   }
 
   .stats-grid,
   .profile-stats-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+
+  .contract-row-card {
+    grid-template-columns: 1fr;
+    gap: 0.6rem;
+  }
+
+  .contract-col-actions {
+    justify-content: flex-start;
+    padding-top: 0.35rem;
+    border-top: 1px solid var(--border);
+  }
 }
 
 @media (max-width: 640px) {
   .crm-topbar {
-    padding: 0.85rem 1rem;
+    padding: 0.75rem 1rem;
   }
 
   .crm-content {
-    padding: 1.15rem 1rem 3rem;
+    padding: 1rem 0.9rem 3rem;
   }
 
   .stats-grid,
   .profile-stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .clients-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1546,11 +1838,13 @@ body {
 
   .topbar-filters {
     width: 100%;
-    justify-content: space-between;
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .crm-filter-group {
-    flex: 1;
+    width: 100%;
+    justify-content: space-between;
   }
 
   .post-item {
@@ -1561,7 +1855,51 @@ body {
   .post-right {
     width: 100%;
     justify-content: flex-start;
-    padding-top: 0.5rem;
+    padding-top: 0.45rem;
     border-top: 1px solid var(--border);
+  }
+
+  .client-card-actions {
+    flex-direction: column;
+  }
+
+  .client-card-actions .btn {
+    width: 100%;
+  }
+}
+
+/* ==================== PRINT CSS (RELATÓRIO DE ENTREGAS / PDF) ==================== */
+@media print {
+  body {
+    background: #ffffff !important;
+  }
+  .no-print,
+  #appShell,
+  #authScreen,
+  #clientModal,
+  #contractModal,
+  #postModal,
+  #confirmModal,
+  #toastContainer {
+    display: none !important;
+  }
+  #reportModal {
+    position: static !important;
+    background: none !important;
+    padding: 0 !important;
+    display: block !important;
+  }
+  #reportModal .modal-card {
+    max-width: 100% !important;
+    max-height: none !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+  #reportModal .modal-body {
+    padding: 0 !important;
+  }
+  .printable-report {
+    border: none !important;
+    padding: 0 !important;
   }
 }

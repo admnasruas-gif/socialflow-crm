@@ -45,7 +45,7 @@
   </div>
 
   <!-- ==================== PAINEL PRINCIPAL DO CRM ==================== -->
-  <div class="crm-layout" id="appShell">
+  <div class="crm-layout no-print" id="appShell">
     <!-- ==================== SIDEBAR CRM ==================== -->
     <aside class="crm-sidebar">
       <div class="sidebar-top">
@@ -91,11 +91,18 @@
             </svg>
             <span>Esteira de Postagens</span>
           </button>
+          <button type="button" class="nav-item" id="navSettingsBtn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+            <span>Configurações</span>
+          </button>
         </nav>
 
         <!-- Resumo do Funil na Sidebar -->
         <div class="sidebar-pipeline-box">
-          <span class="nav-section-label">Funil de Conteúdo</span>
+          <span class="nav-section-label">Status Cadastrados</span>
           <div class="mini-funnel-list" id="sidebarFunnelSummary"></div>
         </div>
       </div>
@@ -107,13 +114,6 @@
             Sair da conta
           </button>
         </div>
-
-        <button type="button" class="btn btn-ghost btn-sm w-full" id="btnResetDemo" title="Restaurar dados de exemplo">
-          Restaurar Exemplos
-        </button>
-        <button type="button" class="btn btn-outline-danger btn-sm w-full" id="btnClearData" title="Limpar dados de exemplo e começar do zero">
-          Limpar Dados
-        </button>
       </div>
     </aside>
 
@@ -127,15 +127,15 @@
               <circle cx="11" cy="11" r="8"></circle>
               <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
             </svg>
-            <input type="text" id="searchInput" placeholder="Buscar cliente por nome, empresa ou @ do Instagram..." autocomplete="off">
+            <input type="text" id="searchInput" aria-label="Buscar cliente" placeholder="Buscar cliente por nome, empresa ou @ do Instagram..." autocomplete="off">
           </div>
         </div>
 
         <div class="topbar-filters">
           <div class="crm-filter-group">
-            <label for="globalContractMonthFilter">Mês do Contrato:</label>
+            <label for="globalContractMonthFilter">Período do Contrato:</label>
             <select id="globalContractMonthFilter" class="crm-select">
-              <option value="ALL">Todos os meses</option>
+              <option value="ALL">Todos os períodos</option>
             </select>
           </div>
 
@@ -143,7 +143,7 @@
             <label for="globalPostStatusFilter">Status da Postagem:</label>
             <select id="globalPostStatusFilter" class="crm-select">
               <option value="ALL">Todos os status</option>
-              <option value="Pendente">Pendente</option>
+              <option value="Pendente">Pendente (A produzir)</option>
               <option value="Em produção">Em produção</option>
               <option value="Agendado">Agendado</option>
               <option value="Publicado">Publicado</option>
@@ -170,19 +170,30 @@
           <div class="crm-page-header">
             <div>
               <h1 class="page-title" id="dashboardTitle">Carteira de Clientes</h1>
-              <p class="page-subtitle" id="dashboardSubtitle">Gerencie contratos mensais, entregas de conteúdo e status de cada conta.</p>
+              <p class="page-subtitle" id="dashboardSubtitle">Acompanhe o saldo contratual de cada cliente e registre entregas rapidamente.</p>
             </div>
-            <div class="view-switcher">
-              <button type="button" class="switch-btn active" id="tabViewClients">
-                <span>Cards de Clientes</span>
-              </button>
-              <button type="button" class="switch-btn" id="tabViewPosts">
-                <span>Esteira Global de Postagens</span>
-              </button>
+            <div class="header-controls-right">
+              <label class="checkbox-inline" title="Por padrão, contratos cancelados ficam fora dos indicadores de entrega">
+                <input type="checkbox" id="toggleShowCancelled">
+                <span>Incluir contratos cancelados</span>
+              </label>
+              <div class="view-switcher">
+                <button type="button" class="switch-btn active" id="tabViewClients">
+                  <span>Cards de Clientes</span>
+                </button>
+                <button type="button" class="switch-btn" id="tabViewPosts">
+                  <span>Esteira Global de Postagens</span>
+                </button>
+              </div>
             </div>
           </div>
 
-          <!-- KPI Cards -->
+          <!-- Aviso explícito quando filtro de status está ativo -->
+          <div id="statusFilterNotice" class="filter-info-banner hidden">
+            <span>ℹ️ <strong>Filtro de status ativo:</strong> A listagem exibe apenas itens com o status selecionado. O <strong>saldo contratual</strong> (Contratadas, Publicadas e Restantes a entregar) permanece calculado sobre o contrato do período.</span>
+          </div>
+
+          <!-- KPI Cards (Diferenciando Saldo Contratual de Status Cadastrado) -->
           <div class="stats-grid" id="dashboardStats">
             <div class="stat-card">
               <div class="stat-icon stat-icon-indigo">
@@ -211,6 +222,7 @@
               <div class="stat-info">
                 <span class="stat-label">Postagens Contratadas</span>
                 <strong class="stat-value" id="statTotalContracted">0</strong>
+                <span class="stat-sub" id="statContractedSub">Soma dos contratos no filtro</span>
               </div>
             </div>
 
@@ -224,6 +236,7 @@
               <div class="stat-info">
                 <span class="stat-label">Postagens Publicadas</span>
                 <strong class="stat-value" id="statTotalPublished">0</strong>
+                <span class="stat-sub" id="statExcessSub">Entregas concluídas</span>
               </div>
             </div>
 
@@ -235,8 +248,9 @@
                 </svg>
               </div>
               <div class="stat-info">
-                <span class="stat-label">Postagens Pendentes</span>
+                <span class="stat-label">Restantes a Entregar</span>
                 <strong class="stat-value" id="statTotalPending">0</strong>
+                <span class="stat-sub" id="statToProduceSub">A produzir (status Pendente): 0</span>
               </div>
             </div>
           </div>
@@ -249,9 +263,9 @@
                 <span>Todos os Status</span>
                 <strong class="pill-count" id="pillCountAll">0</strong>
               </button>
-              <button type="button" class="pipeline-pill" data-status-pill="Pendente">
+              <button type="button" class="pipeline-pill" data-status-pill="Pendente" title="Postagens cadastradas com status Pendente">
                 <span class="pill-dot dot-pendente"></span>
-                <span>Pendente</span>
+                <span>A produzir (Pendente)</span>
                 <strong class="pill-count" id="pillCountPendente">0</strong>
               </button>
               <button type="button" class="pipeline-pill" data-status-pill="Em produção">
@@ -272,8 +286,10 @@
             </div>
 
             <div class="toolbar-legend">
-              <span class="legend-dot legend-dot-danger"></span>
-              <span>Destaque vermelho: limite próximo (≤ 2 restantes ou ≥ 80%) ou atingido</span>
+              <span class="legend-dot dot-publicado"></span><span>Entregue</span>
+              <span class="legend-dot dot-producao"></span><span>Em andamento</span>
+              <span class="legend-dot dot-pendente"></span><span>Prazo próximo (≤ 3d)</span>
+              <span class="legend-dot legend-dot-danger"></span><span>Em atraso</span>
             </div>
           </div>
 
@@ -312,93 +328,146 @@
           <!-- Client KPI Summary -->
           <div class="profile-stats-grid" id="profileStatsGrid"></div>
 
-          <!-- Section: Contratos -->
-          <div class="section-block">
-            <div class="section-header">
+          <!-- Section: Contratos Compactos -->
+          <div class="section-block section-compact">
+            <div class="section-header section-header-compact">
               <div>
                 <h2 class="section-title">Contratos de Postagens</h2>
-                <p class="section-subtitle">Clique em um mês de contrato ou use o filtro abaixo para visualizar entregas por período.</p>
+                <p class="section-subtitle">Períodos ordenados cronologicamente. Excedentes de um contrato não compensam outro.</p>
               </div>
-              <button type="button" class="btn btn-secondary" id="btnNewContract">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                  <line x1="12" y1="5" x2="12" y2="19"></line>
-                  <line x1="5" y1="12" x2="19" y2="12"></line>
-                </svg>
-                <span>Novo contrato</span>
-              </button>
+              <div class="section-actions">
+                <label class="checkbox-inline">
+                  <input type="checkbox" id="toggleProfileShowCancelled">
+                  <span>Mostrar cancelados</span>
+                </label>
+                <button type="button" class="btn btn-secondary btn-sm" id="btnOpenDeliveryReport">
+                  📄 Relatório de entregas
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm" id="btnNewContract">
+                  + Novo contrato
+                </button>
+              </div>
             </div>
-            <div id="contractsList" class="contracts-grid"></div>
+            <div id="contractsList" class="contracts-compact-list"></div>
           </div>
 
           <!-- Section: Postagens do Cliente -->
           <div class="section-block">
             <div class="section-header">
               <div>
-                <h2 class="section-title">Cronograma & Histórico de Postagens</h2>
-                <p class="section-subtitle">Filtre por mês do contrato e por status da postagem. Status "Publicado" conta automaticamente.</p>
+                <h2 class="section-title">Histórico e Cronograma de Postagens</h2>
+                <p class="section-subtitle">Filtre por período do contrato ou status. Apenas postagens com status "Publicado" abatem o saldo restante.</p>
               </div>
               <div class="section-actions">
-                <select id="filterProfileContractMonth" class="select-filter" aria-label="Filtrar por mês do contrato">
-                  <option value="ALL">Todos os meses de contrato</option>
+                <select id="filterProfileContractMonth" class="select-filter" aria-label="Filtrar por período do contrato">
+                  <option value="ALL">Todos os contratos</option>
                 </select>
                 <select id="filterPostStatus" class="select-filter" aria-label="Filtrar por status da postagem">
                   <option value="ALL">Todos os status</option>
-                  <option value="Pendente">Pendente</option>
+                  <option value="Pendente">A produzir (Pendente)</option>
                   <option value="Em produção">Em produção</option>
                   <option value="Agendado">Agendado</option>
                   <option value="Publicado">Publicado</option>
                 </select>
-                <button type="button" class="btn btn-primary" id="btnNewPost">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                    <line x1="12" y1="5" x2="12" y2="19"></line>
-                    <line x1="5" y1="12" x2="19" y2="12"></line>
-                  </svg>
-                  <span>Nova postagem</span>
+                <button type="button" class="btn btn-secondary btn-sm" id="btnQuickPostProfile">
+                  ⚡ Registrar publicada
+                </button>
+                <button type="button" class="btn btn-primary btn-sm" id="btnNewPost">
+                  + Nova postagem
                 </button>
               </div>
             </div>
+            <div id="profileStatusFilterNotice" class="filter-info-banner hidden" style="margin-bottom: 0.9rem;">
+              <span>ℹ️ O filtro de status acima altera apenas a lista de postagens exibida abaixo, sem alterar o saldo contratual do cliente.</span>
+            </div>
             <div id="postsList" class="posts-list"></div>
+          </div>
+        </section>
+
+        <!-- ==================== VIEW 3: CONFIGURAÇÕES → DADOS ==================== -->
+        <section id="settingsView" class="view-section hidden">
+          <div class="crm-page-header">
+            <div>
+              <h1 class="page-title">Configurações → Dados</h1>
+              <p class="page-subtitle">Gerencie backups, exportação e ações críticas de dados com segurança.</p>
+            </div>
+          </div>
+
+          <div class="settings-grid">
+            <!-- Card 1: Exportação de Backup -->
+            <div class="section-block">
+              <h2 class="section-title">Exportar Backup dos Dados</h2>
+              <p class="section-subtitle" style="margin-top: 0.25rem; margin-bottom: 1rem;">
+                Baixe uma cópia completa em formato JSON com todos os seus clientes, contratos e postagens cadastrados atualmente. Recomendado antes de qualquer limpeza.
+              </p>
+              <button type="button" class="btn btn-primary" id="btnExportDataJson">
+                📥 Exportar meus dados (.JSON)
+              </button>
+            </div>
+
+            <!-- Card 2: Dados de Exemplo (Isolados) -->
+            <div class="section-block">
+              <h2 class="section-title">Dados de Demonstração (Exemplos)</h2>
+              <p class="section-subtitle" style="margin-top: 0.25rem; margin-bottom: 1rem;">
+                No <strong>Modo Local (Offline)</strong>, adiciona ou restaura os 3 clientes fictícios de demonstração marcados como exemplo, <strong>sem apagar seus clientes reais já cadastrados</strong>. Quando conectado ao Supabase em produção, esta opção não sobrescreve seus dados reais.
+              </p>
+              <button type="button" class="btn btn-secondary" id="btnResetDemo">
+                Carregar / Restaurar Exemplos de Demonstração
+              </button>
+            </div>
+
+            <!-- Card 3: Zona de Perigo (Exclusão com Confirmação Reforçada) -->
+            <div class="section-block danger-zone-block">
+              <h2 class="section-title" style="color: var(--danger);">Zona de Segurança — Limpeza em Massa</h2>
+              <p class="section-subtitle" style="margin-top: 0.25rem; margin-bottom: 1rem;">
+                Esta ação remove permanentemente todos os clientes, contratos e postagens da conta atual. Para evitar cliques acidentais, será solicitado que você exporte seus dados ou digite uma palavra de confirmação.
+              </p>
+              <button type="button" class="btn btn-danger" id="btnClearData">
+                🗑️ Limpar Todos os Dados...
+              </button>
+            </div>
           </div>
         </section>
       </main>
     </div>
   </div>
 
-  <!-- ==================== MODAL: CLIENTE ==================== -->
-  <div class="modal-backdrop hidden" id="clientModal" role="dialog" aria-modal="true" aria-labelledby="clientModalTitle">
+  <!-- ==================== MODAL: CLIENTE (SIMPLIFICADO) ==================== -->
+  <div class="modal-backdrop hidden no-print" id="clientModal" role="dialog" aria-modal="true" aria-labelledby="clientModalTitle">
     <div class="modal-card">
       <div class="modal-header">
         <h3 class="modal-title" id="clientModalTitle">Novo Cliente</h3>
         <button type="button" class="btn-icon-close" data-close-modal="clientModal" aria-label="Fechar">&times;</button>
       </div>
-      <form id="clientForm" class="modal-body">
+      <form id="clientForm" class="modal-body" novalidate>
         <input type="hidden" id="clientId">
         <div class="form-row">
           <div class="form-group">
-            <label for="clientName">Nome do cliente <span class="req">*</span></label>
-            <input type="text" id="clientName" required placeholder="Ex: Mariana Costa">
+            <label for="clientName">Nome do cliente ou empresa <span class="req">*</span></label>
+            <input type="text" id="clientName" required placeholder="Ex: Alcemir Costa">
+            <small class="field-hint">Use o nome da pessoa ou marca (nunca o mês do contrato).</small>
           </div>
           <div class="form-group">
-            <label for="clientCompany">Nome da empresa (opcional)</label>
+            <label for="clientCompany">Empresa / Marca secundária (opcional)</label>
             <input type="text" id="clientCompany" placeholder="Ex: Studio Lumina">
           </div>
         </div>
 
         <div class="form-row">
           <div class="form-group">
-            <label for="clientInstagram">@ do Instagram <span class="req">*</span></label>
-            <input type="text" id="clientInstagram" required placeholder="Ex: @studiolumina">
+            <label for="clientInstagram">@ do Instagram (opcional)</label>
+            <input type="text" id="clientInstagram" placeholder="Ex: @alcemircosta">
           </div>
           <div class="form-group">
-            <label for="clientPhone">Telefone / WhatsApp <span class="req">*</span></label>
-            <input type="text" id="clientPhone" required placeholder="Ex: (11) 99876-5432">
+            <label for="clientPhone">Telefone / WhatsApp (opcional)</label>
+            <input type="text" id="clientPhone" placeholder="Ex: (11) 99876-5432">
           </div>
         </div>
 
         <div class="form-row">
           <div class="form-group">
-            <label for="clientEmail">E-mail</label>
-            <input type="email" id="clientEmail" placeholder="Ex: contato@studiolumina.com.br">
+            <label for="clientEmail">E-mail (opcional)</label>
+            <input type="email" id="clientEmail" placeholder="Ex: contato@cliente.com.br">
           </div>
           <div class="form-group">
             <label for="clientAvatar">URL da Foto ou Logo (opcional)</label>
@@ -407,46 +476,59 @@
         </div>
 
         <div class="form-group">
-          <label for="clientAvatarFile">Ou envie uma imagem de foto/logo do seu computador (opcional)</label>
+          <label for="clientAvatarFile">Ou envie uma imagem do seu computador (opcional)</label>
           <input type="file" id="clientAvatarFile" accept="image/*" class="file-input">
         </div>
 
         <div class="form-group">
-          <label for="clientNotes">Observações</label>
-          <textarea id="clientNotes" rows="3" placeholder="Ex: Tom de voz leve, postagens às terças e quintas, paleta pastel..."></textarea>
+          <label for="clientNotes">Observações internas (opcional)</label>
+          <textarea id="clientNotes" rows="3" placeholder="Ex: Tom de voz, dias de postagem, referências..."></textarea>
         </div>
+
+        <p id="clientFormError" class="auth-error hidden"></p>
 
         <div class="modal-footer">
           <button type="button" class="btn btn-ghost" data-close-modal="clientModal">Cancelar</button>
-          <button type="submit" class="btn btn-primary">Salvar Cliente</button>
+          <button type="submit" class="btn btn-primary" id="btnSaveClient">Salvar Cliente</button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- ==================== MODAL: CONTRATO ==================== -->
-  <div class="modal-backdrop hidden" id="contractModal" role="dialog" aria-modal="true" aria-labelledby="contractModalTitle">
+  <!-- ==================== MODAL: CONTRATO (COM PRAZOS) ==================== -->
+  <div class="modal-backdrop hidden no-print" id="contractModal" role="dialog" aria-modal="true" aria-labelledby="contractModalTitle">
     <div class="modal-card">
       <div class="modal-header">
         <h3 class="modal-title" id="contractModalTitle">Novo Contrato de Postagens</h3>
         <button type="button" class="btn-icon-close" data-close-modal="contractModal" aria-label="Fechar">&times;</button>
       </div>
-      <form id="contractForm" class="modal-body">
+      <form id="contractForm" class="modal-body" novalidate>
         <input type="hidden" id="contractId">
         <div class="form-row">
           <div class="form-group">
-            <label for="contractPeriod">Período ou Mês <span class="req">*</span></label>
+            <label for="contractPeriod">Mês e Ano / Período <span class="req">*</span></label>
             <input type="text" id="contractPeriod" required placeholder="Ex: Novembro/2026">
           </div>
           <div class="form-group">
             <label for="contractTotalPosts">Qtd. de postagens contratadas <span class="req">*</span></label>
-            <input type="number" id="contractTotalPosts" required min="1" max="500" placeholder="Ex: 12">
+            <input type="number" id="contractTotalPosts" required min="1" max="1000" placeholder="Ex: 8">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="contractStartDate">Data de início (opcional)</label>
+            <input type="date" id="contractStartDate">
+          </div>
+          <div class="form-group">
+            <label for="contractEndDate">Data de término / prazo (opcional)</label>
+            <input type="date" id="contractEndDate">
           </div>
         </div>
 
         <div class="form-group">
           <label for="contractTypes">Tipos de postagens acordados (opcional)</label>
-          <input type="text" id="contractTypes" placeholder="Ex: 4 Reels, 6 Carrosséis, 2 Fotos estáticas">
+          <input type="text" id="contractTypes" placeholder="Ex: 4 Reels, 4 Carrosséis">
         </div>
 
         <div class="form-row">
@@ -455,7 +537,7 @@
             <input type="number" id="contractValue" step="0.01" min="0" placeholder="Ex: 1500.00">
           </div>
           <div class="form-group">
-            <label for="contractStatus">Status do contrato <span class="req">*</span></label>
+            <label for="contractStatus">Status administrativo <span class="req">*</span></label>
             <select id="contractStatus" required>
               <option value="Ativo">Ativo</option>
               <option value="Concluído">Concluído</option>
@@ -464,23 +546,54 @@
           </div>
         </div>
 
+        <p id="contractFormError" class="auth-error hidden"></p>
+
         <div class="modal-footer">
           <button type="button" class="btn btn-ghost" data-close-modal="contractModal">Cancelar</button>
-          <button type="submit" class="btn btn-primary">Salvar Contrato</button>
+          <button type="submit" class="btn btn-primary" id="btnSaveContract">Salvar Contrato</button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- ==================== MODAL: POSTAGEM ==================== -->
-  <div class="modal-backdrop hidden" id="postModal" role="dialog" aria-modal="true" aria-labelledby="postModalTitle">
+  <!-- ==================== MODAL: POSTAGEM (RÁPIDO + COMPLETO) ==================== -->
+  <div class="modal-backdrop hidden no-print" id="postModal" role="dialog" aria-modal="true" aria-labelledby="postModalTitle">
     <div class="modal-card">
       <div class="modal-header">
-        <h3 class="modal-title" id="postModalTitle">Nova Postagem</h3>
+        <div>
+          <h3 class="modal-title" id="postModalTitle">Adicionar Postagem</h3>
+          <p class="modal-subtitle" id="postModalClientLabel"></p>
+        </div>
         <button type="button" class="btn-icon-close" data-close-modal="postModal" aria-label="Fechar">&times;</button>
       </div>
-      <form id="postForm" class="modal-body">
+
+      <!-- Aviso quando o cliente não possui nenhum contrato -->
+      <div id="postNoContractWarning" class="modal-body hidden">
+        <div class="empty-state">
+          <h4>Este cliente ainda não possui contrato cadastrado</h4>
+          <p>Para registrar postagens e calcular o saldo restante corretamente, crie primeiro o contrato do período (ex.: Novembro/2026) para este cliente.</p>
+          <button type="button" class="btn btn-primary" id="btnCreateContractFromPostModal">
+            + Criar contrato para este cliente
+          </button>
+        </div>
+      </div>
+
+      <form id="postForm" class="modal-body" novalidate>
         <input type="hidden" id="postId">
+        <input type="hidden" id="postTargetClientId">
+
+        <div class="form-group">
+          <label for="postLink">Link da publicação (Instagram, TikTok, YouTube, Facebook...)</label>
+          <input type="url" id="postLink" placeholder="https://www.instagram.com/p/...">
+          <p id="duplicateLinkWarning" class="field-warning hidden">
+            ⚠️ Atenção: Este link já está registrado em outra postagem deste cliente. Você ainda pode salvar se desejar.
+          </p>
+        </div>
+
+        <div class="form-group">
+          <label for="postTitle">Título ou descrição curta <span class="req">*</span></label>
+          <input type="text" id="postTitle" required placeholder="Ex: 5 dicas de iluminação natural para sala">
+        </div>
 
         <div class="form-row">
           <div class="form-group">
@@ -488,61 +601,96 @@
             <input type="date" id="postDate" required>
           </div>
           <div class="form-group">
-            <label for="postType">Formato / Tipo <span class="req">*</span></label>
-            <select id="postType" required>
-              <option value="Reels">Reels</option>
-              <option value="Carrossel">Carrossel</option>
-              <option value="Story">Story</option>
-              <option value="Foto">Foto</option>
-              <option value="Vídeo">Vídeo</option>
-              <option value="Outro">Outro</option>
+            <label for="postContractId">Contrato / Período <span class="req">*</span></label>
+            <select id="postContractId" required>
+              <option value="">Selecione o contrato...</option>
             </select>
           </div>
         </div>
 
-        <div class="form-row">
+        <!-- Botão de expansão "Mais opções" -->
+        <div>
+          <button type="button" class="btn-more-options" id="btnTogglePostMoreOptions" aria-expanded="false">
+            <span id="moreOptionsArrow">▸</span>
+            <span>Mais opções (Tipo de conteúdo, Status e Observações)</span>
+          </button>
+        </div>
+
+        <div id="postMoreOptionsBlock" class="more-options-box hidden">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="postType">Tipo de conteúdo</label>
+              <select id="postType">
+                <option value="Reels">Reels</option>
+                <option value="Carrossel">Carrossel</option>
+                <option value="Story">Story</option>
+                <option value="Foto">Foto</option>
+                <option value="Vídeo">Vídeo</option>
+                <option value="Outro">Outro</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="postStatus">Status da postagem</label>
+              <select id="postStatus">
+                <option value="Publicado">Publicado (Conta como entregue)</option>
+                <option value="Agendado">Agendado</option>
+                <option value="Em produção">Em produção</option>
+                <option value="Pendente">Pendente (A produzir)</option>
+              </select>
+            </div>
+          </div>
+
           <div class="form-group">
-            <label for="postStatus">Status <span class="req">*</span></label>
-            <select id="postStatus" required>
-              <option value="Pendente">Pendente</option>
-              <option value="Em produção">Em produção</option>
-              <option value="Agendado">Agendado</option>
-              <option value="Publicado">Publicado</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label for="postContractId">Mês do Contrato</label>
-            <select id="postContractId">
-              <option value="">Geral (Sem contrato específico)</option>
-            </select>
+            <label for="postNotes">Observações internas (opcional)</label>
+            <textarea id="postNotes" rows="2" placeholder="Ex: Aprovado pelo cliente, música em alta..."></textarea>
           </div>
         </div>
 
-        <div class="form-group">
-          <label for="postTitle">Título ou descrição curta <span class="req">*</span></label>
-          <input type="text" id="postTitle" required placeholder="Ex: 5 dicas de iluminação natural para ambientes pequenos">
-        </div>
-
-        <div class="form-group">
-          <label for="postLink">Link da publicação (Instagram, TikTok, YouTube, Facebook...)</label>
-          <input type="url" id="postLink" placeholder="https://www.instagram.com/p/...">
-        </div>
-
-        <div class="form-group">
-          <label for="postNotes">Observação (opcional)</label>
-          <textarea id="postNotes" rows="2" placeholder="Ex: Cliente aprovou copy na v2, áudio em alta utilizado..."></textarea>
-        </div>
+        <p id="postFormError" class="auth-error hidden"></p>
 
         <div class="modal-footer">
           <button type="button" class="btn btn-ghost" data-close-modal="postModal">Cancelar</button>
-          <button type="submit" class="btn btn-primary">Salvar Postagem</button>
+          <button type="submit" class="btn btn-primary" id="btnSavePost">Salvar como publicada</button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- ==================== MODAL: CONFIRMAÇÃO ==================== -->
-  <div class="modal-backdrop hidden" id="confirmModal" role="dialog" aria-modal="true">
+  <!-- ==================== MODAL: RELATÓRIO DE ENTREGAS ==================== -->
+  <div class="modal-backdrop hidden" id="reportModal" role="dialog" aria-modal="true" aria-labelledby="reportModalTitle">
+    <div class="modal-card modal-lg">
+      <div class="modal-header no-print">
+        <div>
+          <h3 class="modal-title" id="reportModalTitle">Relatório de Entregas</h3>
+          <p class="modal-subtitle">Resumo limpo para enviar ao cliente (sem observações internas ou valores financeiros).</p>
+        </div>
+        <button type="button" class="btn-icon-close" data-close-modal="reportModal" aria-label="Fechar">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="report-controls no-print">
+          <div class="form-group" style="flex: 1;">
+            <label for="reportContractSelect">Selecionar Contrato / Período:</label>
+            <select id="reportContractSelect"></select>
+          </div>
+          <div class="report-actions-bar">
+            <button type="button" class="btn btn-secondary" id="btnCopyReportText">
+              📋 Copiar resumo
+            </button>
+            <button type="button" class="btn btn-primary" id="btnPrintReport">
+              🖨️ Imprimir / Salvar PDF
+            </button>
+          </div>
+        </div>
+
+        <!-- Área formatada para visualização e impressão limpa -->
+        <div id="printableReportArea" class="printable-report"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: CONFIRMAÇÃO / EXCLUSÃO REFORÇADA ==================== -->
+  <div class="modal-backdrop hidden no-print" id="confirmModal" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
     <div class="modal-card modal-sm">
       <div class="modal-header">
         <h3 class="modal-title" id="confirmTitle">Confirmar ação</h3>
@@ -550,6 +698,13 @@
       </div>
       <div class="modal-body">
         <p id="confirmMessage" class="confirm-text"></p>
+
+        <!-- Bloco opcional de confirmação reforçada por digitação -->
+        <div id="confirmHardBlock" class="form-group hidden" style="margin-top: 0.5rem;">
+          <label for="confirmHardInput" id="confirmHardLabel">Digite EXCLUIR para confirmar:</label>
+          <input type="text" id="confirmHardInput" placeholder="EXCLUIR" autocomplete="off">
+        </div>
+
         <div class="modal-footer">
           <button type="button" class="btn btn-ghost" data-close-modal="confirmModal">Cancelar</button>
           <button type="button" class="btn btn-danger" id="btnConfirmAction">Confirmar</button>
@@ -559,9 +714,9 @@
   </div>
 
   <!-- Toast feedback -->
-  <div id="toastContainer" class="toast-container"></div>
+  <div id="toastContainer" class="toast-container no-print"></div>
 
-  <!-- Script principal compatível com Vite/Vercel e execução local -->
+  <!-- Script principal -->
   <script type="module" src="/app.js"></script>
 </body>
 </html>
