@@ -5,7 +5,44 @@
  * - Desenvolvimento Local sem .env: Armazenamento Local (`localStorage`) com dados de exemplo
  */
 
-import { isSupabaseConfigured, getSupabaseClient } from './src/supabaseClient.js';
+// ==================== CONFIGURAÇÃO SUPABASE (SEM DEPENDÊNCIA DE SUBPASTA) ====================
+const getEnv = (key) => {
+  try {
+    if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[key]) {
+      return import.meta.env[key].trim();
+    }
+  } catch (_) {}
+  return '';
+};
+
+const SUPABASE_URL = getEnv('VITE_SUPABASE_URL');
+const SUPABASE_ANON_KEY = getEnv('VITE_SUPABASE_ANON_KEY');
+
+const isSupabaseConfigured = Boolean(
+  SUPABASE_URL &&
+  SUPABASE_ANON_KEY &&
+  SUPABASE_URL.startsWith('http')
+);
+
+let supabaseInstance = null;
+
+async function getSupabaseClient() {
+  if (!isSupabaseConfigured) return null;
+  if (supabaseInstance) return supabaseInstance;
+
+  try {
+    if (typeof window !== 'undefined' && window.supabase && typeof window.supabase.createClient === 'function') {
+      supabaseInstance = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      return supabaseInstance;
+    }
+    const mod = await import('@supabase/supabase-js');
+    supabaseInstance = mod.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    return supabaseInstance;
+  } catch (err) {
+    console.error('Erro ao inicializar cliente Supabase:', err);
+    return null;
+  }
+}
 
 const STORAGE_KEY = 'socialflow_data_v1';
 
