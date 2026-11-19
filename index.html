@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SocialFlow CRM — Gestão de Clientes & Social Media</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- ==================== TELA DE LOGIN (SUPABASE AUTH) ==================== -->
+  <div id="authScreen" class="auth-screen hidden">
+    <div class="auth-card">
+      <div class="auth-brand">
+        <div class="brand-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
+            <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
+            <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
+          </svg>
+        </div>
+        <div>
+          <h1 class="auth-title">SocialFlow CRM</h1>
+          <p class="auth-subtitle">Acesso restrito ao Administrador</p>
+        </div>
+      </div>
+
+      <form id="loginForm" class="auth-form">
+        <div class="form-group">
+          <label for="loginEmail">E-mail de acesso</label>
+          <input type="email" id="loginEmail" required placeholder="seuemail@exemplo.com" autocomplete="email">
+        </div>
+        <div class="form-group">
+          <label for="loginPassword">Senha</label>
+          <input type="password" id="loginPassword" required placeholder="••••••••" autocomplete="current-password">
+        </div>
+        <p id="loginErrorMsg" class="auth-error hidden"></p>
+        <button type="submit" class="btn btn-primary w-full" id="btnLoginSubmit">
+          Entrar no Painel
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== PAINEL PRINCIPAL DO CRM ==================== -->
+  <div class="crm-layout" id="appShell">
+    <!-- ==================== SIDEBAR CRM ==================== -->
+    <aside class="crm-sidebar">
+      <div class="sidebar-top">
+        <div class="brand" id="brandLogo" role="button" tabindex="0">
+          <div class="brand-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
+              <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
+              <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
+            </svg>
+          </div>
+          <div>
+            <span class="brand-name">SocialFlow</span>
+            <span class="brand-tag">Social Media CRM</span>
+          </div>
+        </div>
+
+        <!-- Status do Banco de Dados (Supabase ou Modo Local) -->
+        <div class="db-mode-badge" id="dbConnectionBadge">
+          <span class="db-dot" id="dbConnectionDot"></span>
+          <span id="dbConnectionText">Modo Local (Offline)</span>
+        </div>
+
+        <nav class="sidebar-nav">
+          <span class="nav-section-label">Menu Principal</span>
+          <button type="button" class="nav-item active" id="navClientsBtn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="7" height="7"></rect>
+              <rect x="14" y="3" width="7" height="7"></rect>
+              <rect x="14" y="14" width="7" height="7"></rect>
+              <rect x="3" y="14" width="7" height="7"></rect>
+            </svg>
+            <span>Carteira de Clientes</span>
+          </button>
+          <button type="button" class="nav-item" id="navPipelineBtn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="8" y1="6" x2="21" y2="6"></line>
+              <line x1="8" y1="12" x2="21" y2="12"></line>
+              <line x1="8" y1="18" x2="21" y2="18"></line>
+              <line x1="3" y1="6" x2="3.01" y2="6"></line>
+              <line x1="3" y1="12" x2="3.01" y2="12"></line>
+              <line x1="3" y1="18" x2="3.01" y2="18"></line>
+            </svg>
+            <span>Esteira de Postagens</span>
+          </button>
+        </nav>
+
+        <!-- Resumo do Funil na Sidebar -->
+        <div class="sidebar-pipeline-box">
+          <span class="nav-section-label">Funil de Conteúdo</span>
+          <div class="mini-funnel-list" id="sidebarFunnelSummary"></div>
+        </div>
+      </div>
+
+      <div class="sidebar-footer">
+        <div id="loggedUserInfo" class="logged-user-info hidden">
+          <span id="loggedUserEmail" class="logged-user-email"></span>
+          <button type="button" class="btn btn-ghost btn-sm w-full" id="btnLogout">
+            Sair da conta
+          </button>
+        </div>
+
+        <button type="button" class="btn btn-ghost btn-sm w-full" id="btnResetDemo" title="Restaurar dados de exemplo">
+          Restaurar Exemplos
+        </button>
+        <button type="button" class="btn btn-outline-danger btn-sm w-full" id="btnClearData" title="Limpar dados de exemplo e começar do zero">
+          Limpar Dados
+        </button>
+      </div>
+    </aside>
+
+    <!-- ==================== ÁREA PRINCIPAL DO CRM ==================== -->
+    <div class="crm-main">
+      <!-- Topbar do CRM -->
+      <header class="crm-topbar">
+        <div class="topbar-left">
+          <div class="search-box">
+            <svg class="search-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" id="searchInput" placeholder="Buscar cliente por nome, empresa ou @ do Instagram..." autocomplete="off">
+          </div>
+        </div>
+
+        <div class="topbar-filters">
+          <div class="crm-filter-group">
+            <label for="globalContractMonthFilter">Mês do Contrato:</label>
+            <select id="globalContractMonthFilter" class="crm-select">
+              <option value="ALL">Todos os meses</option>
+            </select>
+          </div>
+
+          <div class="crm-filter-group">
+            <label for="globalPostStatusFilter">Status da Postagem:</label>
+            <select id="globalPostStatusFilter" class="crm-select">
+              <option value="ALL">Todos os status</option>
+              <option value="Pendente">Pendente</option>
+              <option value="Em produção">Em produção</option>
+              <option value="Agendado">Agendado</option>
+              <option value="Publicado">Publicado</option>
+            </select>
+          </div>
+
+          <button type="button" class="btn btn-ghost btn-sm hidden" id="btnClearGlobalFilters">
+            Limpar filtros
+          </button>
+
+          <button type="button" class="btn btn-primary" id="btnNewClientHeader">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            <span>Novo cliente</span>
+          </button>
+        </div>
+      </header>
+
+      <main class="crm-content">
+        <!-- ==================== VIEW 1: DASHBOARD CRM ==================== -->
+        <section id="dashboardView" class="view-section">
+          <div class="crm-page-header">
+            <div>
+              <h1 class="page-title" id="dashboardTitle">Carteira de Clientes</h1>
+              <p class="page-subtitle" id="dashboardSubtitle">Gerencie contratos mensais, entregas de conteúdo e status de cada conta.</p>
+            </div>
+            <div class="view-switcher">
+              <button type="button" class="switch-btn active" id="tabViewClients">
+                <span>Cards de Clientes</span>
+              </button>
+              <button type="button" class="switch-btn" id="tabViewPosts">
+                <span>Esteira Global de Postagens</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- KPI Cards -->
+          <div class="stats-grid" id="dashboardStats">
+            <div class="stat-card">
+              <div class="stat-icon stat-icon-indigo">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="9" cy="7" r="4"></circle>
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                </svg>
+              </div>
+              <div class="stat-info">
+                <span class="stat-label">Clientes no Filtro</span>
+                <strong class="stat-value" id="statTotalClients">0</strong>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-icon stat-icon-slate">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <polyline points="14 2 14 8 20 8"></polyline>
+                  <line x1="16" y1="13" x2="8" y2="13"></line>
+                  <line x1="16" y1="17" x2="8" y2="17"></line>
+                </svg>
+              </div>
+              <div class="stat-info">
+                <span class="stat-label">Postagens Contratadas</span>
+                <strong class="stat-value" id="statTotalContracted">0</strong>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-icon stat-icon-emerald">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                </svg>
+              </div>
+              <div class="stat-info">
+                <span class="stat-label">Postagens Publicadas</span>
+                <strong class="stat-value" id="statTotalPublished">0</strong>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-icon stat-icon-amber">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+              </div>
+              <div class="stat-info">
+                <span class="stat-label">Postagens Pendentes</span>
+                <strong class="stat-value" id="statTotalPending">0</strong>
+              </div>
+            </div>
+          </div>
+
+          <!-- CRM Quick Pipeline Strip -->
+          <div class="crm-pipeline-strip">
+            <div class="pipeline-pills" id="dashboardStatusPills">
+              <button type="button" class="pipeline-pill active" data-status-pill="ALL">
+                <span class="pill-dot dot-all"></span>
+                <span>Todos os Status</span>
+                <strong class="pill-count" id="pillCountAll">0</strong>
+              </button>
+              <button type="button" class="pipeline-pill" data-status-pill="Pendente">
+                <span class="pill-dot dot-pendente"></span>
+                <span>Pendente</span>
+                <strong class="pill-count" id="pillCountPendente">0</strong>
+              </button>
+              <button type="button" class="pipeline-pill" data-status-pill="Em produção">
+                <span class="pill-dot dot-producao"></span>
+                <span>Em produção</span>
+                <strong class="pill-count" id="pillCountProducao">0</strong>
+              </button>
+              <button type="button" class="pipeline-pill" data-status-pill="Agendado">
+                <span class="pill-dot dot-agendado"></span>
+                <span>Agendado</span>
+                <strong class="pill-count" id="pillCountAgendado">0</strong>
+              </button>
+              <button type="button" class="pipeline-pill" data-status-pill="Publicado">
+                <span class="pill-dot dot-publicado"></span>
+                <span>Publicado</span>
+                <strong class="pill-count" id="pillCountPublicado">0</strong>
+              </button>
+            </div>
+
+            <div class="toolbar-legend">
+              <span class="legend-dot legend-dot-danger"></span>
+              <span>Destaque vermelho: limite próximo (≤ 2 restantes ou ≥ 80%) ou atingido</span>
+            </div>
+          </div>
+
+          <!-- SUB-VIEW 1A: Grid de Cards de Clientes -->
+          <div id="clientsSubView">
+            <div id="clientsGrid" class="clients-grid"></div>
+          </div>
+
+          <!-- SUB-VIEW 1B: Esteira Global de Postagens (CRM Table/Feed) -->
+          <div id="globalPostsSubView" class="hidden">
+            <div class="crm-table-card">
+              <div class="crm-table-header">
+                <h3>Esteira de Entregas & Publicações</h3>
+                <span class="crm-table-count" id="globalPostsCountLabel">0 postagens</span>
+              </div>
+              <div id="globalPostsList" class="posts-list"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==================== VIEW 2: PERFIL DO CLIENTE ==================== -->
+        <section id="profileView" class="view-section hidden">
+          <div class="breadcrumb-bar">
+            <button type="button" class="btn btn-ghost" id="btnBackToDashboard">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="19" y1="12" x2="5" y2="12"></line>
+                <polyline points="12 19 5 12 12 5"></polyline>
+              </svg>
+              <span>Voltar para Carteira de Clientes</span>
+            </button>
+          </div>
+
+          <!-- Client Profile Header Card -->
+          <div class="profile-header-card" id="profileHeaderCard"></div>
+
+          <!-- Client KPI Summary -->
+          <div class="profile-stats-grid" id="profileStatsGrid"></div>
+
+          <!-- Section: Contratos -->
+          <div class="section-block">
+            <div class="section-header">
+              <div>
+                <h2 class="section-title">Contratos de Postagens</h2>
+                <p class="section-subtitle">Clique em um mês de contrato ou use o filtro abaixo para visualizar entregas por período.</p>
+              </div>
+              <button type="button" class="btn btn-secondary" id="btnNewContract">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                <span>Novo contrato</span>
+              </button>
+            </div>
+            <div id="contractsList" class="contracts-grid"></div>
+          </div>
+
+          <!-- Section: Postagens do Cliente -->
+          <div class="section-block">
+            <div class="section-header">
+              <div>
+                <h2 class="section-title">Cronograma & Histórico de Postagens</h2>
+                <p class="section-subtitle">Filtre por mês do contrato e por status da postagem. Status "Publicado" conta automaticamente.</p>
+              </div>
+              <div class="section-actions">
+                <select id="filterProfileContractMonth" class="select-filter" aria-label="Filtrar por mês do contrato">
+                  <option value="ALL">Todos os meses de contrato</option>
+                </select>
+                <select id="filterPostStatus" class="select-filter" aria-label="Filtrar por status da postagem">
+                  <option value="ALL">Todos os status</option>
+                  <option value="Pendente">Pendente</option>
+                  <option value="Em produção">Em produção</option>
+                  <option value="Agendado">Agendado</option>
+                  <option value="Publicado">Publicado</option>
+                </select>
+                <button type="button" class="btn btn-primary" id="btnNewPost">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                  <span>Nova postagem</span>
+                </button>
+              </div>
+            </div>
+            <div id="postsList" class="posts-list"></div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: CLIENTE ==================== -->
+  <div class="modal-backdrop hidden" id="clientModal" role="dialog" aria-modal="true" aria-labelledby="clientModalTitle">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title" id="clientModalTitle">Novo Cliente</h3>
+        <button type="button" class="btn-icon-close" data-close-modal="clientModal" aria-label="Fechar">&times;</button>
+      </div>
+      <form id="clientForm" class="modal-body">
+        <input type="hidden" id="clientId">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="clientName">Nome do cliente <span class="req">*</span></label>
+            <input type="text" id="clientName" required placeholder="Ex: Mariana Costa">
+          </div>
+          <div class="form-group">
+            <label for="clientCompany">Nome da empresa (opcional)</label>
+            <input type="text" id="clientCompany" placeholder="Ex: Studio Lumina">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="clientInstagram">@ do Instagram <span class="req">*</span></label>
+            <input type="text" id="clientInstagram" required placeholder="Ex: @studiolumina">
+          </div>
+          <div class="form-group">
+            <label for="clientPhone">Telefone / WhatsApp <span class="req">*</span></label>
+            <input type="text" id="clientPhone" required placeholder="Ex: (11) 99876-5432">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="clientEmail">E-mail</label>
+            <input type="email" id="clientEmail" placeholder="Ex: contato@studiolumina.com.br">
+          </div>
+          <div class="form-group">
+            <label for="clientAvatar">URL da Foto ou Logo (opcional)</label>
+            <input type="url" id="clientAvatar" placeholder="https://...">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="clientAvatarFile">Ou envie uma imagem de foto/logo do seu computador (opcional)</label>
+          <input type="file" id="clientAvatarFile" accept="image/*" class="file-input">
+        </div>
+
+        <div class="form-group">
+          <label for="clientNotes">Observações</label>
+          <textarea id="clientNotes" rows="3" placeholder="Ex: Tom de voz leve, postagens às terças e quintas, paleta pastel..."></textarea>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" data-close-modal="clientModal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Salvar Cliente</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: CONTRATO ==================== -->
+  <div class="modal-backdrop hidden" id="contractModal" role="dialog" aria-modal="true" aria-labelledby="contractModalTitle">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title" id="contractModalTitle">Novo Contrato de Postagens</h3>
+        <button type="button" class="btn-icon-close" data-close-modal="contractModal" aria-label="Fechar">&times;</button>
+      </div>
+      <form id="contractForm" class="modal-body">
+        <input type="hidden" id="contractId">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="contractPeriod">Período ou Mês <span class="req">*</span></label>
+            <input type="text" id="contractPeriod" required placeholder="Ex: Novembro/2026">
+          </div>
+          <div class="form-group">
+            <label for="contractTotalPosts">Qtd. de postagens contratadas <span class="req">*</span></label>
+            <input type="number" id="contractTotalPosts" required min="1" max="500" placeholder="Ex: 12">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="contractTypes">Tipos de postagens acordados (opcional)</label>
+          <input type="text" id="contractTypes" placeholder="Ex: 4 Reels, 6 Carrosséis, 2 Fotos estáticas">
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="contractValue">Valor contratado R$ (opcional)</label>
+            <input type="number" id="contractValue" step="0.01" min="0" placeholder="Ex: 1500.00">
+          </div>
+          <div class="form-group">
+            <label for="contractStatus">Status do contrato <span class="req">*</span></label>
+            <select id="contractStatus" required>
+              <option value="Ativo">Ativo</option>
+              <option value="Concluído">Concluído</option>
+              <option value="Cancelado">Cancelado</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" data-close-modal="contractModal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Salvar Contrato</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: POSTAGEM ==================== -->
+  <div class="modal-backdrop hidden" id="postModal" role="dialog" aria-modal="true" aria-labelledby="postModalTitle">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title" id="postModalTitle">Nova Postagem</h3>
+        <button type="button" class="btn-icon-close" data-close-modal="postModal" aria-label="Fechar">&times;</button>
+      </div>
+      <form id="postForm" class="modal-body">
+        <input type="hidden" id="postId">
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="postDate">Data da postagem <span class="req">*</span></label>
+            <input type="date" id="postDate" required>
+          </div>
+          <div class="form-group">
+            <label for="postType">Formato / Tipo <span class="req">*</span></label>
+            <select id="postType" required>
+              <option value="Reels">Reels</option>
+              <option value="Carrossel">Carrossel</option>
+              <option value="Story">Story</option>
+              <option value="Foto">Foto</option>
+              <option value="Vídeo">Vídeo</option>
+              <option value="Outro">Outro</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="postStatus">Status <span class="req">*</span></label>
+            <select id="postStatus" required>
+              <option value="Pendente">Pendente</option>
+              <option value="Em produção">Em produção</option>
+              <option value="Agendado">Agendado</option>
+              <option value="Publicado">Publicado</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="postContractId">Mês do Contrato</label>
+            <select id="postContractId">
+              <option value="">Geral (Sem contrato específico)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="postTitle">Título ou descrição curta <span class="req">*</span></label>
+          <input type="text" id="postTitle" required placeholder="Ex: 5 dicas de iluminação natural para ambientes pequenos">
+        </div>
+
+        <div class="form-group">
+          <label for="postLink">Link da publicação (Instagram, TikTok, YouTube, Facebook...)</label>
+          <input type="url" id="postLink" placeholder="https://www.instagram.com/p/...">
+        </div>
+
+        <div class="form-group">
+          <label for="postNotes">Observação (opcional)</label>
+          <textarea id="postNotes" rows="2" placeholder="Ex: Cliente aprovou copy na v2, áudio em alta utilizado..."></textarea>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" data-close-modal="postModal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Salvar Postagem</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: CONFIRMAÇÃO ==================== -->
+  <div class="modal-backdrop hidden" id="confirmModal" role="dialog" aria-modal="true">
+    <div class="modal-card modal-sm">
+      <div class="modal-header">
+        <h3 class="modal-title" id="confirmTitle">Confirmar ação</h3>
+        <button type="button" class="btn-icon-close" data-close-modal="confirmModal" aria-label="Fechar">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p id="confirmMessage" class="confirm-text"></p>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" data-close-modal="confirmModal">Cancelar</button>
+          <button type="button" class="btn btn-danger" id="btnConfirmAction">Confirmar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast feedback -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- Script principal compatível com Vite/Vercel e execução local -->
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
