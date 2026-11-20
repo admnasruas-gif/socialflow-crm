@@ -367,6 +367,62 @@ function sortContractsChronologically(contracts = [], descending = true) {
   return [...contracts].sort((a, b) => comparePeriodsChronologically(a.period, b.period, descending));
 }
 
+const PT_MONTH_NAMES = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+];
+
+/**
+ * Calcula automaticamente o próximo mês/ano a partir de um período atual (ex: "Novembro/2026" -> "Dezembro/2026", "Dezembro/2026" -> "Janeiro/2027")
+ * e retorna também as datas de início e fim do novo mês caso o contrato anterior usasse datas.
+ */
+function computeNextContractPeriod(currentPeriodStr = '', prevStartDate = '', prevEndDate = '') {
+  const key = parsePeriodSortKey(currentPeriodStr);
+  let nextYear;
+  let nextMonth; // 1..12
+
+  if (key > 0) {
+    const year = Math.floor(key / 100);
+    const month = key % 100;
+    if (month >= 1 && month <= 11) {
+      nextMonth = month + 1;
+      nextYear = year;
+    } else if (month === 12) {
+      nextMonth = 1;
+      nextYear = year + 1;
+    }
+  }
+
+  if (!nextYear || !nextMonth) {
+    const now = new Date();
+    const m = now.getMonth() + 1; // 1..12
+    if (m === 12) {
+      nextMonth = 1;
+      nextYear = now.getFullYear() + 1;
+    } else {
+      nextMonth = m + 1;
+      nextYear = now.getFullYear();
+    }
+  }
+
+  const nextPeriodLabel = `${PT_MONTH_NAMES[nextMonth - 1]}/${nextYear}`;
+  let nextStartDate = '';
+  let nextEndDate = '';
+
+  if (prevStartDate || prevEndDate) {
+    const mm = String(nextMonth).padStart(2, '0');
+    const lastDay = new Date(nextYear, nextMonth, 0).getDate();
+    nextStartDate = `${nextYear}-${mm}-01`;
+    nextEndDate = `${nextYear}-${mm}-${String(lastDay).padStart(2, '0')}`;
+  }
+
+  return {
+    period: nextPeriodLabel,
+    startDate: nextStartDate,
+    endDate: nextEndDate
+  };
+}
+
 // ==================== BANCO DE DADOS: SUPABASE & LOCALSTORAGE ====================
 function mapSupabaseRowsToAppData(clientesRows = [], contratosRows = [], postagensRows = []) {
   return {
@@ -1696,6 +1752,9 @@ function renderContractsList(client, selectedProfileMonth = 'ALL', includeCancel
             <button type="button" class="dropdown-item" onclick="filterProfileByContractMonth('${escapeHtml(normalizePeriod(contract.period))}')">
               Selecionar contrato
             </button>
+            <button type="button" class="dropdown-item" onclick="renewContractInOneClick('${escapeHtml(contract.id)}')">
+              ↻ Renovar para o próximo mês
+            </button>
             <button type="button" class="dropdown-item" onclick="openContractModal('${escapeHtml(contract.id)}')">
               Editar contrato
             </button>
@@ -2648,6 +2707,110 @@ async function handleContractSubmit(e) {
   }
 }
 
+/**
+ * Renova um contrato em 1 clique para o próximo mês:
+ * - Copia quantidade contratada, tipos e valor do contrato selecionado (ou do contrato mais recente do cliente)
+ * - Avança o período para o próximo mês/ano (ex: Novembro/2026 -> Dezembro/2026)
+ * - Se o contrato do próximo mês já existir para este cliente, avisa e seleciona sem duplicar!
+ */
+async function renewContractInOneClick(sourceContractId = null) {
+  closeAllKebabMenus();
+  const client = appData.clients.find(c => c.id === currentClientId);
+  if (!client) return;
+
+  const sorted = sortContractsChronologically(client.contracts || [], true);
+  if (sorted.length === 0) {
+    showToast('Crie o primeiro contrato do cliente para poder renovar nos próximos meses.');
+    openContractModal();
+    return;
+  }
+
+  let baseContract = null;
+  if (sourceContractId) {
+    baseContract = sorted.find(c => c.id === sourceContractId);
+  }
+  if (!baseContract) {
+    const selectedProfileMonth = document.getElementById('filterProfileContractMonth')?.value || 'ALL';
+    if (selectedProfileMonth !== 'ALL') {
+      baseContract = sorted.find(c => normalizePeriod(c.period).toLowerCase() === selectedProfileMonth.toLowerCase());
+    }
+  }
+  if (!baseContract) {
+    baseContract = sorted.find(c => c.status === 'Ativo') || sorted[0];
+  }
+
+  const nextInfo = computeNextContractPeriod(baseContract.period, baseContract.startDate, baseContract.endDate);
+
+  // Evita duplicar se o contrato do próximo mês já existir
+  const existingNext = sorted.find(c => normalizePeriod(c.period).toLowerCase() === nextInfo.period.toLowerCase());
+  if (existingNext) {
+    showToast(`O contrato de ${nextInfo.period} já existe para este cliente!`);
+    filterProfileByContractMonth(existingNext.period);
+    return;
+  }
+
+  const totalPosts = Number(baseContract.totalPosts) || 0;
+  const types = baseContract.types || '';
+  const value = baseContract.value !== '' && baseContract.value !== null && baseContract.value !== undefined
+    ? Number(baseContract.value)
+    : null;
+
+  try {
+    if (supabase) {
+      const fullPayload = {
+        cliente_id: client.id,
+        periodo: nextInfo.period,
+        total_postagens: totalPosts,
+        tipos: types,
+        valor: value,
+        status: 'Ativo',
+        data_inicio: nextInfo.startDate || null,
+        data_fim: nextInfo.endDate || null
+      };
+      const basePayload = {
+        cliente_id: client.id,
+        periodo: nextInfo.period,
+        total_postagens: totalPosts,
+        tipos: types,
+        valor: value,
+        status: 'Ativo'
+      };
+
+      const res = await supabase.from('contratos').insert([fullPayload]);
+      if (res.error && String(res.error.message || '').includes('data_')) {
+        const fallback = await supabase.from('contratos').insert([basePayload]);
+        if (fallback.error) throw fallback.error;
+      } else if (res.error) {
+        throw res.error;
+      }
+      await fetchFromSupabase();
+    } else {
+      client.contracts.push({
+        id: uid('cnt'),
+        period: nextInfo.period,
+        totalPosts,
+        startDate: nextInfo.startDate,
+        endDate: nextInfo.endDate,
+        types,
+        value: value !== null ? value : '',
+        status: 'Ativo'
+      });
+      client.contracts = sortContractsChronologically(client.contracts, true);
+      saveData();
+    }
+
+    populateContractMonthFilters();
+    const profileSelect = document.getElementById('filterProfileContractMonth');
+    if (profileSelect) {
+      profileSelect.value = nextInfo.period;
+    }
+    renderClientProfile();
+    showToast(`Contrato renovado para ${nextInfo.period} (${totalPosts} postagens)!`);
+  } catch (err) {
+    showToast('Erro ao renovar contrato: ' + (err.message || ''));
+  }
+}
+
 function confirmDeleteContract(contractId) {
   closeAllKebabMenus();
   const client = appData.clients.find(c => c.id === currentClientId);
@@ -2753,6 +2916,42 @@ function exportUserDataJson() {
   showToast('Backup JSON exportado!');
 }
 
+// ==================== PWA (INSTALAR COMO APLICATIVO NO CELULAR) ====================
+let deferredPwaPrompt = null;
+
+function initPwaSupport() {
+  if (typeof window === 'undefined') return;
+
+  // Registra Service Worker se disponível (em HTTPS / localhost)
+  if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  }
+
+  const installBtn = document.getElementById('btnInstallPwa');
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPwaPrompt = e;
+    installBtn?.classList.remove('hidden');
+  });
+
+  installBtn?.addEventListener('click', async () => {
+    if (!deferredPwaPrompt) return;
+    deferredPwaPrompt.prompt();
+    const { outcome } = await deferredPwaPrompt.userChoice;
+    if (outcome === 'accepted') {
+      showToast('Aplicativo SocialFlow instalado!');
+      installBtn.classList.add('hidden');
+    }
+    deferredPwaPrompt = null;
+  });
+
+  window.addEventListener('appinstalled', () => {
+    installBtn?.classList.add('hidden');
+    deferredPwaPrompt = null;
+  });
+}
+
 // Expõe funções chamadas via onclick no HTML
 if (typeof window !== 'undefined') {
   Object.assign(window, {
@@ -2761,6 +2960,7 @@ if (typeof window !== 'undefined') {
     openClientModal,
     confirmDeleteClient,
     openContractModal,
+    renewContractInOneClick,
     confirmDeleteContract,
     openPostModal,
     openQuickPostFromCard,
@@ -2777,6 +2977,9 @@ if (typeof window !== 'undefined') {
 // ==================== EVENT LISTENERS ====================
 document.addEventListener('DOMContentLoaded', () => {
   initBackendAndAuth();
+  initPwaSupport();
+
+  document.getElementById('btnRenewContractOneClick')?.addEventListener('click', () => renewContractInOneClick());
 
   document.getElementById('loginForm')?.addEventListener('submit', handleLoginSubmit);
   document.getElementById('btnLogout')?.addEventListener('click', handleLogout);
