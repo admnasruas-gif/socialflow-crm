@@ -1,12 +1,12 @@
 /**
  * SocialFlow CRM — Gerenciador de Clientes de Social Media
- * Melhorias v2:
- * - Separação estrita entre Cliente e Contrato + Ordenação cronológica de períodos (Mês/Ano)
- * - Indicadores diferenciando Saldo Contratual (Contratadas, Publicadas, Restantes a entregar, Excedente sem compensação entre contratos) de Status Cadastrados (A produzir / Pendente)
- * - Fluxo rápido de publicação direto pelo Card do Cliente ("Adicionar postagem" + "Mais opções" + alerta de link duplicado)
- * - Relatório de Entregas por Contrato ("Copiar resumo" + "Imprimir / Salvar PDF")
- * - Compactação de Contratos na tela de perfil + Separação de Status Administrativo e Progresso de Entregas com prazos
- * - Proteção de ações críticas em Configurações -> Dados (com Exportação JSON e Confirmação Reforçada)
+ * Redesign Mobile-First & App Experience (v3):
+ * - Navegação inferior no celular (Clientes, Postagens, Ajustes) e Sidebar compacta no desktop
+ * - Cabeçalhos limpos (Título + Ação principal) e resumo compacto em 3 indicadores (Contratadas, Publicadas, Restantes)
+ * - Painel inferior (Bottom Sheet) de filtros com contador de filtros ativos
+ * - Cards de clientes limpos com linha de contrato ("Contrato: Nov/2026 • 2 de 8 publicadas • 6 restantes"), barra de progresso e ações rápidas (+ Postagem | Ver cliente)
+ * - Perfil do cliente compacto com seletor rápido de contrato, histórico logo abaixo do resumo, detalhes secundários expansíveis e menus de 3 pontos (⋮)
+ * - Preserva 100% dos dados, autenticação, Supabase, regras de cálculo de saldo sem compensação cruzada e relatórios
  */
 
 // ==================== CONFIGURAÇÃO SUPABASE (SEM DEPENDÊNCIA DE SUBPASTA) ====================
@@ -272,13 +272,9 @@ let supabase = null;
 let isSubmittingClient = false;
 let isSubmittingContract = false;
 let isSubmittingPost = false;
-let openDropdownContractId = null;
+let openKebabMenuId = null;
 
 // ==================== DATA LOCAL (SEM DESVIO UTC) ====================
-/**
- * Retorna a data local atual do usuário no formato YYYY-MM-DD,
- * evitando mudança indevida de dia causada por toISOString() (UTC).
- */
 function getLocalTodayISO(refDate = new Date()) {
   const year = refDate.getFullYear();
   const month = String(refDate.getMonth() + 1).padStart(2, '0');
@@ -286,9 +282,6 @@ function getLocalTodayISO(refDate = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
-/**
- * Converte string YYYY-MM-DD para objeto Date local à meia-noite
- */
 function parseLocalDate(isoStr) {
   if (!isoStr || typeof isoStr !== 'string') return null;
   const parts = isoStr.trim().split('-').map(Number);
@@ -296,10 +289,6 @@ function parseLocalDate(isoStr) {
   return new Date(parts[0], parts[1] - 1, parts[2], 0, 0, 0, 0);
 }
 
-/**
- * Calcula a diferença em dias inteiros entre uma data de término (YYYY-MM-DD) e hoje (data local)
- * > 0: faltam N dias | 0: vence hoje | < 0: vencido há N dias
- */
 function getDaysUntilDate(endDateISO, todayISO = getLocalTodayISO()) {
   const end = parseLocalDate(endDateISO);
   const today = parseLocalDate(todayISO);
@@ -328,10 +317,6 @@ function normalizePeriod(period = '') {
   return String(period).trim();
 }
 
-/**
- * Converte um período textual como "Novembro/2026", "Outubro 2025", "11/2026" ou "2026-11"
- * em uma chave numérica cronológica (YYYY * 100 + MM) para ordenação cronológica real.
- */
 function parsePeriodSortKey(periodStr = '') {
   const clean = normalizePeriod(periodStr)
     .toLowerCase()
@@ -340,19 +325,16 @@ function parsePeriodSortKey(periodStr = '') {
 
   if (!clean) return 0;
 
-  // Formato YYYY-MM ou YYYY/MM
   const isoMatch = clean.match(/^(\d{4})[\s\/\-](\d{1,2})$/);
   if (isoMatch) {
     return Number(isoMatch[1]) * 100 + Number(isoMatch[2]);
   }
 
-  // Formato MM/YYYY ou MM-YYYY
   const brNumMatch = clean.match(/^(\d{1,2})[\s\/\-](\d{4})$/);
   if (brNumMatch) {
     return Number(brNumMatch[2]) * 100 + Number(brNumMatch[1]);
   }
 
-  // Formato "Novembro/2026", "Novembro de 2026", "Nov 2026"
   const yearMatch = clean.match(/\b(20\d{2}|19\d{2})\b/);
   const year = yearMatch ? Number(yearMatch[1]) : 0;
 
@@ -372,9 +354,6 @@ function parsePeriodSortKey(periodStr = '') {
   return 0;
 }
 
-/**
- * Ordena uma lista de períodos ou contratos em ordem cronológica (mais recente para o mais antigo, ou vice-versa)
- */
 function comparePeriodsChronologically(periodA, periodB, descending = true) {
   const keyA = parsePeriodSortKey(periodA);
   const keyB = parsePeriodSortKey(periodB);
@@ -465,7 +444,6 @@ function loadData() {
       if (!appData || !Array.isArray(appData.clients)) {
         appData = { clients: [] };
       }
-      // Garante ordenação cronológica dos contratos existentes sem alterar nomes ou dados
       appData.clients.forEach(c => {
         if (Array.isArray(c.contracts)) {
           c.contracts = sortContractsChronologically(c.contracts, true);
@@ -582,19 +560,19 @@ async function handleLoginSubmit(e) {
   errEl?.classList.add('hidden');
   if (btn) {
     btn.disabled = true;
-    btn.textContent = 'Autenticando...';
+    btn.textContent = 'Entrando...';
   }
 
   const { error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (btn) {
     btn.disabled = false;
-    btn.textContent = 'Entrar no Painel';
+    btn.textContent = 'Entrar';
   }
 
   if (error) {
     if (errEl) {
-      errEl.textContent = 'E-mail ou senha inválidos. Verifique suas credenciais no Supabase.';
+      errEl.textContent = 'E-mail ou senha inválidos.';
       errEl.classList.remove('hidden');
     }
     return;
@@ -610,9 +588,6 @@ async function handleLogout() {
 }
 
 // ==================== HELPERS DE PERÍODO E VÍNCULO DE CONTRATO ====================
-/**
- * Retorna todos os períodos únicos de contratos ordenados cronologicamente (do mais recente ao mais antigo)
- */
 function getAllContractMonths() {
   const set = new Set();
   appData.clients.forEach(client => {
@@ -624,17 +599,12 @@ function getAllContractMonths() {
   return Array.from(set).sort((a, b) => comparePeriodsChronologically(a, b, true));
 }
 
-/**
- * Retorna o contrato ao qual uma postagem está vinculada dentro do MESMO cliente.
- * Impede vínculo cruzado com contrato de outro cliente.
- */
 function getLinkedContractForPost(client, post) {
   const contracts = client.contracts || [];
   if (post.contractId) {
     const found = contracts.find(c => c.id === post.contractId);
     return found || null;
   }
-  // Compatibilidade com registros antigos sem contractId quando o cliente possui apenas 1 contrato
   if (contracts.length === 1) {
     return contracts[0];
   }
@@ -647,16 +617,35 @@ function getPostContractPeriod(client, post) {
 }
 
 function populateContractMonthFilters() {
+  const months = getAllContractMonths();
+  const optionsHtml = `<option value="ALL">Todos os períodos</option>` +
+    months.map(m => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join('');
+
   const globalSelect = document.getElementById('globalContractMonthFilter');
+  const sheetSelect = document.getElementById('sheetContractMonthFilter');
+
+  const currentVal = globalSelect?.value || sheetSelect?.value || 'ALL';
+  const validVal = months.includes(currentVal) ? currentVal : 'ALL';
+
   if (globalSelect) {
-    const prevVal = globalSelect.value || 'ALL';
-    const months = getAllContractMonths();
-    globalSelect.innerHTML = `<option value="ALL">Todos os períodos</option>` +
-      months.map(m => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join('');
-    if (months.includes(prevVal)) {
-      globalSelect.value = prevVal;
+    globalSelect.innerHTML = optionsHtml;
+    globalSelect.value = validVal;
+  }
+  if (sheetSelect) {
+    sheetSelect.innerHTML = optionsHtml;
+    sheetSelect.value = validVal;
+  }
+
+  // Popula filtro de clientes no Bottom Sheet (para a tela de Postagens)
+  const clientFilterSelect = document.getElementById('globalClientFilter');
+  if (clientFilterSelect) {
+    const prevCli = clientFilterSelect.value || 'ALL';
+    clientFilterSelect.innerHTML = `<option value="ALL">Todos os clientes</option>` +
+      appData.clients.map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)}</option>`).join('');
+    if (appData.clients.some(c => c.id === prevCli)) {
+      clientFilterSelect.value = prevCli;
     } else {
-      globalSelect.value = 'ALL';
+      clientFilterSelect.value = 'ALL';
     }
   }
 
@@ -667,10 +656,13 @@ function populateContractMonthFilters() {
       const prevProfileVal = profileSelect.value || 'ALL';
       const sortedContracts = sortContractsChronologically(client.contracts || [], true);
       const clientMonths = Array.from(new Set(sortedContracts.map(c => normalizePeriod(c.period)).filter(Boolean)));
-      profileSelect.innerHTML = `<option value="ALL">Todos os contratos</option>` +
+      profileSelect.innerHTML = `<option value="ALL">Todos os contratos (${clientMonths.length})</option>` +
         clientMonths.map(m => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join('');
+
       if (clientMonths.includes(prevProfileVal)) {
         profileSelect.value = prevProfileVal;
+      } else if (clientMonths.length === 1) {
+        profileSelect.value = clientMonths[0];
       } else {
         profileSelect.value = 'ALL';
       }
@@ -678,19 +670,7 @@ function populateContractMonthFilters() {
   }
 }
 
-// ==================== CÁLCULOS DE MÉTRICAS E PROGRESSO (REGRAS V2) ====================
-/**
- * Calcula métricas e estado de progresso de um contrato individual:
- * - Restantes: Math.max(0, contratadas - publicadas)
- * - Excedente: Math.max(0, publicadas - contratadas)
- * - Progresso de entregas separado do status administrativo:
- *   * Cancelado -> cinza ("Cancelado")
- *   * Entregue (remaining === 0 e totalContracted > 0) -> verde ("Entregue")
- *   * Em atraso (data_fim informada, < hoje, e remaining > 0) -> vermelho ("Em atraso")
- *   * Prazo próximo (data_fim informada, faltam 0..3 dias, e remaining > 0) -> amarelo ("Prazo próximo")
- *   * Em andamento -> azul ("Em andamento")
- *   * Para contratos antigos sem data_fim, nunca inventa prazo nem marca atraso automaticamente.
- */
+// ==================== CÁLCULOS DE MÉTRICAS E PROGRESSO ====================
 function getContractMetrics(client, contract, todayISO = getLocalTodayISO()) {
   const totalContracted = Math.max(0, Number(contract.totalPosts) || 0);
   const allClientPosts = client.posts || [];
@@ -730,7 +710,7 @@ function getContractMetrics(client, contract, todayISO = getLocalTodayISO()) {
       barFillClass = 'fill-atraso';
       isOverdue = true;
     } else if (daysRemaining !== null && daysRemaining >= 0 && daysRemaining <= 3 && remaining > 0) {
-      deliveryState = `Prazo próximo (${daysRemaining === 0 ? 'vence hoje' : `${daysRemaining}d`})`;
+      deliveryState = `Prazo próximo (${daysRemaining === 0 ? 'hoje' : `${daysRemaining}d`})`;
       deliveryBadgeClass = 'badge-prazo-proximo';
       barFillClass = 'fill-prazo-proximo';
       isDueSoon = true;
@@ -753,12 +733,6 @@ function getContractMetrics(client, contract, todayISO = getLocalTodayISO()) {
   };
 }
 
-/**
- * Calcula métricas consolidadas de um cliente respeitando:
- * - Filtro de período (monthFilter)
- * - Opção de incluir ou ocultar contratos cancelados (includeCancelled = false por padrão)
- * - Soma por contrato: postagens excedentes de um contrato NÃO compensam o saldo restante de outro!
- */
 function getClientMetrics(client, monthFilter = 'ALL', includeCancelled = false, todayISO = getLocalTodayISO()) {
   const allContracts = sortContractsChronologically(client.contracts || [], true);
 
@@ -786,7 +760,7 @@ function getClientMetrics(client, monthFilter = 'ALL', includeCancelled = false,
     if (cnt.status !== 'Cancelado') {
       totalContracted += cm.totalContracted;
       totalPublished += cm.published;
-      remaining += cm.remaining; // Soma o restante de cada contrato individualmente (sem compensação cruzada)
+      remaining += cm.remaining;
       totalExcess += cm.excess;
       if (cm.isOverdue) hasOverdueContract = true;
       if (cm.isDueSoon) hasDueSoonContract = true;
@@ -794,7 +768,6 @@ function getClientMetrics(client, monthFilter = 'ALL', includeCancelled = false,
     return { contract: cnt, metrics: cm };
   });
 
-  // Contagem de postagens por status cadastrado no escopo do filtro de período
   const postsInPeriod = (client.posts || []).filter(p => {
     const linked = getLinkedContractForPost(client, p);
     if (!includeCancelled && linked && linked.status === 'Cancelado') return false;
@@ -807,7 +780,6 @@ function getClientMetrics(client, monthFilter = 'ALL', includeCancelled = false,
   const countProducao = postsInPeriod.filter(p => p.status === 'Em produção').length;
   const countAgendado = postsInPeriod.filter(p => p.status === 'Agendado').length;
 
-  // Se o cliente tiver postagens publicadas órfãs (sem contrato quando não há contratos) apenas no modo ALL
   if (consideredContracts.length === 0 && monthFilter === 'ALL') {
     totalPublished = postsInPeriod.filter(p => p.status === 'Publicado').length;
   }
@@ -822,7 +794,7 @@ function getClientMetrics(client, monthFilter = 'ALL', includeCancelled = false,
   let overallFillClass = 'fill-andamento';
 
   if (consideredContracts.length === 0) {
-    overallDeliveryState = 'Sem contrato ativo';
+    overallDeliveryState = 'Sem contrato';
     overallBadgeClass = 'badge-concluido';
     overallFillClass = 'fill-cancelado';
   } else if (hasOverdueContract) {
@@ -877,9 +849,6 @@ function getInitials(name = '') {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-/**
- * Normaliza o @ do Instagram evitando duplicação como "@@cliente" ou URLs completas
- */
 function formatInstagram(handle = '') {
   let clean = String(handle).trim();
   if (!clean) return '';
@@ -896,13 +865,13 @@ function getInstagramUrl(handle = '') {
 
 function isValidEmail(email = '') {
   const clean = String(email).trim();
-  if (!clean) return true; // Opcional
+  if (!clean) return true;
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean);
 }
 
 function isValidPhone(phone = '') {
   const clean = String(phone).trim();
-  if (!clean) return true; // Opcional
+  if (!clean) return true;
   const digits = clean.replace(/\D/g, '');
   return digits.length >= 10 && digits.length <= 15;
 }
@@ -919,7 +888,7 @@ function getWhatsAppUrl(phone = '') {
 
 function isValidHttpUrl(urlStr = '') {
   const clean = String(urlStr).trim();
-  if (!clean) return true; // Link pode ser vazio em postagens ainda não publicadas
+  if (!clean) return true;
   try {
     const parsed = new URL(clean);
     return parsed.protocol === 'http:' || parsed.protocol === 'https:';
@@ -928,9 +897,6 @@ function isValidHttpUrl(urlStr = '') {
   }
 }
 
-/**
- * Renderiza avatar com fallback automático para iniciais caso a imagem falhe
- */
 function renderAvatarHtml(client, extraClass = '') {
   const initials = escapeHtml(getInitials(client.name));
   if (!client.avatar) {
@@ -988,61 +954,65 @@ function showToast(msg) {
   }, 3200);
 }
 
-// ==================== NAVEGAÇÃO ENTRE VIEWS (DASHBOARD, PERFIL, CONFIGURAÇÕES) ====================
+// ==================== NAVEGAÇÃO MOBILE (BOTTOM NAV) & DESKTOP (SIDEBAR) ====================
+function updateNavActiveState(activeSection) {
+  const navMap = {
+    clients: ['navClientsBtn', 'mobileNavClients'],
+    posts: ['navPipelineBtn', 'mobileNavPosts'],
+    settings: ['navSettingsBtn', 'mobileNavSettings']
+  };
+
+  Object.entries(navMap).forEach(([key, ids]) => {
+    ids.forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (key === activeSection) {
+        el.classList.add('active');
+      } else {
+        el.classList.remove('active');
+      }
+    });
+  });
+}
+
 function showMainView(viewName) {
   const dashView = document.getElementById('dashboardView');
+  const postsView = document.getElementById('globalPostsSubView');
   const profView = document.getElementById('profileView');
   const setView = document.getElementById('settingsView');
-  const navClients = document.getElementById('navClientsBtn');
-  const navPipeline = document.getElementById('navPipelineBtn');
-  const navSettings = document.getElementById('navSettingsBtn');
 
   dashView?.classList.add('hidden');
+  postsView?.classList.add('hidden');
   profView?.classList.add('hidden');
   setView?.classList.add('hidden');
 
-  navClients?.classList.remove('active');
-  navPipeline?.classList.remove('active');
-  navSettings?.classList.remove('active');
-
   if (viewName === 'profile') {
     profView?.classList.remove('hidden');
-    navClients?.classList.add('active');
+    updateNavActiveState('clients');
   } else if (viewName === 'settings') {
     currentClientId = null;
     setView?.classList.remove('hidden');
-    navSettings?.classList.add('active');
+    updateNavActiveState('settings');
+  } else if (viewName === 'posts') {
+    currentClientId = null;
+    dashboardMode = 'posts';
+    postsView?.classList.remove('hidden');
+    updateNavActiveState('posts');
   } else {
     currentClientId = null;
+    dashboardMode = 'clients';
     dashView?.classList.remove('hidden');
-    if (dashboardMode === 'posts') {
-      navPipeline?.classList.add('active');
-    } else {
-      navClients?.classList.add('active');
-    }
+    updateNavActiveState('clients');
   }
 }
 
 function setDashboardMode(mode) {
-  dashboardMode = mode;
-  const tabClients = document.getElementById('tabViewClients');
-  const tabPosts = document.getElementById('tabViewPosts');
-  const clientsSubView = document.getElementById('clientsSubView');
-  const globalPostsSubView = document.getElementById('globalPostsSubView');
-
-  showMainView('dashboard');
-
   if (mode === 'posts') {
-    tabClients?.classList.remove('active');
-    tabPosts?.classList.add('active');
-    clientsSubView?.classList.add('hidden');
-    globalPostsSubView?.classList.remove('hidden');
+    showMainView('posts');
   } else {
-    tabClients?.classList.add('active');
-    tabPosts?.classList.remove('active');
-    clientsSubView?.classList.remove('hidden');
-    globalPostsSubView?.classList.add('hidden');
+    showMainView('clients');
   }
+  renderDashboard();
 }
 
 function syncStatusPillsUI(selectedStatus) {
@@ -1055,33 +1025,71 @@ function syncStatusPillsUI(selectedStatus) {
   });
 }
 
-// ==================== RENDERIZAÇÃO: DASHBOARD CRM ====================
+// ==================== MENU DE TRÊS PONTOS (KEBAB MENU) ====================
+function toggleKebabMenu(menuId, event) {
+  if (event) event.stopPropagation();
+  const prev = openKebabMenuId;
+  closeAllKebabMenus();
+  if (prev !== menuId) {
+    const el = document.getElementById(menuId);
+    if (el) {
+      el.classList.remove('hidden');
+      openKebabMenuId = menuId;
+    }
+  }
+}
+
+function closeAllKebabMenus() {
+  openKebabMenuId = null;
+  document.querySelectorAll('.dropdown-menu').forEach(el => el.classList.add('hidden'));
+}
+
+// ==================== RENDERIZAÇÃO: TELA DE CLIENTES E TELA DE POSTAGENS ====================
 function renderDashboard() {
   populateContractMonthFilters();
 
   const searchQuery = (document.getElementById('searchInput')?.value || '').trim().toLowerCase();
+  const postsSearchQuery = (document.getElementById('postsSearchInput')?.value || '').trim().toLowerCase();
   const monthFilter = document.getElementById('globalContractMonthFilter')?.value || 'ALL';
   const statusFilter = document.getElementById('globalPostStatusFilter')?.value || 'ALL';
+  const clientFilter = document.getElementById('globalClientFilter')?.value || 'ALL';
   const includeCancelled = Boolean(document.getElementById('toggleShowCancelled')?.checked);
 
   syncStatusPillsUI(statusFilter);
 
+  // Calcula quantidade de filtros extras ativos para o badge do botão "Filtros"
+  let activeFilterCount = 0;
+  if (monthFilter !== 'ALL') activeFilterCount++;
+  if (statusFilter !== 'ALL') activeFilterCount++;
+  if (includeCancelled) activeFilterCount++;
+
+  const activePostsFilterCount = activeFilterCount + (clientFilter !== 'ALL' ? 1 : 0);
+
+  const badgeClients = document.getElementById('activeFiltersBadge');
+  if (badgeClients) {
+    badgeClients.textContent = activeFilterCount;
+    badgeClients.classList.toggle('hidden', activeFilterCount === 0);
+  }
+
+  const badgePosts = document.getElementById('activePostsFiltersBadge');
+  if (badgePosts) {
+    badgePosts.textContent = activePostsFilterCount;
+    badgePosts.classList.toggle('hidden', activePostsFilterCount === 0);
+  }
+
   const statusNotice = document.getElementById('statusFilterNotice');
   if (statusNotice) {
-    if (statusFilter !== 'ALL') {
-      statusNotice.classList.remove('hidden');
-    } else {
-      statusNotice.classList.add('hidden');
-    }
+    statusNotice.classList.toggle('hidden', statusFilter === 'ALL');
   }
 
   const clearBtn = document.getElementById('btnClearGlobalFilters');
   if (clearBtn) {
-    if (searchQuery || monthFilter !== 'ALL' || statusFilter !== 'ALL') {
-      clearBtn.classList.remove('hidden');
-    } else {
-      clearBtn.classList.add('hidden');
-    }
+    clearBtn.classList.toggle('hidden', !(searchQuery || activeFilterCount > 0));
+  }
+
+  const clearPostsBtn = document.getElementById('btnClearPostsFilters');
+  if (clearPostsBtn) {
+    clearPostsBtn.classList.toggle('hidden', !(postsSearchQuery || activePostsFilterCount > 0));
   }
 
   let funnelCounts = {
@@ -1092,7 +1100,7 @@ function renderDashboard() {
     Publicado: 0
   };
 
-  // 1. Filtra clientes por busca e período do contrato (base para o saldo contratual e contadores de funil)
+  // 1. Filtra clientes por busca e período do contrato
   const clientsInPeriod = appData.clients.filter(c => {
     if (searchQuery) {
       const nameMatch = (c.name || '').toLowerCase().includes(searchQuery);
@@ -1114,6 +1122,7 @@ function renderDashboard() {
 
   // Contabiliza postagens no funil para os clientes do período
   clientsInPeriod.forEach(c => {
+    if (clientFilter !== 'ALL' && c.id !== clientFilter) return;
     const clientPostsInMonth = (c.posts || []).filter(p => {
       const linked = getLinkedContractForPost(c, p);
       if (!includeCancelled && linked && linked.status === 'Cancelado') return false;
@@ -1156,10 +1165,10 @@ function renderDashboard() {
   const sidebarFunnel = document.getElementById('sidebarFunnelSummary');
   if (sidebarFunnel) {
     const rows = [
-      { label: 'Pendente', display: 'A produzir (Pendente)', dot: 'dot-pendente', count: funnelCounts['Pendente'] },
+      { label: 'Publicado', display: 'Publicadas', dot: 'dot-publicado', count: funnelCounts['Publicado'] },
+      { label: 'Agendado', display: 'Agendadas', dot: 'dot-agendado', count: funnelCounts['Agendado'] },
       { label: 'Em produção', display: 'Em produção', dot: 'dot-producao', count: funnelCounts['Em produção'] },
-      { label: 'Agendado', display: 'Agendado', dot: 'dot-agendado', count: funnelCounts['Agendado'] },
-      { label: 'Publicado', display: 'Publicado', dot: 'dot-publicado', count: funnelCounts['Publicado'] }
+      { label: 'Pendente', display: 'Pendentes', dot: 'dot-pendente', count: funnelCounts['Pendente'] }
     ];
     sidebarFunnel.innerHTML = rows.map(r => `
       <div class="mini-funnel-row" onclick="applyQuickStatusFilter('${escapeHtml(r.label)}')">
@@ -1172,7 +1181,7 @@ function renderDashboard() {
     `).join('');
   }
 
-  // Calcula KPIs globais sobre os clientes filtrados
+  // Calcula os 3 indicadores compactos (Contratadas, Publicadas, Restantes) respeitando o período selecionado
   let totalContracted = 0;
   let totalPublished = 0;
   let totalRemaining = 0;
@@ -1193,10 +1202,10 @@ function renderDashboard() {
   setTxt('statTotalPublished', totalPublished);
   setTxt('statTotalPending', totalRemaining);
   setTxt('statToProduceSub', `A produzir (status Pendente): ${totalToProduce}`);
-  setTxt('statExcessSub', totalExcess > 0 ? `+${totalExcess} excedente(s) entregue(s)` : 'Entregas concluídas');
+  setTxt('statExcessSub', totalExcess > 0 ? `+${totalExcess} excedente(s)` : '');
 
   renderClientsGrid(filteredClients, monthFilter, statusFilter, searchQuery, includeCancelled);
-  renderGlobalPostsFeed(filteredClients, monthFilter, statusFilter, includeCancelled);
+  renderGlobalPostsFeed(monthFilter, statusFilter, clientFilter, postsSearchQuery || searchQuery, includeCancelled);
 }
 
 function renderClientsGrid(filteredClients, monthFilter, statusFilter, searchQuery, includeCancelled) {
@@ -1207,11 +1216,11 @@ function renderClientsGrid(filteredClients, monthFilter, statusFilter, searchQue
     const hasFilter = searchQuery || monthFilter !== 'ALL' || statusFilter !== 'ALL';
     grid.innerHTML = `
       <div class="empty-state" style="grid-column: 1 / -1;">
-        <h4>${hasFilter ? 'Nenhum cliente encontrado para os filtros selecionados' : 'Nenhum cliente cadastrado ainda'}</h4>
-        <p>${hasFilter ? 'Experimente limpar os filtros de Período do Contrato, Status da Postagem ou termo de busca.' : 'Comece cadastrando seu primeiro cliente no CRM de social media.'}</p>
+        <h4>${hasFilter ? 'Nenhum cliente encontrado' : 'Nenhum cliente cadastrado'}</h4>
+        <p>${hasFilter ? 'Altere ou limpe os filtros aplicados para ver outros clientes.' : 'Cadastre seu primeiro cliente para acompanhar contratos e entregas.'}</p>
         ${hasFilter
-          ? `<button type="button" class="btn btn-secondary btn-sm" onclick="resetGlobalFilters()">Limpar filtros</button>`
-          : `<button type="button" class="btn btn-primary" onclick="openClientModal()">+ Cadastrar Primeiro Cliente</button>`
+          ? `<button type="button" class="btn btn-secondary" onclick="resetGlobalFilters()">Limpar filtros</button>`
+          : `<button type="button" class="btn btn-primary" onclick="openClientModal()">+ Cliente</button>`
         }
       </div>
     `;
@@ -1228,46 +1237,28 @@ function renderClientsGrid(filteredClients, monthFilter, statusFilter, searchQue
 
     const instaFormatted = formatInstagram(client.instagram);
     const instaUrl = getInstagramUrl(client.instagram);
-    const waUrl = getWhatsAppUrl(client.phone);
 
-    // Resumo claro de Contrato(s) separado do Nome do Cliente
-    let contractBlockHtml = '';
+    // Resumo claro do contrato conforme o modelo solicitado:
+    // Contrato: Nov/2026
+    // 2 de 8 publicadas • 6 restantes
+    let contractLineTitle = '';
+    let contractLineStats = '';
+
     if (m.contractBreakdowns.length === 0) {
-      contractBlockHtml = `
-        <div class="contract-summary-line">
-          <div class="contract-summary-period">
-            <span>Sem contrato no período</span>
-          </div>
-          <div class="contract-summary-numbers">Crie um contrato para controlar o saldo de postagens.</div>
-        </div>
-      `;
+      contractLineTitle = 'Sem contrato ativo';
+      contractLineStats = 'Toque em Ver cliente para criar um contrato';
     } else if (m.contractBreakdowns.length === 1) {
       const { contract, metrics: cm } = m.contractBreakdowns[0];
-      contractBlockHtml = `
-        <div class="contract-summary-line">
-          <div class="contract-summary-period">
-            <span>Contrato: ${escapeHtml(contract.period)}</span>
-            ${cm.excess > 0 ? `<span class="excess-pill">+${cm.excess} excedente</span>` : ''}
-          </div>
-          <div class="contract-summary-numbers">
-            <strong>${cm.totalContracted}</strong> contratadas | <strong>${cm.published}</strong> publicadas | <strong>${cm.remaining}</strong> restantes
-          </div>
-        </div>
-      `;
+      contractLineTitle = `Contrato: ${escapeHtml(contract.period)}`;
+      contractLineStats = `${cm.published} de ${cm.totalContracted} publicadas • ${cm.remaining} restantes${cm.excess > 0 ? ` (+${cm.excess} extra)` : ''}`;
     } else {
-      const periodsLabel = m.contractBreakdowns.map(b => b.contract.period).join(', ');
-      contractBlockHtml = `
-        <div class="contract-summary-line">
-          <div class="contract-summary-period">
-            <span>Contratos (${m.contractBreakdowns.length}): ${escapeHtml(periodsLabel)}</span>
-            ${m.totalExcess > 0 ? `<span class="excess-pill">+${m.totalExcess} excedente</span>` : ''}
-          </div>
-          <div class="contract-summary-numbers">
-            <strong>${m.totalContracted}</strong> contratadas | <strong>${m.totalPublished}</strong> publicadas | <strong>${m.remaining}</strong> restantes
-          </div>
-        </div>
-      `;
+      const latestPeriod = m.contractBreakdowns[0].contract.period;
+      contractLineTitle = `${m.contractBreakdowns.length} contratos (atual: ${escapeHtml(latestPeriod)})`;
+      contractLineStats = `${m.totalPublished} de ${m.totalContracted} publicadas • ${m.remaining} restantes${m.totalExcess > 0 ? ` (+${m.totalExcess} extra)` : ''}`;
     }
+
+    // Mostra badge discreta apenas quando relevante (ex: Em atraso, Prazo próximo, Entregue)
+    const showStatusBadge = m.consideredContractsCount > 0;
 
     return `
       <article class="client-card ${cardStateClass}" data-client-id="${escapeHtml(client.id)}">
@@ -1276,34 +1267,33 @@ function renderClientsGrid(filteredClients, monthFilter, statusFilter, searchQue
             ${avatarHtml}
             <div class="client-title-wrap">
               <h3 class="client-name" onclick="openClientProfile('${escapeHtml(client.id)}')">${escapeHtml(client.name)}</h3>
-              ${client.company ? `<p class="client-company">${escapeHtml(client.company)}</p>` : ''}
-              <div class="client-links-row">
-                ${instaFormatted ? `<a href="${escapeHtml(instaUrl)}" target="_blank" rel="noopener noreferrer" class="client-handle">${escapeHtml(instaFormatted)}</a>` : ''}
-                ${waUrl ? `<a href="${escapeHtml(waUrl)}" target="_blank" rel="noopener noreferrer" class="whatsapp-mini-link" title="Abrir conversa no WhatsApp">💬 WhatsApp</a>` : ''}
-              </div>
+              ${instaFormatted
+                ? `<a href="${escapeHtml(instaUrl)}" target="_blank" rel="noopener noreferrer" class="client-handle">${escapeHtml(instaFormatted)}</a>`
+                : (client.company ? `<span class="client-handle">${escapeHtml(client.company)}</span>` : '')
+              }
             </div>
           </div>
-          <span class="badge ${m.overallBadgeClass}">${escapeHtml(m.overallDeliveryState)}</span>
+          ${showStatusBadge ? `<span class="badge ${m.overallBadgeClass}">${escapeHtml(m.overallDeliveryState)}</span>` : ''}
         </div>
 
-        ${contractBlockHtml}
+        <div class="client-contract-info">
+          <div class="client-contract-title">
+            <span>${contractLineTitle}</span>
+            <span>${m.percentage}%</span>
+          </div>
+          <div class="client-contract-stats">${contractLineStats}</div>
+        </div>
 
-        <div class="progress-wrap">
-          <div class="progress-meta">
-            <span>Entregas do pacote ${m.countPendente > 0 ? `• A produzir: ${m.countPendente}` : ''}</span>
-            <strong>${m.percentage}% concluído</strong>
-          </div>
-          <div class="progress-bar-bg">
-            <div class="progress-bar-fill ${m.overallFillClass}" style="width: ${m.percentage}%"></div>
-          </div>
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill ${m.overallFillClass}" style="width: ${m.percentage}%"></div>
         </div>
 
         <div class="client-card-actions">
-          <button type="button" class="btn btn-primary btn-sm" onclick="openQuickPostFromCard('${escapeHtml(client.id)}')">
-            + Adicionar postagem
+          <button type="button" class="btn btn-primary" onclick="openQuickPostFromCard('${escapeHtml(client.id)}')">
+            + Postagem
           </button>
-          <button type="button" class="btn btn-secondary btn-sm" onclick="openClientProfile('${escapeHtml(client.id)}')">
-            Abrir cliente
+          <button type="button" class="btn btn-secondary" onclick="openClientProfile('${escapeHtml(client.id)}')">
+            Ver cliente
           </button>
         </div>
       </article>
@@ -1311,23 +1301,99 @@ function renderClientsGrid(filteredClients, monthFilter, statusFilter, searchQue
   }).join('');
 }
 
-function renderGlobalPostsFeed(filteredClients, monthFilter, statusFilter, includeCancelled) {
+// ==================== RENDERIZAÇÃO DE CARDS DE POSTAGEM (MOBILE-FIRST) ====================
+/**
+ * Componente padronizado de Card de Postagem usado tanto no Perfil quanto na Tela Global de Postagens
+ */
+function renderPostCardHtml(client, post, postPeriod, isGlobalView = false) {
+  const statusBadgeClass = getPostStatusBadgeClass(post.status);
+  const menuId = `kebab_post_${isGlobalView ? 'g_' : 'p_'}${post.id}`;
+
+  const linkBtnHtml = post.link
+    ? `<a href="${escapeHtml(post.link)}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm">
+         <span>Ver publicação</span>
+         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+           <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+           <polyline points="15 3 21 3 21 9"></polyline>
+           <line x1="10" y1="14" x2="21" y2="3"></line>
+         </svg>
+       </a>`
+    : `<span class="post-date">Sem link externo</span>`;
+
+  return `
+    <article class="post-card">
+      <div class="post-card-top">
+        <div class="post-meta-left">
+          <span class="badge ${statusBadgeClass}">${escapeHtml(post.status)}</span>
+          <span class="post-date">${escapeHtml(formatDateBR(post.date))}</span>
+          <span class="post-type-label">${escapeHtml(post.type)}</span>
+        </div>
+
+        <div class="kebab-wrap">
+          <button type="button" class="btn-icon-only" onclick="toggleKebabMenu('${escapeHtml(menuId)}', event)" aria-label="Opções da postagem">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="5" r="1"></circle>
+              <circle cx="12" cy="12" r="1"></circle>
+              <circle cx="12" cy="19" r="1"></circle>
+            </svg>
+          </button>
+          <div id="${escapeHtml(menuId)}" class="dropdown-menu hidden">
+            <button type="button" class="dropdown-item" onclick="openPostModal('${escapeHtml(post.id)}', '${escapeHtml(client.id)}')">
+              Editar postagem
+            </button>
+            <button type="button" class="dropdown-item danger" onclick="confirmDeletePost('${escapeHtml(post.id)}', '${escapeHtml(client.id)}')">
+              Excluir postagem
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <h3 class="post-title">${escapeHtml(post.title)}</h3>
+
+      ${(isGlobalView || postPeriod) ? `
+        <div class="post-context-row">
+          ${isGlobalView ? `<button type="button" class="post-client-link" onclick="openClientProfile('${escapeHtml(client.id)}')">${escapeHtml(client.name)}</button>` : ''}
+          ${(isGlobalView && postPeriod) ? `<span>•</span>` : ''}
+          ${postPeriod ? `<span>Contrato: ${escapeHtml(postPeriod)}</span>` : ''}
+        </div>
+      ` : ''}
+
+      <div class="post-card-footer">
+        ${linkBtnHtml}
+      </div>
+    </article>
+  `;
+}
+
+function renderGlobalPostsFeed(monthFilter, statusFilter, clientFilter, queryStr, includeCancelled) {
   const listEl = document.getElementById('globalPostsList');
   const countLabel = document.getElementById('globalPostsCountLabel');
   if (!listEl) return;
 
+  const q = (queryStr || '').trim().toLowerCase();
   const allMatchingPosts = [];
-  filteredClients.forEach(client => {
+
+  appData.clients.forEach(client => {
+    if (clientFilter !== 'ALL' && client.id !== clientFilter) return;
+
     (client.posts || []).forEach(post => {
       const linked = getLinkedContractForPost(client, post);
       if (!includeCancelled && linked && linked.status === 'Cancelado') return;
       const postPeriod = linked ? normalizePeriod(linked.period) : '';
+
       if (monthFilter !== 'ALL' && postPeriod.toLowerCase() !== monthFilter.toLowerCase()) {
         return;
       }
       if (statusFilter !== 'ALL' && post.status !== statusFilter) {
         return;
       }
+      if (q) {
+        const titleMatch = (post.title || '').toLowerCase().includes(q);
+        const clientMatch = (client.name || '').toLowerCase().includes(q);
+        const instaMatch = (client.instagram || '').toLowerCase().includes(q);
+        if (!titleMatch && !clientMatch && !instaMatch) return;
+      }
+
       allMatchingPosts.push({ client, post, postPeriod });
     });
   });
@@ -1341,45 +1407,17 @@ function renderGlobalPostsFeed(filteredClients, monthFilter, statusFilter, inclu
   if (allMatchingPosts.length === 0) {
     listEl.innerHTML = `
       <div class="empty-state">
-        <h4>Nenhuma postagem encontrada neste filtro</h4>
-        <p>Altere o filtro de Status da Postagem ou Período do Contrato para visualizar outras entregas.</p>
-        <button type="button" class="btn btn-secondary btn-sm" onclick="resetGlobalFilters()">Limpar filtros</button>
+        <h4>Nenhuma postagem encontrada</h4>
+        <p>Altere os filtros ou registre uma nova publicação.</p>
+        <button type="button" class="btn btn-secondary" onclick="resetGlobalFilters()">Limpar filtros</button>
       </div>
     `;
     return;
   }
 
-  listEl.innerHTML = allMatchingPosts.map(({ client, post, postPeriod }) => {
-    const statusBadgeClass = getPostStatusBadgeClass(post.status);
-    const instaFormatted = formatInstagram(client.instagram);
-    const linkBtnHtml = post.link
-      ? `<a href="${escapeHtml(post.link)}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm">
-           <span>Ver publicação</span>
-         </a>`
-      : '';
-
-    return `
-      <div class="post-item">
-        <div class="post-left">
-          <div class="post-badges">
-            <span class="post-client-pill" onclick="openClientProfile('${escapeHtml(client.id)}')">
-              👤 ${escapeHtml(client.name)} ${instaFormatted ? `(${escapeHtml(instaFormatted)})` : ''}
-            </span>
-            <span class="badge ${statusBadgeClass}">${escapeHtml(post.status)}</span>
-            <span class="badge badge-type">${escapeHtml(post.type)}</span>
-            <span class="post-date">📅 ${escapeHtml(formatDateBR(post.date))}</span>
-            ${postPeriod ? `<span class="contract-month-tag">Contrato: ${escapeHtml(postPeriod)}</span>` : ''}
-          </div>
-          <div class="post-title">${escapeHtml(post.title)}</div>
-          ${post.notes ? `<div class="post-notes">${escapeHtml(post.notes)}</div>` : ''}
-        </div>
-        <div class="post-right">
-          ${linkBtnHtml}
-          <button type="button" class="btn btn-ghost btn-sm" onclick="openClientProfile('${escapeHtml(client.id)}')">Abrir cliente</button>
-        </div>
-      </div>
-    `;
-  }).join('');
+  listEl.innerHTML = allMatchingPosts
+    .map(({ client, post, postPeriod }) => renderPostCardHtml(client, post, postPeriod, true))
+    .join('');
 }
 
 function applyQuickStatusFilter(status) {
@@ -1392,15 +1430,25 @@ function applyQuickStatusFilter(status) {
 
 function resetGlobalFilters() {
   const searchInput = document.getElementById('searchInput');
+  const postsSearchInput = document.getElementById('postsSearchInput');
   const monthSelect = document.getElementById('globalContractMonthFilter');
+  const sheetMonthSelect = document.getElementById('sheetContractMonthFilter');
   const statusSelect = document.getElementById('globalPostStatusFilter');
+  const clientSelect = document.getElementById('globalClientFilter');
+  const cancelledToggle = document.getElementById('toggleShowCancelled');
+
   if (searchInput) searchInput.value = '';
+  if (postsSearchInput) postsSearchInput.value = '';
   if (monthSelect) monthSelect.value = 'ALL';
+  if (sheetMonthSelect) sheetMonthSelect.value = 'ALL';
   if (statusSelect) statusSelect.value = 'ALL';
+  if (clientSelect) clientSelect.value = 'ALL';
+  if (cancelledToggle) cancelledToggle.checked = false;
+
   renderDashboard();
 }
 
-// ==================== RENDERIZAÇÃO: PERFIL DO CLIENTE COMPACTO ====================
+// ==================== RENDERIZAÇÃO: PERFIL DO CLIENTE (MOBILE-FIRST) ====================
 function openClientProfile(clientId) {
   const client = appData.clients.find(c => c.id === clientId);
   if (!client) return;
@@ -1408,12 +1456,28 @@ function openClientProfile(clientId) {
   currentClientId = clientId;
   showMainView('profile');
 
+  // Fecha seção expansível secundária por padrão para manter o histórico próximo do topo
+  document.getElementById('clientDetailsExpandableBody')?.classList.add('hidden');
+  document.getElementById('btnToggleClientDetails')?.setAttribute('aria-expanded', 'false');
+  const chev = document.getElementById('clientDetailsChevron');
+  if (chev) chev.textContent = '▾';
+
   populateContractMonthFilters();
+
   const globalMonth = document.getElementById('globalContractMonthFilter')?.value || 'ALL';
   const profileMonthSelect = document.getElementById('filterProfileContractMonth');
   if (profileMonthSelect) {
-    const hasOption = Array.from(profileMonthSelect.options || []).some(o => o.value === globalMonth);
-    profileMonthSelect.value = hasOption ? globalMonth : 'ALL';
+    const sortedContracts = sortContractsChronologically(client.contracts || [], true);
+    const hasGlobalOption = Array.from(profileMonthSelect.options || []).some(o => o.value === globalMonth);
+    if (globalMonth !== 'ALL' && hasGlobalOption) {
+      profileMonthSelect.value = globalMonth;
+    } else if (sortedContracts.length > 0) {
+      // Seleciona o contrato ativo mais recente por padrão para mostrar o resumo imediato
+      const latestActive = sortedContracts.find(c => c.status === 'Ativo') || sortedContracts[0];
+      profileMonthSelect.value = normalizePeriod(latestActive.period);
+    } else {
+      profileMonthSelect.value = 'ALL';
+    }
   }
 
   const globalStatus = document.getElementById('globalPostStatusFilter')?.value || 'ALL';
@@ -1428,19 +1492,28 @@ function openClientProfile(clientId) {
 
 function backToDashboard() {
   currentClientId = null;
-  showMainView('dashboard');
+  showMainView('clients');
   renderDashboard();
 }
 
 function filterProfileByContractMonth(period) {
   const profileMonthSelect = document.getElementById('filterProfileContractMonth');
   if (!profileMonthSelect) return;
-  if (profileMonthSelect.value === period) {
-    profileMonthSelect.value = 'ALL';
-  } else {
-    profileMonthSelect.value = period;
-  }
+  profileMonthSelect.value = period;
   renderClientProfile();
+}
+
+function openManageContractsSection() {
+  closeAllKebabMenus();
+  const body = document.getElementById('clientDetailsExpandableBody');
+  const btn = document.getElementById('btnToggleClientDetails');
+  const chev = document.getElementById('clientDetailsChevron');
+  if (body) {
+    body.classList.remove('hidden');
+    btn?.setAttribute('aria-expanded', 'true');
+    if (chev) chev.textContent = '▴';
+    body.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
 }
 
 function renderClientProfile() {
@@ -1456,108 +1529,136 @@ function renderClientProfile() {
   const includeCancelled = Boolean(document.getElementById('toggleProfileShowCancelled')?.checked);
   const m = getClientMetrics(client, selectedProfileMonth, includeCancelled);
 
-  const avatarHtml = renderAvatarHtml(client, 'avatar-lg');
+  const avatarHtml = renderAvatarHtml(client, 'avatar-sm');
   const instaFormatted = formatInstagram(client.instagram);
   const instaUrl = getInstagramUrl(client.instagram);
   const waUrl = getWhatsAppUrl(client.phone);
+  const profileMenuId = `kebab_profile_${client.id}`;
 
+  // A. Cabeçalho Compacto do Perfil (Voltar, Avatar, Nome, Instagram clicável e Menu de 3 pontos)
   document.getElementById('profileHeaderCard').innerHTML = `
-    <div class="profile-top">
-      <div class="profile-main-info">
-        ${avatarHtml}
-        <div class="profile-details">
-          <h1>
-            <span>${escapeHtml(client.name)}</span>
-            <span class="badge ${m.overallBadgeClass}">${escapeHtml(m.overallDeliveryState)}</span>
-          </h1>
-          ${client.company ? `<p style="color: var(--text-muted); font-weight: 500; font-size: 0.88rem;">${escapeHtml(client.company)}</p>` : ''}
-          <div class="profile-meta-list">
-            ${instaFormatted ? `
-              <span class="profile-meta-item">
-                <a href="${escapeHtml(instaUrl)}" target="_blank" rel="noopener noreferrer" class="client-handle">${escapeHtml(instaFormatted)}</a>
-              </span>` : ''}
-            ${client.phone ? `<span class="profile-meta-item">📱 ${escapeHtml(client.phone)}</span>` : ''}
-            ${waUrl ? `<span class="profile-meta-item"><a href="${escapeHtml(waUrl)}" target="_blank" rel="noopener noreferrer" class="whatsapp-mini-link">💬 Abrir WhatsApp</a></span>` : ''}
-            ${client.email ? `<span class="profile-meta-item">✉️ ${escapeHtml(client.email)}</span>` : ''}
-          </div>
-        </div>
+    <div class="profile-topbar-left">
+      <button type="button" class="btn-icon-only" onclick="backToDashboard()" aria-label="Voltar para Clientes">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="19" y1="12" x2="5" y2="12"></line>
+          <polyline points="12 19 5 12 12 5"></polyline>
+        </svg>
+      </button>
+      ${avatarHtml}
+      <div class="profile-topbar-titles">
+        <h1 class="profile-topbar-name">${escapeHtml(client.name)}</h1>
+        ${instaFormatted
+          ? `<a href="${escapeHtml(instaUrl)}" target="_blank" rel="noopener noreferrer" class="client-handle">${escapeHtml(instaFormatted)}</a>`
+          : (client.company ? `<span class="client-handle">${escapeHtml(client.company)}</span>` : '')
+        }
       </div>
+    </div>
 
-      <div class="profile-actions">
-        <button type="button" class="btn btn-primary btn-sm" onclick="openQuickPostFromCard('${escapeHtml(client.id)}')">
-          + Adicionar postagem
-        </button>
-        <button type="button" class="btn btn-secondary btn-sm" onclick="openDeliveryReportModal('${escapeHtml(client.id)}')">
-          📄 Relatório de entregas
-        </button>
-        <button type="button" class="btn btn-secondary btn-sm" onclick="openClientModal('${escapeHtml(client.id)}')">
+    <div class="kebab-wrap">
+      <button type="button" class="btn-icon-only" onclick="toggleKebabMenu('${escapeHtml(profileMenuId)}', event)" aria-label="Opções do cliente">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="5" r="1"></circle>
+          <circle cx="12" cy="12" r="1"></circle>
+          <circle cx="12" cy="19" r="1"></circle>
+        </svg>
+      </button>
+      <div id="${escapeHtml(profileMenuId)}" class="dropdown-menu hidden">
+        <button type="button" class="dropdown-item" onclick="openClientModal('${escapeHtml(client.id)}')">
           Editar cliente
         </button>
-        <button type="button" class="btn btn-outline-danger btn-sm" onclick="confirmDeleteClient('${escapeHtml(client.id)}')">
-          Excluir
+        <button type="button" class="dropdown-item" onclick="openContractModal()">
+          + Novo contrato
+        </button>
+        <button type="button" class="dropdown-item" onclick="openManageContractsSection()">
+          Gerenciar contratos
+        </button>
+        <button type="button" class="dropdown-item danger" onclick="confirmDeleteClient('${escapeHtml(client.id)}')">
+          Excluir cliente
         </button>
       </div>
     </div>
-    ${client.notes ? `<div class="profile-notes"><strong>Observações internas:</strong> ${escapeHtml(client.notes)}</div>` : ''}
   `;
 
+  // Badge de status de entrega do contrato selecionado
+  const deliveryBadge = document.getElementById('profileDeliveryBadge');
+  if (deliveryBadge) {
+    deliveryBadge.className = `badge ${m.overallBadgeClass}`;
+    deliveryBadge.textContent = m.overallDeliveryState;
+  }
+
+  // C. Resumo do Contrato Selecionado (Contratadas, Publicadas, Restantes + Progresso)
   document.getElementById('profileStatsGrid').innerHTML = `
-    <div class="stat-card">
-      <div class="stat-info">
-        <span class="stat-label">Postagens Contratadas ${selectedProfileMonth !== 'ALL' ? `(${escapeHtml(selectedProfileMonth)})` : ''}</span>
-        <strong class="stat-value">${m.totalContracted}</strong>
-        <span class="stat-sub">Contratos ativos: ${m.activeContractsCount}</span>
-      </div>
+    <div class="summary-metric">
+      <span class="summary-label">Contratadas</span>
+      <strong class="summary-value">${m.totalContracted}</strong>
     </div>
-    <div class="stat-card">
-      <div class="stat-info">
-        <span class="stat-label">Postagens Publicadas</span>
-        <strong class="stat-value" style="color: var(--emerald-text);">${m.totalPublished}</strong>
-        <span class="stat-sub">${m.totalExcess > 0 ? `+${m.totalExcess} excedente(s)` : `${m.percentage}% do pacote`}</span>
-      </div>
+    <div class="summary-divider"></div>
+    <div class="summary-metric">
+      <span class="summary-label">Publicadas</span>
+      <strong class="summary-value text-success">${m.totalPublished}</strong>
     </div>
-    <div class="stat-card">
-      <div class="stat-info">
-        <span class="stat-label">Restantes a Entregar</span>
-        <strong class="stat-value">${m.remaining}</strong>
-        <span class="stat-sub">Saldo contratual</span>
-      </div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-info">
-        <span class="stat-label">A Produzir (Status Pendente)</span>
-        <strong class="stat-value">${m.countPendente}</strong>
-        <span class="stat-sub">Em produção: ${m.countProducao} • Agendado: ${m.countAgendado}</span>
-      </div>
+    <div class="summary-divider"></div>
+    <div class="summary-metric">
+      <span class="summary-label">Restantes</span>
+      <strong class="summary-value text-primary">${m.remaining}</strong>
     </div>
   `;
+
+  const progressBlock = document.getElementById('profileProgressBlock');
+  if (progressBlock) {
+    progressBlock.innerHTML = `
+      <div class="progress-meta">
+        <span>Progresso (${m.percentage}%)${m.totalExcess > 0 ? ` • +${m.totalExcess} excedente` : ''}</span>
+        <span>A produzir (Pendente): ${m.countPendente}</span>
+      </div>
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill ${m.overallFillClass}" style="width: ${m.percentage}%"></div>
+      </div>
+    `;
+  }
+
+  // Detalhes secundários dentro da seção expansível "Detalhes do cliente e contrato"
+  const secDetails = document.getElementById('profileSecondaryDetailsContent');
+  if (secDetails) {
+    const selectedContractObj = (client.contracts || []).find(
+      c => normalizePeriod(c.period).toLowerCase() === selectedProfileMonth.toLowerCase()
+    );
+    const valFormatted = selectedContractObj ? formatCurrency(selectedContractObj.value) : null;
+    const hasDates = selectedContractObj && (selectedContractObj.startDate || selectedContractObj.endDate);
+
+    secDetails.innerHTML = `
+      <div class="secondary-details-list">
+        ${client.company ? `<div><strong>Empresa:</strong> ${escapeHtml(client.company)}</div>` : ''}
+        ${client.phone ? `<div><strong>Telefone:</strong> ${escapeHtml(client.phone)} ${waUrl ? `<a href="${escapeHtml(waUrl)}" target="_blank" rel="noopener noreferrer" style="color: var(--success); font-weight: 600; margin-left: 0.4rem;">Abrir WhatsApp</a>` : ''}</div>` : ''}
+        ${client.email ? `<div><strong>E-mail:</strong> ${escapeHtml(client.email)}</div>` : ''}
+        ${client.notes ? `<div><strong>Observações:</strong> ${escapeHtml(client.notes)}</div>` : ''}
+        ${selectedContractObj ? `
+          <div style="margin-top: 0.35rem; padding-top: 0.45rem; border-top: 1px dashed var(--border);">
+            <div><strong>Contrato selecionado:</strong> ${escapeHtml(selectedContractObj.period)} (${escapeHtml(selectedContractObj.status)})</div>
+            ${selectedContractObj.types ? `<div><strong>Formatos:</strong> ${escapeHtml(selectedContractObj.types)}</div>` : ''}
+            ${valFormatted ? `<div><strong>Valor:</strong> ${valFormatted}</div>` : ''}
+            ${hasDates ? `<div><strong>Prazo:</strong> ${selectedContractObj.startDate ? formatDateBR(selectedContractObj.startDate) : '...'} até ${selectedContractObj.endDate ? formatDateBR(selectedContractObj.endDate) : '...'}</div>` : ''}
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
 
   renderContractsList(client, selectedProfileMonth, includeCancelled);
   renderPostsList(client, includeCancelled);
 }
 
-function toggleContractDropdown(contractId, event) {
-  if (event) event.stopPropagation();
-  openDropdownContractId = openDropdownContractId === contractId ? null : contractId;
-  const client = appData.clients.find(c => c.id === currentClientId);
-  if (client) {
-    const selectedProfileMonth = document.getElementById('filterProfileContractMonth')?.value || 'ALL';
-    const includeCancelled = Boolean(document.getElementById('toggleProfileShowCancelled')?.checked);
-    renderContractsList(client, selectedProfileMonth, includeCancelled);
-  }
-}
-
 function renderContractsList(client, selectedProfileMonth = 'ALL', includeCancelled = false) {
   const container = document.getElementById('contractsList');
+  if (!container) return;
   const allContracts = sortContractsChronologically(client.contracts || [], true);
   const contracts = allContracts.filter(c => includeCancelled || c.status !== 'Cancelado');
 
   if (contracts.length === 0) {
     container.innerHTML = `
       <div class="empty-state">
-        <h4>Nenhum contrato ${!includeCancelled && allContracts.length > 0 ? 'ativo/concluído' : 'cadastrado'}</h4>
-        <p>Crie um contrato com o mês/ano (ex.: Novembro/2026) e a quantidade de postagens contratadas.</p>
-        <button type="button" class="btn btn-secondary btn-sm" onclick="openContractModal()">+ Criar Contrato</button>
+        <h4>Nenhum contrato cadastrado</h4>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="openContractModal()">+ Novo contrato</button>
       </div>
     `;
     return;
@@ -1567,76 +1668,43 @@ function renderContractsList(client, selectedProfileMonth = 'ALL', includeCancel
     const cm = getContractMetrics(client, contract);
     const adminBadgeClass = getContractStatusBadgeClass(contract.status);
     const formattedVal = formatCurrency(contract.value);
-    const isSelected = selectedProfileMonth !== 'ALL' && normalizePeriod(contract.period).toLowerCase() === selectedProfileMonth.toLowerCase();
-    const isDropdownOpen = openDropdownContractId === contract.id;
-
-    let deadlineText = '';
-    if (contract.startDate || contract.endDate) {
-      const startBR = contract.startDate ? formatDateBR(contract.startDate) : '...';
-      const endBR = contract.endDate ? formatDateBR(contract.endDate) : '...';
-      deadlineText = `Prazo: ${startBR} a ${endBR}`;
-    }
+    const menuId = `kebab_cnt_${contract.id}`;
 
     return `
-      <div class="contract-row-card ${cm.isOverdue ? 'contract-overdue' : ''} ${isSelected ? 'contract-selected' : ''}">
-        <div class="contract-col-main">
-          <div class="contract-period-line">
-            <span class="contract-period-title" onclick="filterProfileByContractMonth('${escapeHtml(normalizePeriod(contract.period))}')" title="Filtrar postagens deste período">
-              📅 ${escapeHtml(contract.period)}
-            </span>
-            <span class="badge ${adminBadgeClass}" title="Status administrativo do contrato">${escapeHtml(contract.status)}</span>
-            <span class="badge ${cm.deliveryBadgeClass}" title="Progresso das entregas">${escapeHtml(cm.deliveryState)}</span>
+      <div class="contract-mini-item">
+        <div class="contract-mini-info">
+          <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;">
+            <span class="contract-mini-period">${escapeHtml(contract.period)}</span>
+            <span class="badge ${adminBadgeClass}">${escapeHtml(contract.status)}</span>
+            <span class="badge ${cm.deliveryBadgeClass}">${escapeHtml(cm.deliveryState)}</span>
           </div>
-          <div class="contract-meta-sub">
-            ${formattedVal ? `<span><strong>${formattedVal}</strong></span>` : ''}
-            ${contract.types ? `<span>• ${escapeHtml(contract.types)}</span>` : ''}
-            ${deadlineText ? `<span>• ${escapeHtml(deadlineText)}</span>` : ''}
+          <div class="contract-mini-sub">
+            ${cm.published} de ${cm.totalContracted} publicadas • ${cm.remaining} restantes
+            ${formattedVal ? ` • ${formattedVal}` : ''}
           </div>
         </div>
 
-        <div class="contract-col-counts">
-          <span><strong>${cm.totalContracted}</strong> contratadas</span>
-          <span>•</span>
-          <span><strong style="color: var(--emerald-text);">${cm.published}</strong> publicadas</span>
-          <span>•</span>
-          <span><strong>${cm.remaining}</strong> restantes</span>
-          ${cm.excess > 0 ? `<span class="excess-pill">+${cm.excess} excedente</span>` : ''}
-        </div>
-
-        <div class="contract-col-progress">
-          <div class="progress-meta">
-            <span>Progresso</span>
-            <strong>${cm.percentage}%</strong>
-          </div>
-          <div class="progress-bar-bg">
-            <div class="progress-bar-fill ${cm.barFillClass}" style="width: ${cm.percentage}%"></div>
-          </div>
-        </div>
-
-        <div class="contract-col-actions">
-          <button type="button" class="btn btn-ghost btn-sm" onclick="filterProfileByContractMonth('${escapeHtml(normalizePeriod(contract.period))}')">
-            ${isSelected ? '✓ Ver todas' : 'Ver postagens'}
+        <div class="kebab-wrap">
+          <button type="button" class="btn-icon-only" onclick="toggleKebabMenu('${escapeHtml(menuId)}', event)" aria-label="Opções do contrato">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="5" r="1"></circle>
+              <circle cx="12" cy="12" r="1"></circle>
+              <circle cx="12" cy="19" r="1"></circle>
+            </svg>
           </button>
-          <button type="button" class="btn btn-secondary btn-sm" onclick="openContractModal('${escapeHtml(contract.id)}')">
-            Editar
-          </button>
-          <div class="dropdown-wrap">
-            <button type="button" class="btn btn-ghost btn-sm" onclick="toggleContractDropdown('${escapeHtml(contract.id)}', event)" aria-label="Mais opções do contrato">
-              Mais ▾
+          <div id="${escapeHtml(menuId)}" class="dropdown-menu hidden">
+            <button type="button" class="dropdown-item" onclick="filterProfileByContractMonth('${escapeHtml(normalizePeriod(contract.period))}')">
+              Selecionar contrato
             </button>
-            ${isDropdownOpen ? `
-              <div class="dropdown-menu">
-                <button type="button" class="dropdown-item" onclick="openQuickPostFromCard('${escapeHtml(client.id)}', '${escapeHtml(contract.id)}')">
-                  + Adicionar postagem neste contrato
-                </button>
-                <button type="button" class="dropdown-item" onclick="openDeliveryReportModal('${escapeHtml(client.id)}', '${escapeHtml(contract.id)}')">
-                  📄 Relatório deste contrato
-                </button>
-                <button type="button" class="dropdown-item danger" onclick="confirmDeleteContract('${escapeHtml(contract.id)}')">
-                  🗑️ Excluir contrato
-                </button>
-              </div>
-            ` : ''}
+            <button type="button" class="dropdown-item" onclick="openContractModal('${escapeHtml(contract.id)}')">
+              Editar contrato
+            </button>
+            <button type="button" class="dropdown-item" onclick="openDeliveryReportModal('${escapeHtml(client.id)}', '${escapeHtml(contract.id)}')">
+              Relatório deste contrato
+            </button>
+            <button type="button" class="dropdown-item danger" onclick="confirmDeleteContract('${escapeHtml(contract.id)}')">
+              Excluir contrato
+            </button>
           </div>
         </div>
       </div>
@@ -1646,16 +1714,13 @@ function renderContractsList(client, selectedProfileMonth = 'ALL', includeCancel
 
 function renderPostsList(client, includeCancelled = false) {
   const container = document.getElementById('postsList');
+  if (!container) return;
   const filterStatus = document.getElementById('filterPostStatus')?.value || 'ALL';
   const filterMonth = document.getElementById('filterProfileContractMonth')?.value || 'ALL';
 
   const profileNotice = document.getElementById('profileStatusFilterNotice');
   if (profileNotice) {
-    if (filterStatus !== 'ALL') {
-      profileNotice.classList.remove('hidden');
-    } else {
-      profileNotice.classList.add('hidden');
-    }
+    profileNotice.classList.toggle('hidden', filterStatus === 'ALL');
   }
 
   let posts = [...(client.posts || [])];
@@ -1677,9 +1742,9 @@ function renderPostsList(client, includeCancelled = false) {
       <div class="empty-state">
         <h4>Nenhuma postagem encontrada</h4>
         <p>${filterStatus === 'ALL' && filterMonth === 'ALL'
-          ? 'Registre as publicações entregues ou planejadas deste cliente.'
-          : 'Não há postagens cadastradas que correspondam aos filtros selecionados.'}</p>
-        <button type="button" class="btn btn-primary btn-sm" onclick="openQuickPostFromCard('${escapeHtml(client.id)}')">
+          ? 'Registre a primeira publicação deste cliente.'
+          : 'Não há postagens para o contrato ou status selecionado.'}</p>
+        <button type="button" class="btn btn-primary" onclick="openQuickPostFromCard('${escapeHtml(client.id)}')">
           + Adicionar postagem
         </button>
       </div>
@@ -1687,45 +1752,18 @@ function renderPostsList(client, includeCancelled = false) {
     return;
   }
 
-  container.innerHTML = posts.map(post => {
-    const statusBadgeClass = getPostStatusBadgeClass(post.status);
-    const postPeriod = getPostContractPeriod(client, post);
+  // Mostra o rótulo do contrato no card da postagem apenas quando "Todos os contratos" está selecionado
+  const showContractOnCard = filterMonth === 'ALL' && (client.contracts || []).length > 1;
 
-    const linkBtnHtml = post.link
-      ? `<a href="${escapeHtml(post.link)}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm">
-           <span>Ver publicação</span>
-           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-             <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-             <polyline points="15 3 21 3 21 9"></polyline>
-             <line x1="10" y1="14" x2="21" y2="3"></line>
-           </svg>
-         </a>`
-      : '';
-
-    return `
-      <div class="post-item">
-        <div class="post-left">
-          <div class="post-badges">
-            <span class="badge ${statusBadgeClass}">${escapeHtml(post.status)}</span>
-            <span class="badge badge-type">${escapeHtml(post.type)}</span>
-            <span class="post-date">📅 ${escapeHtml(formatDateBR(post.date))}</span>
-            ${postPeriod ? `<span class="contract-month-tag">Contrato: ${escapeHtml(postPeriod)}</span>` : ''}
-          </div>
-          <div class="post-title">${escapeHtml(post.title)}</div>
-          ${post.notes ? `<div class="post-notes">${escapeHtml(post.notes)}</div>` : ''}
-        </div>
-
-        <div class="post-right">
-          ${linkBtnHtml}
-          <button type="button" class="btn btn-ghost btn-sm" onclick="openPostModal('${escapeHtml(post.id)}', '${escapeHtml(client.id)}')">Editar</button>
-          <button type="button" class="btn btn-ghost btn-sm" style="color: var(--danger);" onclick="confirmDeletePost('${escapeHtml(post.id)}')">Excluir</button>
-        </div>
-      </div>
-    `;
-  }).join('');
+  container.innerHTML = posts
+    .map(post => {
+      const postPeriod = showContractOnCard ? getPostContractPeriod(client, post) : '';
+      return renderPostCardHtml(client, post, postPeriod, false);
+    })
+    .join('');
 }
 
-// ==================== FLUXO RÁPIDO DE POSTAGEM PELO CARD + MODAL DE POSTAGEM ====================
+// ==================== FLUXO RÁPIDO DE POSTAGEM + FORMULÁRIO MOBILE ====================
 function setPostMoreOptionsExpanded(expanded) {
   const block = document.getElementById('postMoreOptionsBlock');
   const btn = document.getElementById('btnTogglePostMoreOptions');
@@ -1749,11 +1787,11 @@ function updatePostSaveButtonText() {
   const btn = document.getElementById('btnSavePost');
   if (!btn) return;
   if (postId) {
-    btn.textContent = 'Salvar alterações';
+    btn.textContent = 'Salvar';
   } else if (status === 'Publicado') {
     btn.textContent = 'Salvar como publicada';
   } else {
-    btn.textContent = `Salvar (${status})`;
+    btn.textContent = 'Salvar';
   }
 }
 
@@ -1780,46 +1818,20 @@ function checkDuplicatePostLink() {
     return (p.link || '').trim().toLowerCase() === linkVal;
   });
 
-  if (isDuplicate) {
-    warningEl.classList.remove('hidden');
-  } else {
-    warningEl.classList.add('hidden');
-  }
+  warningEl.classList.toggle('hidden', !isDuplicate);
   return isDuplicate;
 }
 
-/**
- * Abre o formulário rápido de postagem direto de qualquer Card de Cliente (ou de dentro do Perfil)
- */
-function openQuickPostFromCard(clientId, preselectedContractId = '') {
-  openDropdownContractId = null;
-  openPostModal(null, clientId, true, preselectedContractId);
-}
-
-function openPostModal(postId = null, targetClientId = null, isQuickFlow = false, preselectedContractId = '') {
-  const resolvedClientId = targetClientId || currentClientId;
-  const client = appData.clients.find(c => c.id === resolvedClientId);
-  if (!client) return;
-
-  const form = document.getElementById('postForm');
+function populateContractSelectForPostModal(client, postId = null, preselectedContractId = '') {
+  const contractSelect = document.getElementById('postContractId');
   const noContractBox = document.getElementById('postNoContractWarning');
-  const errEl = document.getElementById('postFormError');
-  const dupWarn = document.getElementById('duplicateLinkWarning');
-
-  errEl?.classList.add('hidden');
-  dupWarn?.classList.add('hidden');
-  document.getElementById('postTargetClientId').value = client.id;
-  const clientLabel = document.getElementById('postModalClientLabel');
-  if (clientLabel) {
-    const insta = formatInstagram(client.instagram);
-    clientLabel.textContent = `Cliente: ${client.name}${insta ? ` (${insta})` : ''}`;
-  }
+  const form = document.getElementById('postForm');
+  if (!client || !contractSelect) return false;
 
   const sortedContracts = sortContractsChronologically(client.contracts || [], true);
   const validContracts = sortedContracts.filter(c => c.status !== 'Cancelado');
   const activeContracts = sortedContracts.filter(c => c.status === 'Ativo');
 
-  // Se o cliente não tiver nenhum contrato cadastrado, orienta a criar um sem gerar registros automaticamente
   if (!postId && sortedContracts.length === 0) {
     form?.classList.add('hidden');
     noContractBox?.classList.remove('hidden');
@@ -1832,23 +1844,93 @@ function openPostModal(postId = null, targetClientId = null, isQuickFlow = false
         openContractModal();
       };
     }
-    openModal('postModal');
-    return;
+    return false;
   }
 
   noContractBox?.classList.add('hidden');
   form?.classList.remove('hidden');
-  if (form && typeof form.reset === 'function') form.reset();
-  document.getElementById('postTargetClientId').value = client.id;
 
-  const contractSelect = document.getElementById('postContractId');
   const contractsForSelect = validContracts.length > 0 ? validContracts : sortedContracts;
-
   if (activeContracts.length > 1 && !postId && !preselectedContractId) {
-    contractSelect.innerHTML = `<option value="">Selecione o contrato ativo...</option>` +
+    contractSelect.innerHTML = `<option value="">Selecione o contrato...</option>` +
       contractsForSelect.map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.period)} (${escapeHtml(c.status)})</option>`).join('');
   } else {
     contractSelect.innerHTML = contractsForSelect.map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.period)} (${escapeHtml(c.status)})</option>`).join('');
+  }
+
+  if (preselectedContractId && contractsForSelect.some(c => c.id === preselectedContractId)) {
+    contractSelect.value = preselectedContractId;
+  } else if (activeContracts.length === 1) {
+    contractSelect.value = activeContracts[0].id;
+  } else if (activeContracts.length > 1 && !postId) {
+    contractSelect.value = '';
+  } else if (contractsForSelect.length === 1) {
+    contractSelect.value = contractsForSelect[0].id;
+  }
+
+  return true;
+}
+
+function openQuickPostFromCard(clientId, preselectedContractId = '') {
+  closeAllKebabMenus();
+  // Se estiver dentro do perfil do cliente e houver um mês de contrato selecionado no topo, pré-seleciona esse contrato
+  let resolvedContractId = preselectedContractId;
+  if (!resolvedContractId && currentClientId === clientId) {
+    const selectedPeriod = document.getElementById('filterProfileContractMonth')?.value || 'ALL';
+    if (selectedPeriod !== 'ALL') {
+      const cli = appData.clients.find(c => c.id === clientId);
+      const found = (cli?.contracts || []).find(c => normalizePeriod(c.period).toLowerCase() === selectedPeriod.toLowerCase());
+      if (found) resolvedContractId = found.id;
+    }
+  }
+  openPostModal(null, clientId, true, resolvedContractId);
+}
+
+function openPostModal(postId = null, targetClientId = null, isQuickFlow = false, preselectedContractId = '') {
+  closeAllKebabMenus();
+
+  if (appData.clients.length === 0) {
+    showToast('Cadastre um cliente primeiro.');
+    openClientModal();
+    return;
+  }
+
+  const clientSelectGroup = document.getElementById('postClientSelectGroup');
+  const clientSelectEl = document.getElementById('postClientSelect');
+  const hasExplicitClient = Boolean(targetClientId || currentClientId);
+  const resolvedClientId = targetClientId || currentClientId || appData.clients[0].id;
+  const client = appData.clients.find(c => c.id === resolvedClientId);
+  if (!client) return;
+
+  const form = document.getElementById('postForm');
+  const errEl = document.getElementById('postFormError');
+  const dupWarn = document.getElementById('duplicateLinkWarning');
+
+  errEl?.classList.add('hidden');
+  dupWarn?.classList.add('hidden');
+  if (form && typeof form.reset === 'function') form.reset();
+
+  document.getElementById('postTargetClientId').value = client.id;
+  const clientLabel = document.getElementById('postModalClientLabel');
+  if (clientLabel) {
+    const insta = formatInstagram(client.instagram);
+    clientLabel.textContent = `${client.name}${insta ? ` (${insta})` : ''}`;
+  }
+
+  if (!hasExplicitClient && !postId && clientSelectGroup && clientSelectEl) {
+    clientSelectGroup.classList.remove('hidden');
+    clientSelectEl.innerHTML = appData.clients
+      .map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)}</option>`)
+      .join('');
+    clientSelectEl.value = client.id;
+  } else {
+    clientSelectGroup?.classList.add('hidden');
+  }
+
+  const hasContracts = populateContractSelectForPostModal(client, postId, preselectedContractId);
+  if (!hasContracts) {
+    openModal('postModal');
+    return;
   }
 
   if (postId) {
@@ -1866,9 +1948,7 @@ function openPostModal(postId = null, targetClientId = null, isQuickFlow = false
     document.getElementById('postNotes').value = post.notes || '';
     setPostMoreOptionsExpanded(true);
   } else {
-    document.getElementById('postModalTitle').textContent = isQuickFlow
-      ? 'Registrar Publicação (Fluxo Rápido)'
-      : 'Nova Postagem';
+    document.getElementById('postModalTitle').textContent = 'Adicionar Postagem';
     document.getElementById('postId').value = '';
     document.getElementById('postDate').value = getLocalTodayISO();
     document.getElementById('postType').value = 'Reels';
@@ -1876,19 +1956,6 @@ function openPostModal(postId = null, targetClientId = null, isQuickFlow = false
     document.getElementById('postTitle').value = '';
     document.getElementById('postLink').value = '';
     document.getElementById('postNotes').value = '';
-
-    if (preselectedContractId) {
-      contractSelect.value = preselectedContractId;
-    } else if (activeContracts.length === 1) {
-      // Seleciona automaticamente quando há somente 1 contrato ativo
-      contractSelect.value = activeContracts[0].id;
-    } else if (activeContracts.length > 1) {
-      // Quando há vários contratos ativos, solicita a seleção
-      contractSelect.value = '';
-    } else if (contractsForSelect.length === 1) {
-      contractSelect.value = contractsForSelect[0].id;
-    }
-
     setPostMoreOptionsExpanded(!isQuickFlow);
   }
 
@@ -1935,13 +2002,12 @@ async function handlePostSubmit(e) {
 
   if (!contractId) {
     if (errEl) {
-      errEl.textContent = 'Selecione o contrato/período desta postagem.';
+      errEl.textContent = 'Selecione o contrato desta postagem.';
       errEl.classList.remove('hidden');
     }
     return;
   }
 
-  // Impede vínculo de uma postagem a contrato pertencente a outro cliente
   const belongsToClient = (client.contracts || []).some(c => c.id === contractId);
   if (!belongsToClient) {
     if (errEl) {
@@ -1986,7 +2052,7 @@ async function handlePostSubmit(e) {
         if (error) throw error;
       }
       await fetchFromSupabase();
-      showToast(id ? 'Postagem atualizada!' : (status === 'Publicado' ? 'Publicação registrada e contabilizada!' : 'Postagem salva!'));
+      showToast(id ? 'Postagem atualizada!' : (status === 'Publicado' ? 'Publicação registrada!' : 'Postagem salva!'));
     } else {
       if (!client.posts) client.posts = [];
       if (id) {
@@ -2012,7 +2078,7 @@ async function handlePostSubmit(e) {
           link,
           notes
         });
-        showToast(status === 'Publicado' ? 'Publicação registrada e contabilizada!' : 'Postagem cadastrada!');
+        showToast(status === 'Publicado' ? 'Publicação registrada!' : 'Postagem cadastrada!');
       }
       saveData();
     }
@@ -2042,7 +2108,6 @@ function generateDeliveryReportPlainText(client, contract) {
   const cm = getContractMetrics(client, contract);
   const insta = formatInstagram(client.instagram);
 
-  // Apenas publicações entregues (status === 'Publicado') vinculadas a este contrato, ordenadas por data
   const deliveredPosts = (client.posts || [])
     .filter(p => {
       if (p.status !== 'Publicado') return false;
@@ -2086,7 +2151,7 @@ function generateDeliveryReportPlainText(client, contract) {
 }
 
 function openDeliveryReportModal(clientId = null, preselectedContractId = '') {
-  openDropdownContractId = null;
+  closeAllKebabMenus();
   const resolvedId = clientId || currentClientId;
   const client = appData.clients.find(c => c.id === resolvedId);
   if (!client) return;
@@ -2096,7 +2161,7 @@ function openDeliveryReportModal(clientId = null, preselectedContractId = '') {
   const sortedContracts = sortContractsChronologically(client.contracts || [], true);
 
   if (sortedContracts.length === 0) {
-    showToast('Crie um contrato para este cliente antes de gerar o relatório de entregas.');
+    showToast('Crie um contrato para este cliente antes de gerar o relatório.');
     return;
   }
 
@@ -2107,7 +2172,11 @@ function openDeliveryReportModal(clientId = null, preselectedContractId = '') {
   if (preselectedContractId && sortedContracts.some(c => c.id === preselectedContractId)) {
     select.value = preselectedContractId;
   } else {
-    const active = sortedContracts.find(c => c.status === 'Ativo') || sortedContracts[0];
+    const selectedProfileMonth = document.getElementById('filterProfileContractMonth')?.value || 'ALL';
+    const matchingPeriodContract = sortedContracts.find(
+      c => normalizePeriod(c.period).toLowerCase() === selectedProfileMonth.toLowerCase()
+    );
+    const active = matchingPeriodContract || sortedContracts.find(c => c.status === 'Ativo') || sortedContracts[0];
     select.value = active.id;
   }
 
@@ -2127,7 +2196,6 @@ function renderDeliveryReportContent() {
   const { cm, deliveredPosts } = generateDeliveryReportPlainText(client, contract);
   const insta = formatInstagram(client.instagram);
 
-  // Não exibe observações internas, telefone, e-mail ou valores financeiros!
   area.innerHTML = `
     <div class="report-doc-header">
       <div class="report-doc-tag">RELATÓRIO DE ENTREGAS</div>
@@ -2137,7 +2205,7 @@ function renderDeliveryReportContent() {
 
     <div class="report-summary-grid">
       <div class="report-stat-box">
-        <span class="report-stat-label">Contrato / Período</span>
+        <span class="report-stat-label">Contrato</span>
         <strong class="report-stat-val">${escapeHtml(contract.period)}</strong>
       </div>
       <div class="report-stat-box">
@@ -2146,7 +2214,7 @@ function renderDeliveryReportContent() {
       </div>
       <div class="report-stat-box">
         <span class="report-stat-label">Publicadas</span>
-        <strong class="report-stat-val" style="color: #15803d;">${cm.published}</strong>
+        <strong class="report-stat-val text-success">${cm.published}</strong>
       </div>
       <div class="report-stat-box">
         <span class="report-stat-label">Restantes</span>
@@ -2155,22 +2223,22 @@ function renderDeliveryReportContent() {
       ${cm.excess > 0 ? `
         <div class="report-stat-box">
           <span class="report-stat-label">Excedente</span>
-          <strong class="report-stat-val" style="color: #15803d;">+${cm.excess}</strong>
+          <strong class="report-stat-val text-success">+${cm.excess}</strong>
         </div>
       ` : ''}
     </div>
 
-    <h4 style="font-size: 0.9rem; margin-bottom: 0.65rem; color: #334155;">
+    <h4 style="font-size: 0.9rem; margin-bottom: 0.6rem; color: var(--text-secondary);">
       Publicações Entregues (${deliveredPosts.length})
     </h4>
 
     ${deliveredPosts.length === 0
-      ? `<p style="font-size: 0.85rem; color: #64748b;">Nenhuma publicação concluída neste contrato até o momento.</p>`
+      ? `<p style="font-size: 0.86rem; color: var(--text-muted);">Nenhuma publicação concluída neste contrato até o momento.</p>`
       : `<div class="report-deliveries-list">
           ${deliveredPosts.map(p => `
             <div class="report-delivery-item">
               <div class="report-delivery-main">
-                ${escapeHtml(formatDateBR(p.date))} — <span style="color: #475569;">[${escapeHtml(p.type)}]</span> ${escapeHtml(p.title)}
+                ${escapeHtml(formatDateBR(p.date))} — <span style="color: var(--text-muted);">[${escapeHtml(p.type)}]</span> ${escapeHtml(p.title)}
               </div>
               ${p.link ? `<a href="${escapeHtml(p.link)}" target="_blank" rel="noopener noreferrer" class="report-delivery-link">Link: ${escapeHtml(p.link)}</a>` : ''}
             </div>
@@ -2200,7 +2268,7 @@ async function copyDeliveryReportToClipboard() {
       document.execCommand('copy');
       ta.remove();
     }
-    showToast('Resumo copiado para a área de transferência!');
+    showToast('Resumo copiado!');
   } catch (_) {
     showToast('Não foi possível copiar automaticamente.');
   }
@@ -2216,6 +2284,7 @@ function closeModal(modalId) {
 }
 
 function openClientModal(clientId = null) {
+  closeAllKebabMenus();
   const form = document.getElementById('clientForm');
   if (form && typeof form.reset === 'function') form.reset();
   document.getElementById('clientFormError')?.classList.add('hidden');
@@ -2285,7 +2354,7 @@ async function handleClientSubmit(e) {
 
   if (avatarUrl && !isValidHttpUrl(avatarUrl)) {
     if (errEl) {
-      errEl.textContent = 'A URL da foto/logo deve começar com http:// ou https://.';
+      errEl.textContent = 'O link da foto/logo deve começar com http:// ou https://.';
       errEl.classList.remove('hidden');
     }
     return;
@@ -2319,7 +2388,7 @@ async function handleClientSubmit(e) {
         if (error) throw error;
       }
       await fetchFromSupabase();
-      showToast(id ? 'Dados do cliente atualizados!' : 'Novo cliente cadastrado com sucesso!');
+      showToast(id ? 'Cliente atualizado!' : 'Cliente cadastrado!');
     } else {
       if (id) {
         const client = appData.clients.find(c => c.id === id);
@@ -2332,7 +2401,7 @@ async function handleClientSubmit(e) {
           client.avatar = finalAvatar;
           client.notes = notes;
         }
-        showToast('Dados do cliente atualizados!');
+        showToast('Cliente atualizado!');
       } else {
         const newClient = {
           id: uid('cli'),
@@ -2347,7 +2416,7 @@ async function handleClientSubmit(e) {
           posts: []
         };
         appData.clients.unshift(newClient);
-        showToast('Novo cliente cadastrado com sucesso!');
+        showToast('Cliente cadastrado!');
       }
       saveData();
     }
@@ -2367,18 +2436,19 @@ async function handleClientSubmit(e) {
     isSubmittingClient = false;
     if (btn) {
       btn.disabled = false;
-      btn.textContent = 'Salvar Cliente';
+      btn.textContent = 'Salvar';
     }
   }
 }
 
 function confirmDeleteClient(clientId) {
+  closeAllKebabMenus();
   const client = appData.clients.find(c => c.id === clientId);
   if (!client) return;
 
   openConfirmModal(
     'Excluir Cliente',
-    `Tem certeza que deseja excluir o cliente "${client.name}" e todas as suas postagens e contratos? Essa ação não pode ser desfeita.`,
+    `Deseja excluir "${client.name}" e todas as suas postagens e contratos? Essa ação não pode ser desfeita.`,
     async () => {
       if (supabase) {
         const { error } = await supabase.from('clientes').delete().eq('id', clientId);
@@ -2399,7 +2469,7 @@ function confirmDeleteClient(clientId) {
 
 // --- Modal Contrato ---
 function openContractModal(contractId = null) {
-  openDropdownContractId = null;
+  closeAllKebabMenus();
   const client = appData.clients.find(c => c.id === currentClientId);
   if (!client) return;
 
@@ -2420,7 +2490,7 @@ function openContractModal(contractId = null) {
     document.getElementById('contractValue').value = contract.value || '';
     document.getElementById('contractStatus').value = contract.status || 'Ativo';
   } else {
-    document.getElementById('contractModalTitle').textContent = 'Novo Contrato de Postagens';
+    document.getElementById('contractModalTitle').textContent = 'Novo Contrato';
     document.getElementById('contractId').value = '';
     document.getElementById('contractStartDate').value = '';
     document.getElementById('contractEndDate').value = '';
@@ -2453,7 +2523,7 @@ async function handleContractSubmit(e) {
 
   if (!period) {
     if (errEl) {
-      errEl.textContent = 'Informe o mês e ano ou período do contrato (ex.: Novembro/2026).';
+      errEl.textContent = 'Informe o mês e ano do contrato (ex.: Novembro/2026).';
       errEl.classList.remove('hidden');
     }
     return;
@@ -2461,7 +2531,7 @@ async function handleContractSubmit(e) {
 
   if (totalPosts <= 0) {
     if (errEl) {
-      errEl.textContent = 'A quantidade de postagens contratadas deve ser maior que zero.';
+      errEl.textContent = 'A quantidade contratada deve ser maior que zero.';
       errEl.classList.remove('hidden');
     }
     return;
@@ -2524,7 +2594,7 @@ async function handleContractSubmit(e) {
 
       if (opError) throw opError;
       await fetchFromSupabase();
-      showToast(id ? 'Contrato atualizado!' : 'Contrato salvo com sucesso!');
+      showToast(id ? 'Contrato atualizado!' : 'Contrato salvo!');
     } else {
       if (!client.contracts) client.contracts = [];
       if (id) {
@@ -2550,13 +2620,19 @@ async function handleContractSubmit(e) {
           value: value !== null ? value : '',
           status
         });
-        showToast('Contrato adicionado ao cliente!');
+        showToast('Contrato salvo!');
       }
       client.contracts = sortContractsChronologically(client.contracts, true);
       saveData();
     }
 
     closeModal('contractModal');
+    // Seleciona automaticamente o período recém-criado/editado no perfil
+    const profileSelect = document.getElementById('filterProfileContractMonth');
+    if (profileSelect) {
+      populateContractMonthFilters();
+      profileSelect.value = period;
+    }
     renderClientProfile();
   } catch (err) {
     if (errEl) {
@@ -2567,13 +2643,13 @@ async function handleContractSubmit(e) {
     isSubmittingContract = false;
     if (btn) {
       btn.disabled = false;
-      btn.textContent = 'Salvar Contrato';
+      btn.textContent = 'Salvar';
     }
   }
 }
 
 function confirmDeleteContract(contractId) {
-  openDropdownContractId = null;
+  closeAllKebabMenus();
   const client = appData.clients.find(c => c.id === currentClientId);
   if (!client) return;
   const contract = (client.contracts || []).find(c => c.id === contractId);
@@ -2581,7 +2657,7 @@ function confirmDeleteContract(contractId) {
 
   openConfirmModal(
     'Excluir Contrato',
-    `Deseja excluir o contrato "${contract.period}"? As postagens registradas serão mantidas no histórico do cliente.`,
+    `Deseja excluir o contrato "${contract.period}"? As postagens registradas serão mantidas.`,
     async () => {
       if (supabase) {
         const { error } = await supabase.from('contratos').delete().eq('id', contractId);
@@ -2600,15 +2676,17 @@ function confirmDeleteContract(contractId) {
   );
 }
 
-function confirmDeletePost(postId) {
-  const client = appData.clients.find(c => c.id === currentClientId);
+function confirmDeletePost(postId, ownerClientId = null) {
+  closeAllKebabMenus();
+  const resolvedClientId = ownerClientId || currentClientId;
+  const client = appData.clients.find(c => c.id === resolvedClientId);
   if (!client) return;
   const post = (client.posts || []).find(p => p.id === postId);
   if (!post) return;
 
   openConfirmModal(
     'Excluir Postagem',
-    `Deseja excluir a postagem "${post.title}"? O saldo contratual e os indicadores serão recalculados imediatamente.`,
+    `Deseja excluir a postagem "${post.title}"? O saldo será atualizado imediatamente.`,
     async () => {
       if (supabase) {
         const { error } = await supabase.from('postagens').delete().eq('id', postId);
@@ -2622,12 +2700,16 @@ function confirmDeletePost(postId) {
         saveData();
       }
       showToast('Postagem excluída.');
-      renderClientProfile();
+      if (currentClientId) {
+        renderClientProfile();
+      } else {
+        renderDashboard();
+      }
     }
   );
 }
 
-// ==================== CONFIGURAÇÕES → DADOS & CONFIRMAÇÃO REFORÇADA ====================
+// ==================== AJUSTES → DADOS & CONFIRMAÇÃO REFORÇADA ====================
 function openConfirmModal(title, message, onConfirm, requiredWord = null) {
   document.getElementById('confirmTitle').textContent = title;
   document.getElementById('confirmMessage').textContent = message;
@@ -2640,7 +2722,7 @@ function openConfirmModal(title, message, onConfirm, requiredWord = null) {
 
   if (requiredWord) {
     hardBlock?.classList.remove('hidden');
-    if (hardLabel) hardLabel.textContent = `Para confirmar, digite exatamente ${requiredWord} abaixo:`;
+    if (hardLabel) hardLabel.textContent = `Para confirmar, digite ${requiredWord} abaixo:`;
     if (hardInput) {
       hardInput.value = '';
       hardInput.placeholder = requiredWord;
@@ -2668,13 +2750,14 @@ function exportUserDataJson() {
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
-  showToast('Backup JSON exportado com sucesso!');
+  showToast('Backup JSON exportado!');
 }
 
 // Expõe funções chamadas via onclick no HTML
 if (typeof window !== 'undefined') {
   Object.assign(window, {
     openClientProfile,
+    backToDashboard,
     openClientModal,
     confirmDeleteClient,
     openContractModal,
@@ -2686,7 +2769,8 @@ if (typeof window !== 'undefined') {
     resetGlobalFilters,
     filterProfileByContractMonth,
     openDeliveryReportModal,
-    toggleContractDropdown
+    toggleKebabMenu,
+    openManageContractsSection
   });
 }
 
@@ -2697,52 +2781,85 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('loginForm')?.addEventListener('submit', handleLoginSubmit);
   document.getElementById('btnLogout')?.addEventListener('click', handleLogout);
 
-  // Fechar dropdown de contrato ao clicar fora
+  // Fechar menus de 3 pontos ao clicar fora
   document.addEventListener('click', () => {
-    if (openDropdownContractId) {
-      openDropdownContractId = null;
-      const client = appData.clients.find(c => c.id === currentClientId);
-      if (client) {
-        const selectedProfileMonth = document.getElementById('filterProfileContractMonth')?.value || 'ALL';
-        const includeCancelled = Boolean(document.getElementById('toggleProfileShowCancelled')?.checked);
-        renderContractsList(client, selectedProfileMonth, includeCancelled);
-      }
-    }
+    closeAllKebabMenus();
   });
 
   // Fechar modais com tecla Escape
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
+      closeAllKebabMenus();
       document.querySelectorAll('.modal-backdrop:not(.hidden)').forEach(m => m.classList.add('hidden'));
     }
   });
 
-  document.getElementById('brandLogo')?.addEventListener('click', () => {
-    setDashboardMode('clients');
-    backToDashboard();
-  });
-  document.getElementById('btnBackToDashboard')?.addEventListener('click', backToDashboard);
+  // Navegação Desktop & Mobile Bottom Nav
+  document.getElementById('brandLogo')?.addEventListener('click', () => setDashboardMode('clients'));
+  document.getElementById('navClientsBtn')?.addEventListener('click', () => setDashboardMode('clients'));
+  document.getElementById('mobileNavClients')?.addEventListener('click', () => setDashboardMode('clients'));
 
-  document.getElementById('navClientsBtn')?.addEventListener('click', () => {
-    setDashboardMode('clients');
-    backToDashboard();
-  });
-  document.getElementById('navPipelineBtn')?.addEventListener('click', () => {
-    setDashboardMode('posts');
-    backToDashboard();
-  });
-  document.getElementById('navSettingsBtn')?.addEventListener('click', () => {
-    showMainView('settings');
-  });
+  document.getElementById('navPipelineBtn')?.addEventListener('click', () => setDashboardMode('posts'));
+  document.getElementById('mobileNavPosts')?.addEventListener('click', () => setDashboardMode('posts'));
 
-  document.getElementById('tabViewClients')?.addEventListener('click', () => setDashboardMode('clients'));
-  document.getElementById('tabViewPosts')?.addEventListener('click', () => setDashboardMode('posts'));
+  document.getElementById('navSettingsBtn')?.addEventListener('click', () => showMainView('settings'));
+  document.getElementById('mobileNavSettings')?.addEventListener('click', () => showMainView('settings'));
 
+  // Botões de ação nos cabeçalhos
   document.getElementById('btnNewClientHeader')?.addEventListener('click', () => openClientModal());
+  document.getElementById('btnNewClientSidebar')?.addEventListener('click', () => openClientModal());
+  document.getElementById('btnNewPostGlobalHeader')?.addEventListener('click', () => openPostModal(null, null, true));
   document.getElementById('btnNewContract')?.addEventListener('click', () => openContractModal());
   document.getElementById('btnNewPost')?.addEventListener('click', () => openPostModal(null, currentClientId, false));
   document.getElementById('btnQuickPostProfile')?.addEventListener('click', () => openQuickPostFromCard(currentClientId));
   document.getElementById('btnOpenDeliveryReport')?.addEventListener('click', () => openDeliveryReportModal(currentClientId));
+
+  // Seção expansível "Detalhes do cliente e contrato" no perfil
+  document.getElementById('btnToggleClientDetails')?.addEventListener('click', () => {
+    const body = document.getElementById('clientDetailsExpandableBody');
+    const btn = document.getElementById('btnToggleClientDetails');
+    const chev = document.getElementById('clientDetailsChevron');
+    const isHidden = body?.classList.contains('hidden');
+    if (isHidden) {
+      body?.classList.remove('hidden');
+      btn?.setAttribute('aria-expanded', 'true');
+      if (chev) chev.textContent = '▴';
+    } else {
+      body?.classList.add('hidden');
+      btn?.setAttribute('aria-expanded', 'false');
+      if (chev) chev.textContent = '▾';
+    }
+  });
+
+  // Abrir Bottom Sheet de Filtros
+  document.getElementById('btnOpenFiltersSheet')?.addEventListener('click', () => {
+    document.getElementById('filterClientGroupInSheet')?.classList.add('hidden');
+    openModal('filtersSheetModal');
+  });
+
+  document.getElementById('btnOpenPostsFiltersSheet')?.addEventListener('click', () => {
+    document.getElementById('filterClientGroupInSheet')?.classList.remove('hidden');
+    openModal('filtersSheetModal');
+  });
+
+  document.getElementById('btnSheetResetFilters')?.addEventListener('click', () => {
+    resetGlobalFilters();
+    closeModal('filtersSheetModal');
+  });
+
+  // Troca de cliente dentro do modal de nova postagem (quando aberto da tela global)
+  document.getElementById('postClientSelect')?.addEventListener('change', (e) => {
+    const selectedCliId = e.target.value;
+    const cli = appData.clients.find(c => c.id === selectedCliId);
+    if (!cli) return;
+    document.getElementById('postTargetClientId').value = cli.id;
+    const clientLabel = document.getElementById('postModalClientLabel');
+    if (clientLabel) {
+      const insta = formatInstagram(cli.instagram);
+      clientLabel.textContent = `${cli.name}${insta ? ` (${insta})` : ''}`;
+    }
+    populateContractSelectForPostModal(cli, null, '');
+  });
 
   // Toggle "Mais opções" no modal de postagem
   document.getElementById('btnTogglePostMoreOptions')?.addEventListener('click', () => {
@@ -2760,37 +2877,29 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btnPrintReport')?.addEventListener('click', () => window.print());
 
   // Busca e Filtros
-  document.getElementById('searchInput')?.addEventListener('input', () => {
-    if (currentClientId) backToDashboard();
-    else renderDashboard();
-  });
+  document.getElementById('searchInput')?.addEventListener('input', renderDashboard);
+  document.getElementById('postsSearchInput')?.addEventListener('input', renderDashboard);
 
   document.getElementById('toggleShowCancelled')?.addEventListener('change', renderDashboard);
   document.getElementById('toggleProfileShowCancelled')?.addEventListener('change', renderClientProfile);
 
   document.getElementById('globalContractMonthFilter')?.addEventListener('change', (e) => {
-    const val = e.target.value;
-    if (currentClientId) {
-      const profileMonth = document.getElementById('filterProfileContractMonth');
-      if (profileMonth) profileMonth.value = val;
-      renderClientProfile();
-    } else {
-      renderDashboard();
-    }
+    const sheetSelect = document.getElementById('sheetContractMonthFilter');
+    if (sheetSelect) sheetSelect.value = e.target.value;
+    renderDashboard();
   });
 
-  document.getElementById('globalPostStatusFilter')?.addEventListener('change', (e) => {
-    const val = e.target.value;
-    if (currentClientId) {
-      const profileStatus = document.getElementById('filterPostStatus');
-      if (profileStatus) profileStatus.value = val;
-      renderClientProfile();
-    } else {
-      renderDashboard();
-    }
+  document.getElementById('sheetContractMonthFilter')?.addEventListener('change', (e) => {
+    const globalSelect = document.getElementById('globalContractMonthFilter');
+    if (globalSelect) globalSelect.value = e.target.value;
+    renderDashboard();
   });
+
+  document.getElementById('globalPostStatusFilter')?.addEventListener('change', renderDashboard);
+  document.getElementById('globalClientFilter')?.addEventListener('change', renderDashboard);
 
   document.getElementById('btnClearGlobalFilters')?.addEventListener('click', resetGlobalFilters);
+  document.getElementById('btnClearPostsFilters')?.addEventListener('click', resetGlobalFilters);
 
   document.querySelectorAll('[data-status-pill]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -2826,7 +2935,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (pendingConfirmRequiredWord) {
       const typed = (document.getElementById('confirmHardInput')?.value || '').trim().toUpperCase();
       if (typed !== pendingConfirmRequiredWord.toUpperCase()) {
-        showToast(`Digite "${pendingConfirmRequiredWord}" para confirmar a operação.`);
+        showToast(`Digite "${pendingConfirmRequiredWord}" para confirmar.`);
         return;
       }
     }
@@ -2838,13 +2947,13 @@ document.addEventListener('DOMContentLoaded', () => {
     closeModal('confirmModal');
   });
 
-  // Configurações -> Dados
+  // Ajustes -> Dados
   document.getElementById('btnExportDataJson')?.addEventListener('click', exportUserDataJson);
 
   document.getElementById('btnClearData')?.addEventListener('click', () => {
     openConfirmModal(
-      'Exclusão em Massa — Confirmação Reforçada',
-      'Esta ação apagará TODOS os clientes, contratos e postagens atualmente salvos. Recomendamos exportar um backup JSON antes de continuar.',
+      'Exclusão em Massa',
+      'Esta ação apagará TODOS os clientes, contratos e postagens salvos. Exporte um backup JSON antes de continuar.',
       async () => {
         if (supabase) {
           const { error } = await supabase.from('clientes').delete().neq('id', '00000000-0000-0000-0000-000000000000');
@@ -2867,21 +2976,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('btnResetDemo')?.addEventListener('click', () => {
     if (supabase) {
-      showToast('No modo conectado ao Supabase, os exemplos locais estão desativados para proteger seus dados reais.');
+      showToast('Conectado ao Supabase: exemplos locais estão desativados para proteger seus dados reais.');
       return;
     }
     openConfirmModal(
-      'Restaurar Exemplos de Demonstração',
-      'Isso irá adicionar/restaurar os 3 clientes fictícios de demonstração no armazenamento local, preservando seus clientes reais cadastrados.',
+      'Restaurar Exemplos',
+      'Isso adicionará os 3 clientes de demonstração no Modo Local, preservando os clientes reais que você cadastrou.',
       async () => {
-        // Preserva registros reais (que não são sample_cli_*) e atualiza/adiciona apenas os exemplos
         const realClients = (appData.clients || []).filter(c => !c.isSample && !String(c.id).startsWith('sample_cli_'));
         const sampleCopy = JSON.parse(JSON.stringify(SAMPLE_DATA.clients));
         appData.clients = [...realClients, ...sampleCopy];
         saveData();
         resetGlobalFilters();
         backToDashboard();
-        showToast('Exemplos restaurados sem afetar seus clientes reais!');
+        showToast('Exemplos restaurados!');
       }
     );
   });
