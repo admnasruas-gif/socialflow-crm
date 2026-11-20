@@ -1,7 +1,15 @@
+/**
+ * SocialFlow PWA Service Worker
+ * Permite instalar o SocialFlow como Aplicativo no Celular (Android / iOS / Desktop)
+ * Usa estratégia Network-First para sempre buscar dados e código atualizados quando online.
+ */
+
 const CACHE_NAME = 'socialflow-pwa-v3';
 const STATIC_ASSETS = [
   '/',
-  '/index.html'
+  '/index.html',
+  '/manifest.json',
+  '/icon.svg'
 ];
 
 self.addEventListener('install', (event) => {
@@ -25,6 +33,7 @@ self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
 
+  // Ignora chamadas de API externas (como Supabase) para nunca cachear dados sensíveis
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
 
