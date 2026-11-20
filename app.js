@@ -273,6 +273,7 @@ let isSubmittingClient = false;
 let isSubmittingContract = false;
 let isSubmittingPost = false;
 let openKebabMenuId = null;
+let lastFocusedTriggerEl = null;
 
 // ==================== DATA LOCAL (SEM DESVIO UTC) ====================
 function getLocalTodayISO(refDate = new Date()) {
@@ -528,18 +529,21 @@ function updateDbStatusUI(isOnline, userEmail = '') {
   const txt = document.getElementById('dbConnectionText');
   const userInfo = document.getElementById('loggedUserInfo');
   const userEmailEl = document.getElementById('loggedUserEmail');
+  const demoRow = document.getElementById('demoDataSettingsRow');
 
   if (isOnline) {
     dot?.classList.add('online');
-    if (txt) txt.textContent = 'Supabase Conectado';
+    if (txt) txt.textContent = 'Supabase conectado';
     if (userEmail) {
       userInfo?.classList.remove('hidden');
       if (userEmailEl) userEmailEl.textContent = userEmail;
     }
+    demoRow?.classList.add('hidden');
   } else {
     dot?.classList.remove('online');
-    if (txt) txt.textContent = 'Modo Local (Offline)';
+    if (txt) txt.textContent = 'Modo local';
     userInfo?.classList.add('hidden');
+    demoRow?.classList.remove('hidden');
   }
 }
 
@@ -1294,35 +1298,34 @@ function renderClientsGrid(filteredClients, monthFilter, statusFilter, searchQue
     const instaFormatted = formatInstagram(client.instagram);
     const instaUrl = getInstagramUrl(client.instagram);
 
-    // Resumo claro do contrato conforme o modelo solicitado:
-    // Contrato: Nov/2026
-    // 2 de 8 publicadas • 6 restantes
+    // Resumo claro do contrato com "2 de 8 entregues" e saldo restante
     let contractLineTitle = '';
     let contractLineStats = '';
 
     if (m.contractBreakdowns.length === 0) {
       contractLineTitle = 'Sem contrato ativo';
-      contractLineStats = 'Toque em Ver cliente para criar um contrato';
+      contractLineStats = '<span class="client-contract-remaining">Toque em Ver cliente para criar um contrato</span>';
     } else if (m.contractBreakdowns.length === 1) {
       const { contract, metrics: cm } = m.contractBreakdowns[0];
       contractLineTitle = `Contrato: ${escapeHtml(contract.period)}`;
-      contractLineStats = `${cm.published} de ${cm.totalContracted} publicadas • ${cm.remaining} restantes${cm.excess > 0 ? ` (+${cm.excess} extra)` : ''}`;
+      contractLineStats = `<span>${cm.published} de ${cm.totalContracted} entregues <span class="sr-only">(${cm.published} de ${cm.totalContracted} publicadas)</span></span><span class="client-contract-remaining">${cm.remaining} restantes${cm.excess > 0 ? ` (+${cm.excess} extra)` : ''}</span>`;
     } else {
       const latestPeriod = m.contractBreakdowns[0].contract.period;
       contractLineTitle = `${m.contractBreakdowns.length} contratos (atual: ${escapeHtml(latestPeriod)})`;
-      contractLineStats = `${m.totalPublished} de ${m.totalContracted} publicadas • ${m.remaining} restantes${m.totalExcess > 0 ? ` (+${m.totalExcess} extra)` : ''}`;
+      contractLineStats = `<span>${m.totalPublished} de ${m.totalContracted} entregues <span class="sr-only">(${m.totalPublished} de ${m.totalContracted} publicadas)</span></span><span class="client-contract-remaining">${m.remaining} restantes${m.totalExcess > 0 ? ` (+${m.totalExcess} extra)` : ''}</span>`;
     }
 
-    // Mostra badge discreta apenas quando relevante (ex: Em atraso, Prazo próximo, Entregue)
     const showStatusBadge = m.consideredContractsCount > 0;
 
     return `
       <article class="client-card ${cardStateClass}" data-client-id="${escapeHtml(client.id)}">
         <div class="client-card-top">
           <div class="client-identity">
-            ${avatarHtml}
+            <button type="button" class="avatar-trigger" onclick="openClientProfile('${escapeHtml(client.id)}')" aria-label="Abrir perfil de ${escapeHtml(client.name)}">
+              ${avatarHtml}
+            </button>
             <div class="client-title-wrap">
-              <h3 class="client-name" onclick="openClientProfile('${escapeHtml(client.id)}')">${escapeHtml(client.name)}</h3>
+              <button type="button" class="client-name-btn" onclick="openClientProfile('${escapeHtml(client.id)}')">${escapeHtml(client.name)}</button>
               ${instaFormatted
                 ? `<a href="${escapeHtml(instaUrl)}" target="_blank" rel="noopener noreferrer" class="client-handle">${escapeHtml(instaFormatted)}</a>`
                 : (client.company ? `<span class="client-handle">${escapeHtml(client.company)}</span>` : '')
@@ -1335,9 +1338,9 @@ function renderClientsGrid(filteredClients, monthFilter, statusFilter, searchQue
         <div class="client-contract-info">
           <div class="client-contract-title">
             <span>${contractLineTitle}</span>
-            <span>${m.percentage}%</span>
+            <span class="tabular-nums">${m.percentage}%</span>
           </div>
-          <div class="client-contract-stats">${contractLineStats}</div>
+          <div class="client-contract-stats tabular-nums">${contractLineStats}</div>
         </div>
 
         <div class="progress-bar-bg">
@@ -1348,7 +1351,7 @@ function renderClientsGrid(filteredClients, monthFilter, statusFilter, searchQue
           <button type="button" class="btn btn-primary" onclick="openQuickPostFromCard('${escapeHtml(client.id)}')">
             + Postagem
           </button>
-          <button type="button" class="btn btn-secondary" onclick="openClientProfile('${escapeHtml(client.id)}')">
+          <button type="button" class="btn btn-quiet" onclick="openClientProfile('${escapeHtml(client.id)}')">
             Ver cliente
           </button>
         </div>
@@ -1366,28 +1369,28 @@ function renderPostCardHtml(client, post, postPeriod, isGlobalView = false) {
   const menuId = `kebab_post_${isGlobalView ? 'g_' : 'p_'}${post.id}`;
 
   const linkBtnHtml = post.link
-    ? `<a href="${escapeHtml(post.link)}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm">
+    ? `<a href="${escapeHtml(post.link)}" target="_blank" rel="noopener noreferrer" class="post-external-link">
          <span>Ver publicação</span>
-         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
            <polyline points="15 3 21 3 21 9"></polyline>
            <line x1="10" y1="14" x2="21" y2="3"></line>
          </svg>
        </a>`
-    : `<span class="post-date">Sem link externo</span>`;
+    : '';
 
   return `
     <article class="post-card">
       <div class="post-card-top">
         <div class="post-meta-left">
           <span class="badge ${statusBadgeClass}">${escapeHtml(post.status)}</span>
-          <span class="post-date">${escapeHtml(formatDateBR(post.date))}</span>
-          <span class="post-type-label">${escapeHtml(post.type)}</span>
+          <span class="post-date tabular-nums">${escapeHtml(formatDateBR(post.date))}</span>
+          <span class="post-type-meta">• ${escapeHtml(post.type)}</span>
         </div>
 
         <div class="kebab-wrap">
           <button type="button" class="btn-icon-only" onclick="toggleKebabMenu('${escapeHtml(menuId)}', event)" aria-label="Opções da postagem">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="5" r="1"></circle>
               <circle cx="12" cy="12" r="1"></circle>
               <circle cx="12" cy="19" r="1"></circle>
@@ -1406,17 +1409,16 @@ function renderPostCardHtml(client, post, postPeriod, isGlobalView = false) {
 
       <h3 class="post-title">${escapeHtml(post.title)}</h3>
 
-      ${(isGlobalView || postPeriod) ? `
-        <div class="post-context-row">
-          ${isGlobalView ? `<button type="button" class="post-client-link" onclick="openClientProfile('${escapeHtml(client.id)}')">${escapeHtml(client.name)}</button>` : ''}
-          ${(isGlobalView && postPeriod) ? `<span>•</span>` : ''}
-          ${postPeriod ? `<span>Contrato: ${escapeHtml(postPeriod)}</span>` : ''}
+      ${(isGlobalView || postPeriod || linkBtnHtml) ? `
+        <div class="post-card-bottom">
+          <div class="post-context-row">
+            ${isGlobalView ? `<button type="button" class="post-client-link" onclick="openClientProfile('${escapeHtml(client.id)}')">${escapeHtml(client.name)}</button>` : ''}
+            ${(isGlobalView && postPeriod) ? `<span>•</span>` : ''}
+            ${postPeriod ? `<span>${escapeHtml(postPeriod)}</span>` : ''}
+          </div>
+          ${linkBtnHtml}
         </div>
       ` : ''}
-
-      <div class="post-card-footer">
-        ${linkBtnHtml}
-      </div>
     </article>
   `;
 }
@@ -1673,7 +1675,7 @@ function renderClientProfile() {
     `;
   }
 
-  // Detalhes secundários dentro da seção expansível "Detalhes do cliente e contrato"
+  // Detalhes secundários em linhas limpas (sem cards dentro de cards)
   const secDetails = document.getElementById('profileSecondaryDetailsContent');
   if (secDetails) {
     const selectedContractObj = (client.contracts || []).find(
@@ -1682,22 +1684,48 @@ function renderClientProfile() {
     const valFormatted = selectedContractObj ? formatCurrency(selectedContractObj.value) : null;
     const hasDates = selectedContractObj && (selectedContractObj.startDate || selectedContractObj.endDate);
 
-    secDetails.innerHTML = `
-      <div class="secondary-details-list">
-        ${client.company ? `<div><strong>Empresa:</strong> ${escapeHtml(client.company)}</div>` : ''}
-        ${client.phone ? `<div><strong>Telefone:</strong> ${escapeHtml(client.phone)} ${waUrl ? `<a href="${escapeHtml(waUrl)}" target="_blank" rel="noopener noreferrer" style="color: var(--success); font-weight: 600; margin-left: 0.4rem;">Abrir WhatsApp</a>` : ''}</div>` : ''}
-        ${client.email ? `<div><strong>E-mail:</strong> ${escapeHtml(client.email)}</div>` : ''}
-        ${client.notes ? `<div><strong>Observações:</strong> ${escapeHtml(client.notes)}</div>` : ''}
-        ${selectedContractObj ? `
-          <div style="margin-top: 0.35rem; padding-top: 0.45rem; border-top: 1px dashed var(--border);">
-            <div><strong>Contrato selecionado:</strong> ${escapeHtml(selectedContractObj.period)} (${escapeHtml(selectedContractObj.status)})</div>
-            ${selectedContractObj.types ? `<div><strong>Formatos:</strong> ${escapeHtml(selectedContractObj.types)}</div>` : ''}
-            ${valFormatted ? `<div><strong>Valor:</strong> ${valFormatted}</div>` : ''}
-            ${hasDates ? `<div><strong>Prazo:</strong> ${selectedContractObj.startDate ? formatDateBR(selectedContractObj.startDate) : '...'} até ${selectedContractObj.endDate ? formatDateBR(selectedContractObj.endDate) : '...'}</div>` : ''}
-          </div>
-        ` : ''}
-      </div>
-    `;
+    const rows = [];
+    if (client.company) {
+      rows.push({ label: 'Empresa', value: escapeHtml(client.company) });
+    }
+    if (client.phone) {
+      const waLink = waUrl
+        ? ` <a href="${escapeHtml(waUrl)}" target="_blank" rel="noopener noreferrer" style="color: var(--success); font-weight: 500; margin-left: 6px; text-decoration: none;">WhatsApp ↗</a>`
+        : '';
+      rows.push({ label: 'Telefone', value: `${escapeHtml(client.phone)}${waLink}` });
+    }
+    if (client.email) {
+      rows.push({ label: 'E-mail', value: escapeHtml(client.email) });
+    }
+    if (client.notes) {
+      rows.push({ label: 'Observações', value: escapeHtml(client.notes) });
+    }
+    if (selectedContractObj) {
+      rows.push({ label: 'Contrato selecionado', value: `${escapeHtml(selectedContractObj.period)} (${escapeHtml(selectedContractObj.status)})` });
+      if (selectedContractObj.types) {
+        rows.push({ label: 'Formatos', value: escapeHtml(selectedContractObj.types) });
+      }
+      if (valFormatted) {
+        rows.push({ label: 'Valor', value: valFormatted });
+      }
+      if (hasDates) {
+        rows.push({
+          label: 'Prazo',
+          value: `${selectedContractObj.startDate ? formatDateBR(selectedContractObj.startDate) : '...'} a ${selectedContractObj.endDate ? formatDateBR(selectedContractObj.endDate) : '...'}`
+        });
+      }
+    }
+
+    secDetails.innerHTML = rows.length > 0
+      ? `<div class="detail-lines-list">
+          ${rows.map(r => `
+            <div class="detail-line-row">
+              <span class="detail-line-label">${r.label}</span>
+              <span class="detail-line-value">${r.value}</span>
+            </div>
+          `).join('')}
+        </div>`
+      : `<p style="font-size: 0.84rem; color: var(--text-muted); padding-top: 12px;">Nenhum detalhe adicional preenchido.</p>`;
   }
 
   renderContractsList(client, selectedProfileMonth, includeCancelled);
@@ -1712,9 +1740,8 @@ function renderContractsList(client, selectedProfileMonth = 'ALL', includeCancel
 
   if (contracts.length === 0) {
     container.innerHTML = `
-      <div class="empty-state">
-        <h4>Nenhum contrato cadastrado</h4>
-        <button type="button" class="btn btn-secondary btn-sm" onclick="openContractModal()">+ Novo contrato</button>
+      <div style="padding: 12px 0; color: var(--text-muted); font-size: 0.85rem;">
+        Nenhum contrato cadastrado.
       </div>
     `;
     return;
@@ -1727,22 +1754,22 @@ function renderContractsList(client, selectedProfileMonth = 'ALL', includeCancel
     const menuId = `kebab_cnt_${contract.id}`;
 
     return `
-      <div class="contract-mini-item">
+      <div class="contract-line-item">
         <div class="contract-mini-info">
-          <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;">
+          <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
             <span class="contract-mini-period">${escapeHtml(contract.period)}</span>
             <span class="badge ${adminBadgeClass}">${escapeHtml(contract.status)}</span>
             <span class="badge ${cm.deliveryBadgeClass}">${escapeHtml(cm.deliveryState)}</span>
           </div>
-          <div class="contract-mini-sub">
-            ${cm.published} de ${cm.totalContracted} publicadas • ${cm.remaining} restantes
+          <div class="contract-mini-sub tabular-nums">
+            ${cm.published} de ${cm.totalContracted} entregues • ${cm.remaining} restantes
             ${formattedVal ? ` • ${formattedVal}` : ''}
           </div>
         </div>
 
         <div class="kebab-wrap">
           <button type="button" class="btn-icon-only" onclick="toggleKebabMenu('${escapeHtml(menuId)}', event)" aria-label="Opções do contrato">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="5" r="1"></circle>
               <circle cx="12" cy="12" r="1"></circle>
               <circle cx="12" cy="19" r="1"></circle>
@@ -2257,16 +2284,18 @@ function renderDeliveryReportContent() {
 
   area.innerHTML = `
     <div class="report-doc-header">
-      <div class="report-doc-tag">RELATÓRIO DE ENTREGAS</div>
-      <div class="report-doc-title">${escapeHtml(client.name)}</div>
-      ${insta ? `<div class="report-doc-handle">${escapeHtml(insta)}</div>` : ''}
+      <div>
+        <div class="report-brand-mark">SocialFlow • Relatório de Entregas</div>
+        <div class="report-doc-title">${escapeHtml(client.name)}</div>
+        ${insta ? `<div class="report-doc-handle">${escapeHtml(insta)}</div>` : ''}
+      </div>
+      <div style="text-align: right;">
+        <span class="report-stat-label">Período</span>
+        <div style="font-weight: 600; font-size: 0.95rem;">${escapeHtml(contract.period)}</div>
+      </div>
     </div>
 
     <div class="report-summary-grid">
-      <div class="report-stat-box">
-        <span class="report-stat-label">Contrato</span>
-        <strong class="report-stat-val">${escapeHtml(contract.period)}</strong>
-      </div>
       <div class="report-stat-box">
         <span class="report-stat-label">Contratadas</span>
         <strong class="report-stat-val">${cm.totalContracted}</strong>
@@ -2279,27 +2308,25 @@ function renderDeliveryReportContent() {
         <span class="report-stat-label">Restantes</span>
         <strong class="report-stat-val">${cm.remaining}</strong>
       </div>
-      ${cm.excess > 0 ? `
-        <div class="report-stat-box">
-          <span class="report-stat-label">Excedente</span>
-          <strong class="report-stat-val text-success">+${cm.excess}</strong>
-        </div>
-      ` : ''}
+      <div class="report-stat-box">
+        <span class="report-stat-label">${cm.excess > 0 ? 'Excedente' : 'Progresso'}</span>
+        <strong class="report-stat-val ${cm.excess > 0 ? 'text-success' : ''}">${cm.excess > 0 ? `+${cm.excess}` : `${cm.percentage}%`}</strong>
+      </div>
     </div>
 
-    <h4 style="font-size: 0.9rem; margin-bottom: 0.6rem; color: var(--text-secondary);">
+    <h4 style="font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.5rem; color: var(--text-muted);">
       Publicações Entregues (${deliveredPosts.length})
     </h4>
 
     ${deliveredPosts.length === 0
-      ? `<p style="font-size: 0.86rem; color: var(--text-muted);">Nenhuma publicação concluída neste contrato até o momento.</p>`
+      ? `<p style="font-size: 0.875rem; color: var(--text-muted); padding: 8px 0;">Nenhuma publicação concluída neste contrato até o momento.</p>`
       : `<div class="report-deliveries-list">
           ${deliveredPosts.map(p => `
             <div class="report-delivery-item">
               <div class="report-delivery-main">
-                ${escapeHtml(formatDateBR(p.date))} — <span style="color: var(--text-muted);">[${escapeHtml(p.type)}]</span> ${escapeHtml(p.title)}
+                <span class="tabular-nums" style="color: var(--text-muted); font-weight: 400;">${escapeHtml(formatDateBR(p.date))}</span> — <span style="color: var(--text-secondary); font-weight: 400;">[${escapeHtml(p.type)}]</span> ${escapeHtml(p.title)}
               </div>
-              ${p.link ? `<a href="${escapeHtml(p.link)}" target="_blank" rel="noopener noreferrer" class="report-delivery-link">Link: ${escapeHtml(p.link)}</a>` : ''}
+              ${p.link ? `<a href="${escapeHtml(p.link)}" target="_blank" rel="noopener noreferrer" class="report-delivery-link">${escapeHtml(p.link)}</a>` : ''}
             </div>
           `).join('')}
         </div>`
@@ -2334,12 +2361,61 @@ async function copyDeliveryReportToClipboard() {
 }
 
 // ==================== MODAIS DE CLIENTE E CONTRATO ====================
+function syncBodyFullscreenModalState() {
+  if (typeof document === 'undefined' || !document.body) return;
+  const fullscreenIds = ['clientModal', 'contractModal', 'postModal', 'reportModal'];
+  const anyOpen = fullscreenIds.some(id => {
+    const el = document.getElementById(id);
+    return el && !el.classList.contains('hidden');
+  });
+  document.body.classList.toggle('fullscreen-modal-open', anyOpen);
+}
+
 function openModal(modalId) {
-  document.getElementById(modalId)?.classList.remove('hidden');
+  if (typeof document !== 'undefined' && document.activeElement) {
+    lastFocusedTriggerEl = document.activeElement;
+  }
+  const modal = document.getElementById(modalId);
+  modal?.classList.remove('hidden');
+  syncBodyFullscreenModalState();
 }
 
 function closeModal(modalId) {
   document.getElementById(modalId)?.classList.add('hidden');
+  syncBodyFullscreenModalState();
+  if (lastFocusedTriggerEl && typeof lastFocusedTriggerEl.focus === 'function') {
+    try {
+      lastFocusedTriggerEl.focus();
+    } catch (_) {}
+  }
+}
+
+function setClientMoreInfoExpanded(expanded) {
+  const block = document.getElementById('clientMoreInfoBlock');
+  const btn = document.getElementById('btnToggleClientMoreInfo');
+  const arrow = document.getElementById('clientMoreInfoArrow');
+  if (!block) return;
+
+  if (expanded) {
+    block.classList.remove('hidden');
+    btn?.setAttribute('aria-expanded', 'true');
+    if (arrow) arrow.textContent = '▾';
+  } else {
+    block.classList.add('hidden');
+    btn?.setAttribute('aria-expanded', 'false');
+    if (arrow) arrow.textContent = '▸';
+  }
+}
+
+function updateClientAvatarPreview(avatarSrc = '', nameVal = '') {
+  const preview = document.getElementById('clientModalAvatarPreview');
+  if (!preview) return;
+  const initials = escapeHtml(getInitials(nameVal || 'CL'));
+  if (avatarSrc) {
+    preview.innerHTML = `<img src="${escapeHtml(avatarSrc)}" alt="Foto" onerror="this.style.display='none'; this.parentElement.textContent='${initials}';">`;
+  } else {
+    preview.textContent = initials;
+  }
 }
 
 function openClientModal(clientId = null) {
@@ -2348,11 +2424,13 @@ function openClientModal(clientId = null) {
   if (form && typeof form.reset === 'function') form.reset();
   document.getElementById('clientFormError')?.classList.add('hidden');
   uploadedAvatarBase64 = '';
+  const fileNameHint = document.getElementById('clientAvatarFileName');
+  if (fileNameHint) fileNameHint.textContent = 'PNG ou JPG opcional';
 
   if (clientId) {
     const client = appData.clients.find(c => c.id === clientId);
     if (!client) return;
-    document.getElementById('clientModalTitle').textContent = 'Editar Cliente';
+    document.getElementById('clientModalTitle').textContent = 'Editar cliente';
     document.getElementById('clientId').value = client.id;
     document.getElementById('clientName').value = client.name || '';
     document.getElementById('clientCompany').value = client.company || '';
@@ -2362,9 +2440,15 @@ function openClientModal(clientId = null) {
     document.getElementById('clientAvatar').value = client.avatar && !client.avatar.startsWith('data:') ? client.avatar : '';
     uploadedAvatarBase64 = client.avatar && client.avatar.startsWith('data:') ? client.avatar : '';
     document.getElementById('clientNotes').value = client.notes || '';
+    updateClientAvatarPreview(client.avatar || '', client.name || '');
+
+    const hasSecondaryData = Boolean(client.phone || client.company || client.email || client.notes || (client.avatar && !client.avatar.startsWith('data:')));
+    setClientMoreInfoExpanded(hasSecondaryData);
   } else {
-    document.getElementById('clientModalTitle').textContent = 'Novo Cliente';
+    document.getElementById('clientModalTitle').textContent = 'Novo cliente';
     document.getElementById('clientId').value = '';
+    updateClientAvatarPreview('', '');
+    setClientMoreInfoExpanded(false);
   }
 
   openModal('clientModal');
@@ -2994,6 +3078,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Escape') {
       closeAllKebabMenus();
       document.querySelectorAll('.modal-backdrop:not(.hidden)').forEach(m => m.classList.add('hidden'));
+      syncBodyFullscreenModalState();
     }
   });
 
@@ -3064,6 +3149,38 @@ document.addEventListener('DOMContentLoaded', () => {
     populateContractSelectForPostModal(cli, null, '');
   });
 
+  // Toggle "Mais informações" no modal de cliente e atualização do avatar preview
+  document.getElementById('btnToggleClientMoreInfo')?.addEventListener('click', () => {
+    const block = document.getElementById('clientMoreInfoBlock');
+    const isHidden = block?.classList.contains('hidden');
+    setClientMoreInfoExpanded(Boolean(isHidden));
+  });
+
+  document.getElementById('clientName')?.addEventListener('input', (e) => {
+    const currentSrc = uploadedAvatarBase64 || document.getElementById('clientAvatar')?.value.trim() || '';
+    updateClientAvatarPreview(currentSrc, e.target.value);
+  });
+
+  document.getElementById('clientAvatar')?.addEventListener('input', (e) => {
+    if (!uploadedAvatarBase64) {
+      updateClientAvatarPreview(e.target.value.trim(), document.getElementById('clientName')?.value || '');
+    }
+  });
+
+  // Toggle instruções de instalação PWA em Ajustes (só abre ao tocar)
+  document.getElementById('btnTogglePwaInstructions')?.addEventListener('click', () => {
+    const tips = document.getElementById('pwaManualTips');
+    const btn = document.getElementById('btnTogglePwaInstructions');
+    const isHidden = tips?.classList.contains('hidden');
+    if (isHidden) {
+      tips?.classList.remove('hidden');
+      btn?.setAttribute('aria-expanded', 'true');
+    } else {
+      tips?.classList.add('hidden');
+      btn?.setAttribute('aria-expanded', 'false');
+    }
+  });
+
   // Toggle "Mais opções" no modal de postagem
   document.getElementById('btnTogglePostMoreOptions')?.addEventListener('click', () => {
     const block = document.getElementById('postMoreOptionsBlock');
@@ -3122,9 +3239,12 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('clientAvatarFile')?.addEventListener('change', (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const fileNameHint = document.getElementById('clientAvatarFileName');
+    if (fileNameHint) fileNameHint.textContent = file.name;
     const reader = new FileReader();
     reader.onload = () => {
       uploadedAvatarBase64 = reader.result;
+      updateClientAvatarPreview(uploadedAvatarBase64, document.getElementById('clientName')?.value || '');
     };
     reader.readAsDataURL(file);
   });
@@ -3207,6 +3327,7 @@ document.addEventListener('DOMContentLoaded', () => {
     backdrop.addEventListener('click', (e) => {
       if (e.target === backdrop) {
         backdrop.classList.add('hidden');
+        syncBodyFullscreenModalState();
       }
     });
   });
