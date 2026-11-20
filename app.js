@@ -1117,6 +1117,11 @@ function renderDashboard() {
 
   syncStatusPillsUI(statusFilter);
 
+  const periodDisplayLabel = document.getElementById('globalPeriodDisplayLabel');
+  if (periodDisplayLabel) {
+    periodDisplayLabel.textContent = monthFilter === 'ALL' ? 'Todos os períodos' : monthFilter;
+  }
+
   // Calcula quantidade de filtros extras ativos para o badge do botão "Filtros"
   let activeFilterCount = 0;
   if (monthFilter !== 'ALL') activeFilterCount++;
@@ -1258,6 +1263,7 @@ function renderDashboard() {
   });
 
   setTxt('statTotalClients', filteredClients.length);
+  setTxt('statClientsWord', filteredClients.length === 1 ? 'cliente' : 'clientes');
   setTxt('statTotalContracted', totalContracted);
   setTxt('statTotalPublished', totalPublished);
   setTxt('statTotalPending', totalRemaining);
@@ -1298,63 +1304,62 @@ function renderClientsGrid(filteredClients, monthFilter, statusFilter, searchQue
     const instaFormatted = formatInstagram(client.instagram);
     const instaUrl = getInstagramUrl(client.instagram);
 
-    // Resumo claro do contrato com "2 de 8 entregues" e saldo restante
-    let contractLineTitle = '';
-    let contractLineStats = '';
+    // Resumo limpo do contrato: Período + "2 de 8 entregues" e "6 restantes"
+    let periodLabel = '';
+    let deliveredLabel = '';
+    let remainingLabel = '';
 
     if (m.contractBreakdowns.length === 0) {
-      contractLineTitle = 'Sem contrato ativo';
-      contractLineStats = '<span class="client-contract-remaining">Toque em Ver cliente para criar um contrato</span>';
+      periodLabel = 'Sem contrato ativo';
+      deliveredLabel = '0 de 0 entregues';
+      remainingLabel = '0 restantes';
     } else if (m.contractBreakdowns.length === 1) {
       const { contract, metrics: cm } = m.contractBreakdowns[0];
-      contractLineTitle = `Contrato: ${escapeHtml(contract.period)}`;
-      contractLineStats = `<span>${cm.published} de ${cm.totalContracted} entregues <span class="sr-only">(${cm.published} de ${cm.totalContracted} publicadas)</span></span><span class="client-contract-remaining">${cm.remaining} restantes${cm.excess > 0 ? ` (+${cm.excess} extra)` : ''}</span>`;
+      periodLabel = escapeHtml(contract.period);
+      deliveredLabel = `${cm.published} de ${cm.totalContracted} entregues`;
+      remainingLabel = `${cm.remaining} ${cm.remaining === 1 ? 'restante' : 'restantes'}${cm.excess > 0 ? ` (+${cm.excess} extra)` : ''}`;
     } else {
       const latestPeriod = m.contractBreakdowns[0].contract.period;
-      contractLineTitle = `${m.contractBreakdowns.length} contratos (atual: ${escapeHtml(latestPeriod)})`;
-      contractLineStats = `<span>${m.totalPublished} de ${m.totalContracted} entregues <span class="sr-only">(${m.totalPublished} de ${m.totalContracted} publicadas)</span></span><span class="client-contract-remaining">${m.remaining} restantes${m.totalExcess > 0 ? ` (+${m.totalExcess} extra)` : ''}</span>`;
+      periodLabel = `${m.contractBreakdowns.length} contratos (atual: ${escapeHtml(latestPeriod)})`;
+      deliveredLabel = `${m.totalPublished} de ${m.totalContracted} entregues`;
+      remainingLabel = `${m.remaining} ${m.remaining === 1 ? 'restante' : 'restantes'}${m.totalExcess > 0 ? ` (+${m.totalExcess} extra)` : ''}`;
     }
 
-    const showStatusBadge = m.consideredContractsCount > 0;
+    const subtitleText = instaFormatted || client.company || '';
 
     return `
-      <article class="client-card ${cardStateClass}" data-client-id="${escapeHtml(client.id)}">
-        <div class="client-card-top">
-          <div class="client-identity">
-            <button type="button" class="avatar-trigger" onclick="openClientProfile('${escapeHtml(client.id)}')" aria-label="Abrir perfil de ${escapeHtml(client.name)}">
-              ${avatarHtml}
-            </button>
-            <div class="client-title-wrap">
-              <button type="button" class="client-name-btn" onclick="openClientProfile('${escapeHtml(client.id)}')">${escapeHtml(client.name)}</button>
-              ${instaFormatted
-                ? `<a href="${escapeHtml(instaUrl)}" target="_blank" rel="noopener noreferrer" class="client-handle">${escapeHtml(instaFormatted)}</a>`
-                : (client.company ? `<span class="client-handle">${escapeHtml(client.company)}</span>` : '')
-              }
+      <article class="ios-client-card ${cardStateClass}" data-client-id="${escapeHtml(client.id)}">
+        <div class="ios-client-header" role="button" tabindex="0" onclick="openClientProfile('${escapeHtml(client.id)}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openClientProfile('${escapeHtml(client.id)}');}" aria-label="Abrir perfil de ${escapeHtml(client.name)}">
+          <div class="ios-client-identity">
+            ${avatarHtml}
+            <div class="ios-client-titles">
+              <h3 class="ios-client-name">${escapeHtml(client.name)}</h3>
+              ${subtitleText ? `<span class="ios-client-handle">${escapeHtml(subtitleText)}</span>` : ''}
             </div>
           </div>
-          ${showStatusBadge ? `<span class="badge ${m.overallBadgeClass}">${escapeHtml(m.overallDeliveryState)}</span>` : ''}
+          <svg class="ios-client-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="9 18 15 12 9 6"></polyline>
+          </svg>
         </div>
 
-        <div class="client-contract-info">
-          <div class="client-contract-title">
-            <span>${contractLineTitle}</span>
-            <span class="tabular-nums">${m.percentage}%</span>
+        <div class="ios-client-contract-row">
+          <span class="ios-contract-period">${periodLabel}</span>
+          <span class="badge ${m.overallBadgeClass}">${escapeHtml(m.overallDeliveryState)}</span>
+        </div>
+
+        <div class="ios-client-progress-block">
+          <div class="ios-client-stats-row tabular-nums">
+            <span class="ios-stats-delivered">${deliveredLabel}</span>
+            <span class="ios-stats-remaining">${remainingLabel}</span>
           </div>
-          <div class="client-contract-stats tabular-nums">${contractLineStats}</div>
+          <div class="ios-progress-track">
+            <div class="ios-progress-fill ${m.overallFillClass}" style="width: ${m.percentage}%"></div>
+          </div>
         </div>
 
-        <div class="progress-bar-bg">
-          <div class="progress-bar-fill ${m.overallFillClass}" style="width: ${m.percentage}%"></div>
-        </div>
-
-        <div class="client-card-actions">
-          <button type="button" class="btn btn-primary" onclick="openQuickPostFromCard('${escapeHtml(client.id)}')">
-            + Postagem
-          </button>
-          <button type="button" class="btn btn-quiet" onclick="openClientProfile('${escapeHtml(client.id)}')">
-            Ver cliente
-          </button>
-        </div>
+        <button type="button" class="ios-register-post-btn" onclick="openQuickPostFromCard('${escapeHtml(client.id)}')">
+          + Registrar postagem
+        </button>
       </article>
     `;
   }).join('');
@@ -1644,33 +1649,38 @@ function renderClientProfile() {
     deliveryBadge.textContent = m.overallDeliveryState;
   }
 
-  // C. Resumo do Contrato Selecionado (Contratadas, Publicadas, Restantes + Progresso)
+  const profileContractDisplayLabel = document.getElementById('profileContractDisplayLabel');
+  if (profileContractDisplayLabel) {
+    profileContractDisplayLabel.textContent = selectedProfileMonth === 'ALL'
+      ? `Todos os contratos (${(client.contracts || []).length})`
+      : selectedProfileMonth;
+  }
+
+  // C. Resumo do Contrato Selecionado (Mesmo componente de 3 colunas sem separadores soltos)
   document.getElementById('profileStatsGrid').innerHTML = `
-    <div class="summary-metric">
-      <span class="summary-label">Contratadas</span>
-      <strong class="summary-value">${m.totalContracted}</strong>
+    <div class="ios-summary-col">
+      <span class="ios-summary-label">Contratadas</span>
+      <strong class="ios-summary-value tabular-nums">${m.totalContracted}</strong>
     </div>
-    <div class="summary-divider"></div>
-    <div class="summary-metric">
-      <span class="summary-label">Publicadas</span>
-      <strong class="summary-value text-success">${m.totalPublished}</strong>
+    <div class="ios-summary-col">
+      <span class="ios-summary-label">Publicadas</span>
+      <strong class="ios-summary-value tabular-nums text-success">${m.totalPublished}</strong>
     </div>
-    <div class="summary-divider"></div>
-    <div class="summary-metric">
-      <span class="summary-label">Restantes</span>
-      <strong class="summary-value text-primary">${m.remaining}</strong>
+    <div class="ios-summary-col">
+      <span class="ios-summary-label">Restantes</span>
+      <strong class="ios-summary-value tabular-nums">${m.remaining}</strong>
     </div>
   `;
 
   const progressBlock = document.getElementById('profileProgressBlock');
   if (progressBlock) {
     progressBlock.innerHTML = `
-      <div class="progress-meta">
-        <span>Progresso (${m.percentage}%)${m.totalExcess > 0 ? ` • +${m.totalExcess} excedente` : ''}</span>
-        <span>A produzir (Pendente): ${m.countPendente}</span>
+      <div class="ios-client-stats-row tabular-nums">
+        <span class="ios-stats-delivered">${m.totalPublished} de ${m.totalContracted} entregues${m.totalExcess > 0 ? ` (+${m.totalExcess} extra)` : ''}</span>
+        <span class="ios-stats-remaining">${m.remaining} ${m.remaining === 1 ? 'restante' : 'restantes'}</span>
       </div>
-      <div class="progress-bar-bg">
-        <div class="progress-bar-fill ${m.overallFillClass}" style="width: ${m.percentage}%"></div>
+      <div class="ios-progress-track">
+        <div class="ios-progress-fill ${m.overallFillClass}" style="width: ${m.percentage}%"></div>
       </div>
     `;
   }
