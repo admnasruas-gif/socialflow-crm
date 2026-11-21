@@ -426,48 +426,84 @@ function computeNextContractPeriod(currentPeriodStr = '', prevStartDate = '', pr
 
 // ==================== BANCO DE DADOS: SUPABASE & LOCALSTORAGE ====================
 function mapSupabaseRowsToAppData(clientesRows = [], contratosRows = [], postagensRows = []) {
-  return {
-    clients: clientesRows.map(cli => {
-      const clientContracts = contratosRows
-        .filter(cnt => cnt.cliente_id === cli.id)
-        .map(cnt => ({
-          id: cnt.id,
-          period: cnt.periodo || '',
-          totalPosts: Number(cnt.total_postagens) || 0,
-          types: cnt.tipos || '',
-          value: cnt.valor !== null && cnt.valor !== undefined ? Number(cnt.valor) : '',
-          status: cnt.status || 'Ativo',
-          startDate: cnt.data_inicio || '',
-          endDate: cnt.data_fim || '',
-          createdAt: cnt.criado_em
-        }));
+  const trashClients = [];
+  const trashContracts = [];
+  const trashPosts = [];
 
-      return {
-        id: cli.id,
-        name: cli.nome || '',
-        company: cli.empresa || '',
-        instagram: cli.instagram || '',
-        phone: cli.telefone || '',
-        email: cli.email || '',
-        avatar: cli.foto_url || '',
-        notes: cli.observacoes || '',
-        createdAt: cli.criado_em,
-        contracts: sortContractsChronologically(clientContracts, true),
-        posts: postagensRows
-          .filter(pst => pst.cliente_id === cli.id)
-          .map(pst => ({
-            id: pst.id,
-            contractId: pst.contrato_id || '',
-            date: pst.data || '',
-            type: pst.tipo || 'Reels',
-            title: pst.titulo || '',
-            link: pst.link || '',
-            status: pst.status || 'Pendente',
-            notes: pst.observacoes || '',
-            createdAt: pst.criado_em
-          }))
-      };
-    })
+  const activeClients = [];
+  clientesRows.forEach(cli => {
+    const clientContractsAll = contratosRows
+      .filter(cnt => cnt.cliente_id === cli.id)
+      .map(cnt => ({
+        id: cnt.id,
+        clientId: cli.id,
+        clientName: cli.nome || '',
+        period: cnt.periodo || '',
+        totalPosts: Number(cnt.total_postagens) || 0,
+        types: cnt.tipos || '',
+        value: cnt.valor !== null && cnt.valor !== undefined ? Number(cnt.valor) : '',
+        status: cnt.status || 'Ativo',
+        startDate: cnt.data_inicio || '',
+        endDate: cnt.data_fim || '',
+        deletedAt: cnt.deleted_at || null,
+        createdAt: cnt.criado_em
+      }));
+
+    const clientPostsAll = postagensRows
+      .filter(pst => pst.cliente_id === cli.id)
+      .map(pst => ({
+        id: pst.id,
+        clientId: cli.id,
+        clientName: cli.nome || '',
+        contractId: pst.contrato_id || '',
+        date: pst.data || '',
+        type: pst.tipo || 'Reels',
+        title: pst.titulo || '',
+        link: pst.link || '',
+        status: pst.status || 'Pendente',
+        notes: pst.observacoes || '',
+        deletedAt: pst.deleted_at || null,
+        createdAt: pst.criado_em
+      }));
+
+    const mappedClient = {
+      id: cli.id,
+      name: cli.nome || '',
+      company: cli.empresa || '',
+      instagram: cli.instagram || '',
+      phone: cli.telefone || '',
+      email: cli.email || '',
+      avatar: cli.foto_url || '',
+      notes: cli.observacoes || '',
+      status: cli.status || 'Ativo',
+      archived: Boolean(cli.arquivado),
+      deletedAt: cli.deleted_at || null,
+      createdAt: cli.criado_em,
+      contracts: sortContractsChronologically(clientContractsAll.filter(c => !c.deletedAt), true),
+      posts: clientPostsAll.filter(p => !p.deletedAt)
+    };
+
+    if (cli.deleted_at) {
+      trashClients.push({
+        ...mappedClient,
+        contracts: sortContractsChronologically(clientContractsAll, true),
+        posts: clientPostsAll
+      });
+    } else {
+      activeClients.push(mappedClient);
+      clientContractsAll.filter(c => c.deletedAt).forEach(c => trashContracts.push(c));
+      clientPostsAll.filter(p => p.deletedAt).forEach(p => trashPosts.push(p));
+    }
+  });
+
+  return {
+    clients: activeClients,
+    trash: {
+      clients: trashClients,
+      contracts: trashContracts,
+      posts: trashPosts
+    },
+    auditLog: appData?.auditLog || []
   };
 }
 
@@ -513,6 +549,50 @@ function loadData() {
   }
 }
 
+function ensureRecoveryStructures() {
+  if (!appData.trash) {
+    appData.trash = { clients: [], contracts: [], posts: [] };
+  }
+  if (!Array.isArray(appData.trash.clients)) appData.trash.clients = [];
+  if (!Array.isArray(appData.trash.contracts)) appData.trash.contracts = [];
+  if (!Array.isArray(appData.trash.posts)) appData.trash.posts = [];
+  if (!Array.isArray(appData.auditLog)) appData.auditLog = [];
+}
+
+async function recordAuditEvent(entidade, entidadeId, acao, detalhes = {}) {
+  ensureRecoveryStructures();
+  const authorEmail = document.getElementById('loggedUserEmail')?.textContent || (supabase ? 'usuario' : 'modo_local');
+  const entry = {
+    id: uid('log'),
+    entidade,
+    entidadeId: String(entidadeId || ''),
+    acao,
+    detalhes,
+    autorEmail: authorEmail,
+    criadoEm: new Date().toISOString()
+  };
+
+  appData.auditLog.unshift(entry);
+  if (appData.auditLog.length > 200) {
+    appData.auditLog = appData.auditLog.slice(0, 200);
+  }
+  if (!supabase) {
+    saveData();
+  } else {
+    try {
+      await supabase.from('historico_alteracoes').insert([{
+        entidade,
+        entidade_id: String(entidadeId || ''),
+        acao,
+        detalhes,
+        autor_email: authorEmail
+      }]);
+    } catch (_) {
+      // Ignora silenciosamente caso a tabela historico_alteracoes ainda nao exista no banco
+    }
+  }
+}
+
 function saveData() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
@@ -531,9 +611,11 @@ function updateDbStatusUI(isOnline, userEmail = '') {
   const userEmailEl = document.getElementById('loggedUserEmail');
   const demoRow = document.getElementById('demoDataSettingsRow');
 
+  dot?.classList.remove('error');
+
   if (isOnline) {
     dot?.classList.add('online');
-    if (txt) txt.textContent = 'Supabase conectado';
+    if (txt) txt.textContent = 'Dados salvos na nuvem (Supabase)';
     if (userEmail) {
       userInfo?.classList.remove('hidden');
       if (userEmailEl) userEmailEl.textContent = userEmail;
@@ -541,9 +623,19 @@ function updateDbStatusUI(isOnline, userEmail = '') {
     demoRow?.classList.add('hidden');
   } else {
     dot?.classList.remove('online');
-    if (txt) txt.textContent = 'Modo local';
+    if (txt) txt.textContent = 'Dados salvos somente neste aparelho';
     userInfo?.classList.add('hidden');
     demoRow?.classList.remove('hidden');
+  }
+}
+
+function setPersistenceErrorUI(message = '') {
+  const dot = document.getElementById('dbConnectionDot');
+  const txt = document.getElementById('dbConnectionText');
+  dot?.classList.remove('online');
+  dot?.classList.add('error');
+  if (txt) {
+    txt.textContent = `Erro ao salvar: ${message || 'falha na gravação.'}`;
   }
 }
 
@@ -1105,6 +1197,15 @@ function closeAllKebabMenus() {
 }
 
 // ==================== RENDERIZAÇÃO: TELA DE CLIENTES E TELA DE POSTAGENS ====================
+let clientsViewMode = 'cards';
+
+function setClientsViewMode(mode) {
+  clientsViewMode = mode === 'table' ? 'table' : 'cards';
+  document.getElementById('btnClientsViewCards')?.classList.toggle('active', clientsViewMode === 'cards');
+  document.getElementById('btnClientsViewTable')?.classList.toggle('active', clientsViewMode === 'table');
+  renderDashboard();
+}
+
 function renderDashboard() {
   populateContractMonthFilters();
 
@@ -1113,6 +1214,10 @@ function renderDashboard() {
   const monthFilter = document.getElementById('globalContractMonthFilter')?.value || 'ALL';
   const statusFilter = document.getElementById('globalPostStatusFilter')?.value || 'ALL';
   const clientFilter = document.getElementById('globalClientFilter')?.value || 'ALL';
+  const clientStatusFilter = document.getElementById('globalClientStatusFilter')?.value || 'ALL';
+  const archivedFilter = document.getElementById('globalArchivedFilter')?.value || 'HIDE';
+  const portfolioConditionFilter = document.getElementById('globalPortfolioConditionFilter')?.value || 'ALL';
+  const clientSort = document.getElementById('globalClientSort')?.value || 'name_asc';
   const includeCancelled = Boolean(document.getElementById('toggleShowCancelled')?.checked);
 
   syncStatusPillsUI(statusFilter);
@@ -1126,6 +1231,10 @@ function renderDashboard() {
   let activeFilterCount = 0;
   if (monthFilter !== 'ALL') activeFilterCount++;
   if (statusFilter !== 'ALL') activeFilterCount++;
+  if (clientStatusFilter !== 'ALL') activeFilterCount++;
+  if (archivedFilter !== 'HIDE') activeFilterCount++;
+  if (portfolioConditionFilter !== 'ALL') activeFilterCount++;
+  if (clientSort !== 'name_asc') activeFilterCount++;
   if (includeCancelled) activeFilterCount++;
 
   const activePostsFilterCount = activeFilterCount + (clientFilter !== 'ALL' ? 1 : 0);
@@ -1165,8 +1274,14 @@ function renderDashboard() {
     Publicado: 0
   };
 
-  // 1. Filtra clientes por busca e período do contrato
+  // 1. Filtra clientes por busca, status do cliente, arquivamento e período do contrato
   const clientsInPeriod = appData.clients.filter(c => {
+    const archived = isClientArchived(c);
+    if (archivedFilter === 'HIDE' && archived) return false;
+    if (archivedFilter === 'ONLY' && !archived) return false;
+
+    if (clientStatusFilter !== 'ALL' && getClientStatus(c) !== clientStatusFilter) return false;
+
     if (searchQuery) {
       const nameMatch = (c.name || '').toLowerCase().includes(searchQuery);
       const companyMatch = (c.company || '').toLowerCase().includes(searchQuery);
@@ -1174,7 +1289,7 @@ function renderDashboard() {
       if (!nameMatch && !companyMatch && !instaMatch) return false;
     }
 
-    if (monthFilter !== 'ALL') {
+    if (monthFilter !== 'ALL' && portfolioConditionFilter !== 'NO_CONTRACT') {
       const hasContractInMonth = (c.contracts || []).some(cnt => {
         if (!includeCancelled && cnt.status === 'Cancelado') return false;
         return normalizePeriod(cnt.period).toLowerCase() === monthFilter.toLowerCase();
@@ -1204,8 +1319,18 @@ function renderDashboard() {
     });
   });
 
-  // 2. Filtra clientes exibidos se houver filtro de status ativo
+  // 2. Filtra clientes exibidos por status de postagem e situação da carteira
   const filteredClients = clientsInPeriod.filter(c => {
+    const m = getClientMetrics(c, monthFilter, includeCancelled);
+
+    if (portfolioConditionFilter === 'WITH_REMAINING' && m.remaining <= 0) return false;
+    if (portfolioConditionFilter === 'COMPLETED' && !(m.contractBreakdowns.length > 0 && m.remaining === 0 && m.totalContracted > 0)) return false;
+    if (portfolioConditionFilter === 'CONTRACT_NO_POSTS') {
+      const hasPostsInScope = m.contractBreakdowns.some(b => b.metrics.totalLinked > 0);
+      if (m.contractBreakdowns.length === 0 || hasPostsInScope) return false;
+    }
+    if (portfolioConditionFilter === 'NO_CONTRACT' && m.contractBreakdowns.length > 0) return false;
+
     if (statusFilter === 'ALL') return true;
     const clientPostsInMonth = (c.posts || []).filter(p => {
       const linked = getLinkedContractForPost(c, p);
@@ -1215,6 +1340,25 @@ function renderDashboard() {
       return pPeriod.toLowerCase() === monthFilter.toLowerCase();
     });
     return clientPostsInMonth.some(p => p.status === statusFilter);
+  });
+
+  // 3. Ordena clientes conforme seleção
+  filteredClients.sort((a, b) => {
+    if (clientSort === 'remaining_desc') {
+      return getClientMetrics(b, monthFilter, includeCancelled).remaining - getClientMetrics(a, monthFilter, includeCancelled).remaining;
+    }
+    if (clientSort === 'progress_asc') {
+      return getClientMetrics(a, monthFilter, includeCancelled).percentage - getClientMetrics(b, monthFilter, includeCancelled).percentage;
+    }
+    if (clientSort === 'last_post_desc' || clientSort === 'last_post_asc') {
+      const da = getClientLastPublishedDates(a, monthFilter, includeCancelled).lastAll || '';
+      const db = getClientLastPublishedDates(b, monthFilter, includeCancelled).lastAll || '';
+      if (!da && !db) return (a.name || '').localeCompare(b.name || '', 'pt-BR');
+      if (!da) return 1;
+      if (!db) return -1;
+      return clientSort === 'last_post_desc' ? db.localeCompare(da) : da.localeCompare(db);
+    }
+    return (a.name || '').localeCompare(b.name || '', 'pt-BR');
   });
 
   const setTxt = (id, val) => {
@@ -1252,6 +1396,7 @@ function renderDashboard() {
   let totalRemaining = 0;
   let totalExcess = 0;
   let totalToProduce = 0;
+  let totalContractsCount = 0;
 
   filteredClients.forEach(client => {
     const m = getClientMetrics(client, monthFilter, includeCancelled);
@@ -1260,18 +1405,113 @@ function renderDashboard() {
     totalRemaining += m.remaining;
     totalExcess += m.totalExcess;
     totalToProduce += m.countPendente;
+    totalContractsCount += m.contractBreakdowns.length;
   });
 
   setTxt('statTotalClients', filteredClients.length);
-  setTxt('statClientsWord', filteredClients.length === 1 ? 'cliente' : 'clientes');
+  const clientWord = filteredClients.length === 1 ? 'cliente' : 'clientes';
+  const contractWord = totalContractsCount === 1 ? 'contrato' : 'contratos';
+  setTxt('statClientsWord', `${clientWord} · ${totalContractsCount} ${contractWord}`);
   setTxt('statTotalContracted', totalContracted);
   setTxt('statTotalPublished', totalPublished);
   setTxt('statTotalPending', totalRemaining);
   setTxt('statToProduceSub', `A produzir (status Pendente): ${totalToProduce}`);
   setTxt('statExcessSub', totalExcess > 0 ? `+${totalExcess} excedente(s)` : '');
 
-  renderClientsGrid(filteredClients, monthFilter, statusFilter, searchQuery, includeCancelled);
+  if (clientsViewMode === 'table') {
+    renderClientsTable(filteredClients, monthFilter, statusFilter, searchQuery, includeCancelled);
+  } else {
+    renderClientsGrid(filteredClients, monthFilter, statusFilter, searchQuery, includeCancelled);
+  }
   renderGlobalPostsFeed(monthFilter, statusFilter, clientFilter, postsSearchQuery || searchQuery, includeCancelled);
+}
+
+function renderClientsTable(filteredClients, monthFilter, statusFilter, searchQuery, includeCancelled) {
+  const grid = document.getElementById('clientsGrid');
+  if (!grid) return;
+
+  if (filteredClients.length === 0) {
+    renderClientsGrid(filteredClients, monthFilter, statusFilter, searchQuery, includeCancelled);
+    return;
+  }
+
+  const rowsHtml = [];
+  filteredClients.forEach(client => {
+    const m = getClientMetrics(client, monthFilter, includeCancelled);
+    const lastDates = getClientLastPublishedDates(client, monthFilter, includeCancelled);
+    const lastPostDisplay = monthFilter !== 'ALL'
+      ? (lastDates.lastInPeriod ? `${formatDateBR(lastDates.lastInPeriod)} (período)` : (lastDates.lastAll ? `${formatDateBR(lastDates.lastAll)} (geral)` : '—'))
+      : (lastDates.lastAll ? formatDateBR(lastDates.lastAll) : '—');
+    const clientStatus = getClientStatus(client);
+    const statusTag = isClientArchived(client) ? 'Arquivado' : (clientStatus !== 'Ativo' ? clientStatus : '');
+
+    if (m.contractBreakdowns.length === 0) {
+      rowsHtml.push(`
+        <tr>
+          <td>
+            <button type="button" class="post-client-link" onclick="openClientProfile('${escapeHtml(client.id)}')">${escapeHtml(client.name)}</button>
+            ${statusTag ? `<span class="badge badge-concluido" style="margin-left:6px;">${escapeHtml(statusTag)}</span>` : ''}
+          </td>
+          <td><span style="color:var(--text-secondary);">Sem contrato no período</span></td>
+          <td class="tabular-nums">0</td>
+          <td class="tabular-nums">0</td>
+          <td class="tabular-nums">0</td>
+          <td class="tabular-nums">—</td>
+          <td class="tabular-nums">0%</td>
+          <td class="tabular-nums">${escapeHtml(lastPostDisplay)}</td>
+          <td class="table-actions-cell">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="openClientProfile('${escapeHtml(client.id)}')">Perfil</button>
+          </td>
+        </tr>
+      `);
+      return;
+    }
+
+    m.contractBreakdowns.forEach(({ contract, metrics: cm }) => {
+      rowsHtml.push(`
+        <tr>
+          <td>
+            <button type="button" class="post-client-link" onclick="openClientProfile('${escapeHtml(client.id)}')">${escapeHtml(client.name)}</button>
+            ${statusTag ? `<span class="badge badge-concluido" style="margin-left:6px;">${escapeHtml(statusTag)}</span>` : ''}
+          </td>
+          <td><strong>${escapeHtml(contract.period)}</strong></td>
+          <td class="tabular-nums">${cm.totalContracted}</td>
+          <td class="tabular-nums">${cm.published}</td>
+          <td class="tabular-nums">${cm.remaining}</td>
+          <td class="tabular-nums">${cm.excess > 0 ? `+${cm.excess}` : '0'}</td>
+          <td class="tabular-nums">${cm.percentage}%</td>
+          <td class="tabular-nums">${escapeHtml(lastPostDisplay)}</td>
+          <td class="table-actions-cell">
+            <button type="button" class="btn btn-primary btn-sm" onclick="openQuickPostFromCard('${escapeHtml(client.id)}', '${escapeHtml(contract.id)}')">+ Postar</button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="openDeliveryReportModal('${escapeHtml(client.id)}', '${escapeHtml(contract.id)}')">Relatório</button>
+          </td>
+        </tr>
+      `);
+    });
+  });
+
+  grid.innerHTML = `
+    <div class="desktop-clients-table-wrap">
+      <table class="desktop-clients-table">
+        <thead>
+          <tr>
+            <th>Cliente</th>
+            <th>Período / Contrato</th>
+            <th>Contratadas</th>
+            <th>Publicadas</th>
+            <th>Restantes</th>
+            <th>Excedentes</th>
+            <th>Progresso</th>
+            <th>Última publicação</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rowsHtml.join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
 }
 
 function renderClientsGrid(filteredClients, monthFilter, statusFilter, searchQuery, includeCancelled) {
@@ -1388,7 +1628,14 @@ function renderPostCardHtml(client, post, postPeriod, isGlobalView = false) {
     <article class="post-card">
       <div class="post-card-top">
         <div class="post-meta-left">
-          <span class="badge ${statusBadgeClass}">${escapeHtml(post.status)}</span>
+          <select class="post-status-quick-select ${statusBadgeClass}"
+                  onchange="quickChangePostStatus('${escapeHtml(client.id)}', '${escapeHtml(post.id)}', this.value)"
+                  aria-label="Alterar status da postagem">
+            <option value="Pendente" ${post.status === 'Pendente' ? 'selected' : ''}>Pendente</option>
+            <option value="Em produção" ${post.status === 'Em produção' ? 'selected' : ''}>Em produção</option>
+            <option value="Agendado" ${post.status === 'Agendado' ? 'selected' : ''}>Agendado</option>
+            <option value="Publicado" ${post.status === 'Publicado' ? 'selected' : ''}>Publicado</option>
+          </select>
           <span class="post-date tabular-nums">${escapeHtml(formatDateBR(post.date))}</span>
           <span class="post-type-meta">• ${escapeHtml(post.type)}</span>
         </div>
@@ -1428,10 +1675,87 @@ function renderPostCardHtml(client, post, postPeriod, isGlobalView = false) {
   `;
 }
 
+const VALID_POST_STATUSES = ['Pendente', 'Em produção', 'Agendado', 'Publicado'];
+
+async function quickChangePostStatus(clientId, postId, newStatus) {
+  if (!VALID_POST_STATUSES.includes(newStatus)) return;
+  const client = (appData.clients || []).find(c => c.id === clientId);
+  if (!client) return;
+  const post = (client.posts || []).find(p => p.id === postId);
+  if (!post || post.status === newStatus) return;
+
+  const previousStatus = post.status;
+  post.status = newStatus;
+
+  if (currentClientId === client.id) {
+    renderClientProfile();
+  }
+  renderDashboard();
+
+  try {
+    if (supabase) {
+      const { error } = await supabase
+        .from('postagens')
+        .update({ status: newStatus })
+        .eq('id', postId);
+      if (error) throw error;
+    } else {
+      saveData();
+    }
+    recordAuditEvent('postagem', postId, 'alteracao_status', { titulo: post.title, de: previousStatus, para: newStatus });
+    showToast(`Status alterado para "${newStatus}".`);
+  } catch (err) {
+    post.status = previousStatus;
+    if (currentClientId === client.id) {
+      renderClientProfile();
+    }
+    renderDashboard();
+    showToast('Erro ao atualizar status: ' + (err.message || 'Tente novamente.'));
+  }
+}
+
+window.quickChangePostStatus = quickChangePostStatus;
+window.clearAppPwaCache = clearAppPwaCache;
+
+async function clearAppPwaCache() {
+  try {
+    if ('caches' in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map(k => caches.delete(k)));
+    }
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r => r.unregister()));
+    }
+    showToast('Cache atualizado! Recarregando...');
+    setTimeout(() => window.location.reload(), 600);
+  } catch (err) {
+    showToast('Não foi possível limpar o cache: ' + (err.message || 'Erro desconhecido.'));
+  }
+}
+
+function getPeriodFromISODate(isoDate) {
+  const m = String(isoDate || '').match(/^(\d{4})-(\d{2})-\d{2}$/);
+  if (!m) return '';
+  const monthIdx = Number(m[2]) - 1;
+  if (monthIdx < 0 || monthIdx > 11) return '';
+  const months = [
+    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+  ];
+  return `${months[monthIdx]}/${m[1]}`;
+}
+
 function renderGlobalPostsFeed(monthFilter, statusFilter, clientFilter, queryStr, includeCancelled) {
   const listEl = document.getElementById('globalPostsList');
   const countLabel = document.getElementById('globalPostsCountLabel');
+  const periodMode = document.getElementById('globalPostsPeriodMode')?.value || 'contract';
+  const periodModeNotice = document.getElementById('postsPeriodModeNotice');
   if (!listEl) return;
+
+  if (periodModeNotice) {
+    periodModeNotice.classList.toggle('hidden', !(periodMode === 'date' && monthFilter !== 'ALL'));
+  }
 
   const q = (queryStr || '').trim().toLowerCase();
   const allMatchingPosts = [];
@@ -1442,9 +1766,11 @@ function renderGlobalPostsFeed(monthFilter, statusFilter, clientFilter, queryStr
     (client.posts || []).forEach(post => {
       const linked = getLinkedContractForPost(client, post);
       if (!includeCancelled && linked && linked.status === 'Cancelado') return;
-      const postPeriod = linked ? normalizePeriod(linked.period) : '';
+      const postContractPeriod = linked ? normalizePeriod(linked.period) : '';
+      const postDatePeriod = getPeriodFromISODate(post.date);
+      const periodToCompare = periodMode === 'date' ? postDatePeriod : postContractPeriod;
 
-      if (monthFilter !== 'ALL' && postPeriod.toLowerCase() !== monthFilter.toLowerCase()) {
+      if (monthFilter !== 'ALL' && periodToCompare.toLowerCase() !== monthFilter.toLowerCase()) {
         return;
       }
       if (statusFilter !== 'ALL' && post.status !== statusFilter) {
@@ -1457,7 +1783,7 @@ function renderGlobalPostsFeed(monthFilter, statusFilter, clientFilter, queryStr
         if (!titleMatch && !clientMatch && !instaMatch) return;
       }
 
-      allMatchingPosts.push({ client, post, postPeriod });
+      allMatchingPosts.push({ client, post, postPeriod: postContractPeriod });
     });
   });
 
@@ -1491,6 +1817,24 @@ function applyQuickStatusFilter(status) {
   renderDashboard();
 }
 
+function goToPostsWithStatus(status) {
+  const select = document.getElementById('globalPostStatusFilter');
+  if (select) {
+    select.value = status;
+  }
+  setDashboardMode('posts');
+}
+
+function updateMiniCalendarBadge() {
+  const monthEl = document.getElementById('miniCalMonth');
+  const dayEl = document.getElementById('miniCalDay');
+  if (!monthEl || !dayEl) return;
+  const now = new Date();
+  const shortMonths = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
+  monthEl.textContent = shortMonths[now.getMonth()] || 'HOJE';
+  dayEl.textContent = String(now.getDate()).padStart(2, '0');
+}
+
 function resetGlobalFilters() {
   const searchInput = document.getElementById('searchInput');
   const postsSearchInput = document.getElementById('postsSearchInput');
@@ -1498,6 +1842,10 @@ function resetGlobalFilters() {
   const sheetMonthSelect = document.getElementById('sheetContractMonthFilter');
   const statusSelect = document.getElementById('globalPostStatusFilter');
   const clientSelect = document.getElementById('globalClientFilter');
+  const clientStatusSelect = document.getElementById('globalClientStatusFilter');
+  const archivedSelect = document.getElementById('globalArchivedFilter');
+  const conditionSelect = document.getElementById('globalPortfolioConditionFilter');
+  const sortSelect = document.getElementById('globalClientSort');
   const cancelledToggle = document.getElementById('toggleShowCancelled');
 
   if (searchInput) searchInput.value = '';
@@ -1506,6 +1854,10 @@ function resetGlobalFilters() {
   if (sheetMonthSelect) sheetMonthSelect.value = 'ALL';
   if (statusSelect) statusSelect.value = 'ALL';
   if (clientSelect) clientSelect.value = 'ALL';
+  if (clientStatusSelect) clientStatusSelect.value = 'ALL';
+  if (archivedSelect) archivedSelect.value = 'HIDE';
+  if (conditionSelect) conditionSelect.value = 'ALL';
+  if (sortSelect) sortSelect.value = 'name_asc';
   if (cancelledToggle) cancelledToggle.checked = false;
 
   renderDashboard();
@@ -1635,6 +1987,9 @@ function renderClientProfile() {
         <button type="button" class="dropdown-item" onclick="openManageContractsSection()">
           Gerenciar contratos
         </button>
+        <button type="button" class="dropdown-item" onclick="toggleArchiveClient('${escapeHtml(client.id)}')">
+          ${isClientArchived(client) ? 'Restaurar cliente' : 'Arquivar cliente'}
+        </button>
         <button type="button" class="dropdown-item danger" onclick="confirmDeleteClient('${escapeHtml(client.id)}')">
           Excluir cliente
         </button>
@@ -1648,6 +2003,8 @@ function renderClientProfile() {
     deliveryBadge.className = `badge ${m.overallBadgeClass}`;
     deliveryBadge.textContent = m.overallDeliveryState;
   }
+
+  renderProfileMonthlyHistory(client, includeCancelled);
 
   const profileContractDisplayLabel = document.getElementById('profileContractDisplayLabel');
   if (profileContractDisplayLabel) {
@@ -1802,6 +2159,35 @@ function renderContractsList(client, selectedProfileMonth = 'ALL', includeCancel
               Excluir contrato
             </button>
           </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderProfileMonthlyHistory(client, includeCancelled = false) {
+  const container = document.getElementById('profileMonthlyHistoryList');
+  if (!container || !client) return;
+
+  const sortedContracts = sortContractsChronologically(client.contracts || [], true)
+    .filter(c => includeCancelled || c.status !== 'Cancelado');
+
+  if (sortedContracts.length === 0) {
+    container.innerHTML = `<p style="font-size:13px; color:var(--text-secondary); padding: 4px 0;">Nenhum contrato registrado no histórico.</p>`;
+    return;
+  }
+
+  container.innerHTML = sortedContracts.map(c => {
+    const cm = getContractMetrics(client, c);
+    return `
+      <div class="monthly-history-row">
+        <div class="monthly-history-info">
+          <span class="monthly-history-period">${escapeHtml(c.period)} <span class="badge ${cm.deliveryBadgeClass}" style="margin-left:6px;">${escapeHtml(cm.deliveryState)}</span></span>
+          <span class="monthly-history-metrics">${cm.totalContracted} contratadas | ${cm.published} publicadas | ${cm.remaining} restantes${cm.excess > 0 ? ` | +${cm.excess} excedente(s)` : ''}</span>
+        </div>
+        <div class="monthly-history-actions">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="filterProfileByContractMonth('${escapeHtml(c.period)}')">Publicações</button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="openDeliveryReportModal('${escapeHtml(client.id)}', '${escapeHtml(c.id)}')">Relatório</button>
         </div>
       </div>
     `;
@@ -2055,9 +2441,15 @@ function openPostModal(postId = null, targetClientId = null, isQuickFlow = false
     setPostMoreOptionsExpanded(!isQuickFlow);
   }
 
+  const saveAndAddBtn = document.getElementById('btnSaveAndAddAnotherPost');
+  if (saveAndAddBtn) {
+    saveAndAddBtn.classList.toggle('hidden', Boolean(postId));
+  }
   updatePostSaveButtonText();
   openModal('postModal');
 }
+
+let postSubmitKeepOpen = false;
 
 async function handlePostSubmit(e) {
   e.preventDefault();
@@ -2179,18 +2571,34 @@ async function handlePostSubmit(e) {
       saveData();
     }
 
-    closeModal('postModal');
+    if (postSubmitKeepOpen && !id) {
+      postSubmitKeepOpen = false;
+      document.getElementById('postTitle').value = '';
+      document.getElementById('postLink').value = '';
+      document.getElementById('postNotes').value = '';
+      document.getElementById('duplicateLinkWarning')?.classList.add('hidden');
+      document.getElementById('postTitle')?.focus();
+    } else {
+      postSubmitKeepOpen = false;
+      closeModal('postModal');
+    }
+
+    if (supabase) updateDbStatusUI(true);
+
     if (currentClientId === client.id) {
       renderClientProfile();
     } else {
       renderDashboard();
     }
   } catch (err) {
+    postSubmitKeepOpen = false;
+    setPersistenceErrorUI(err.message);
     if (errEl) {
       errEl.textContent = 'Não foi possível salvar a postagem: ' + (err.message || 'Erro desconhecido.');
       errEl.classList.remove('hidden');
     }
   } finally {
+    postSubmitKeepOpen = false;
     isSubmittingPost = false;
     if (btn) btn.disabled = false;
     updatePostSaveButtonText();
@@ -2246,6 +2654,92 @@ function generateDeliveryReportPlainText(client, contract) {
   };
 }
 
+function generateMultiContractReportData(client, contracts) {
+  const insta = formatInstagram(client.instagram);
+  const generatedAt = new Date();
+  const generatedLabel = `${String(generatedAt.getDate()).padStart(2, '0')}/${String(generatedAt.getMonth() + 1).padStart(2, '0')}/${generatedAt.getFullYear()} às ${String(generatedAt.getHours()).padStart(2, '0')}:${String(generatedAt.getMinutes()).padStart(2, '0')}`;
+
+  let totalContracted = 0;
+  let totalPublished = 0;
+  let totalRemaining = 0;
+  let totalExcess = 0;
+  const contractIds = new Set();
+
+  contracts.forEach(c => {
+    contractIds.add(c.id);
+    if (c.status === 'Cancelado') return;
+    const cm = getContractMetrics(client, c);
+    totalContracted += cm.totalContracted;
+    totalPublished += cm.published;
+    totalRemaining += cm.remaining;
+    totalExcess += cm.excess;
+  });
+
+  const deliveredTowardContract = Math.max(0, totalContracted - totalRemaining);
+  const percentage = totalContracted > 0
+    ? Math.min(100, Math.round((deliveredTowardContract / totalContracted) * 100))
+    : 0;
+
+  const deliveredPosts = (client.posts || [])
+    .filter(p => {
+      if (p.status !== 'Publicado') return false;
+      const linked = getLinkedContractForPost(client, p);
+      return linked && contractIds.has(linked.id);
+    })
+    .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+
+  const periodLabel = contracts.length === 1
+    ? contracts[0].period
+    : `${contracts.length} contratos (${contracts.map(c => c.period).join(', ')})`;
+
+  const lines = [
+    'RELATÓRIO DE ENTREGAS',
+    `Cliente: ${client.name}${insta ? ` (${insta})` : ''}`,
+    `Período: ${periodLabel}`,
+    `Gerado em: ${generatedLabel}`,
+    `Contratadas: ${totalContracted}`,
+    `Publicadas: ${totalPublished}`,
+    `Restantes: ${totalRemaining}`,
+    `Progresso: ${percentage}%`
+  ];
+  if (totalExcess > 0) lines.push(`Excedente entregue: +${totalExcess}`);
+  lines.push('');
+
+  if (deliveredPosts.length === 0) {
+    lines.push('Nenhuma publicação entregue registrada neste recorte até o momento.');
+  } else {
+    deliveredPosts.forEach(p => {
+      lines.push(`${formatDateBR(p.date)} — [${p.type}] ${p.title}`);
+      if (p.link) lines.push(`Link: ${p.link}`);
+      lines.push('');
+    });
+  }
+
+  return {
+    text: lines.join('\n').trim(),
+    periodLabel,
+    generatedLabel,
+    cm: { totalContracted, published: totalPublished, remaining: totalRemaining, excess: totalExcess, percentage },
+    deliveredPosts
+  };
+}
+
+function getSelectedReportContracts(client) {
+  const multiChecked = Boolean(document.getElementById('toggleReportMultiContracts')?.checked);
+  const sortedContracts = sortContractsChronologically(client.contracts || [], true);
+
+  if (multiChecked) {
+    const checkedIds = Array.from(document.querySelectorAll('input[name="reportMultiContractItem"]:checked'))
+      .map(el => el.value);
+    const selected = sortedContracts.filter(c => checkedIds.includes(c.id));
+    if (selected.length > 0) return selected;
+  }
+
+  const contractId = document.getElementById('reportContractSelect')?.value;
+  const single = sortedContracts.find(c => c.id === contractId) || sortedContracts[0];
+  return single ? [single] : [];
+}
+
 function openDeliveryReportModal(clientId = null, preselectedContractId = '') {
   closeAllKebabMenus();
   const resolvedId = clientId || currentClientId;
@@ -2254,6 +2748,8 @@ function openDeliveryReportModal(clientId = null, preselectedContractId = '') {
 
   currentReportClientId = client.id;
   const select = document.getElementById('reportContractSelect');
+  const multiToggle = document.getElementById('toggleReportMultiContracts');
+  const multiWrap = document.getElementById('reportMultiContractsWrap');
   const sortedContracts = sortContractsChronologically(client.contracts || [], true);
 
   if (sortedContracts.length === 0) {
@@ -2276,6 +2772,17 @@ function openDeliveryReportModal(clientId = null, preselectedContractId = '') {
     select.value = active.id;
   }
 
+  if (multiToggle) multiToggle.checked = false;
+  if (multiWrap) {
+    multiWrap.classList.add('hidden');
+    multiWrap.innerHTML = sortedContracts.map(c => `
+      <label class="checkbox-inline" style="min-height: 32px;">
+        <input type="checkbox" name="reportMultiContractItem" value="${escapeHtml(c.id)}" ${c.id === select.value ? 'checked' : ''} onchange="renderDeliveryReportContent()">
+        <span>${escapeHtml(c.period)}</span>
+      </label>
+    `).join('');
+  }
+
   renderDeliveryReportContent();
   openModal('reportModal');
 }
@@ -2284,24 +2791,24 @@ function renderDeliveryReportContent() {
   const client = appData.clients.find(c => c.id === currentReportClientId);
   if (!client) return;
 
-  const contractId = document.getElementById('reportContractSelect')?.value;
-  const contract = (client.contracts || []).find(c => c.id === contractId) || client.contracts?.[0];
+  const selectedContracts = getSelectedReportContracts(client);
   const area = document.getElementById('printableReportArea');
-  if (!contract || !area) return;
+  if (selectedContracts.length === 0 || !area) return;
 
-  const { cm, deliveredPosts } = generateDeliveryReportPlainText(client, contract);
+  const { cm, deliveredPosts, periodLabel, generatedLabel } = generateMultiContractReportData(client, selectedContracts);
   const insta = formatInstagram(client.instagram);
 
   area.innerHTML = `
     <div class="report-doc-header">
       <div>
-        <div class="report-brand-mark">SocialFlow • Relatório de Entregas</div>
+        <div class="report-brand-mark">NasRuas de ITZ • Relatório de Entregas</div>
         <div class="report-doc-title">${escapeHtml(client.name)}</div>
         ${insta ? `<div class="report-doc-handle">${escapeHtml(insta)}</div>` : ''}
       </div>
       <div style="text-align: right;">
         <span class="report-stat-label">Período</span>
-        <div style="font-weight: 600; font-size: 0.95rem;">${escapeHtml(contract.period)}</div>
+        <div style="font-weight: 600; font-size: 0.95rem;">${escapeHtml(periodLabel)}</div>
+        <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">Gerado em ${escapeHtml(generatedLabel)}</div>
       </div>
     </div>
 
@@ -2329,7 +2836,7 @@ function renderDeliveryReportContent() {
     </h4>
 
     ${deliveredPosts.length === 0
-      ? `<p style="font-size: 0.875rem; color: var(--text-muted); padding: 8px 0;">Nenhuma publicação concluída neste contrato até o momento.</p>`
+      ? `<p style="font-size: 0.875rem; color: var(--text-muted); padding: 8px 0;">Nenhuma publicação concluída neste recorte até o momento.</p>`
       : `<div class="report-deliveries-list">
           ${deliveredPosts.map(p => `
             <div class="report-delivery-item">
@@ -2347,11 +2854,10 @@ function renderDeliveryReportContent() {
 async function copyDeliveryReportToClipboard() {
   const client = appData.clients.find(c => c.id === currentReportClientId);
   if (!client) return;
-  const contractId = document.getElementById('reportContractSelect')?.value;
-  const contract = (client.contracts || []).find(c => c.id === contractId);
-  if (!contract) return;
+  const selectedContracts = getSelectedReportContracts(client);
+  if (selectedContracts.length === 0) return;
 
-  const { text } = generateDeliveryReportPlainText(client, contract);
+  const { text } = generateMultiContractReportData(client, selectedContracts);
 
   try {
     if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -2370,10 +2876,233 @@ async function copyDeliveryReportToClipboard() {
   }
 }
 
+async function shareDeliveryReportWhatsApp() {
+  const client = appData.clients.find(c => c.id === currentReportClientId);
+  if (!client) return;
+  const selectedContracts = getSelectedReportContracts(client);
+  if (selectedContracts.length === 0) return;
+
+  const { text } = generateMultiContractReportData(client, selectedContracts);
+  const encoded = encodeURIComponent(text);
+
+  if (encoded.length > 1800) {
+    await copyDeliveryReportToClipboard();
+    showToast('Relatório muito longo para URL do WhatsApp. Texto completo copiado — cole no WhatsApp ou gere o PDF.');
+    return;
+  }
+
+  const digits = String(client.phone || '').replace(/\D/g, '');
+  const fullNumber = digits.length >= 10 && digits.length <= 11 ? `55${digits}` : digits;
+  const waUrl = fullNumber
+    ? `https://wa.me/${fullNumber}?text=${encoded}`
+    : `https://wa.me/?text=${encoded}`;
+
+  window.open(waUrl, '_blank', 'noopener,noreferrer');
+}
+
+// ==================== RELATÓRIO GERAL GERENCIAL ====================
+function getGeneralReportData(periodOverride = null) {
+  const monthFilter = periodOverride !== null
+    ? periodOverride
+    : (document.getElementById('generalReportPeriodSelect')?.value || document.getElementById('globalContractMonthFilter')?.value || 'ALL');
+  const includeCancelled = Boolean(document.getElementById('toggleShowCancelled')?.checked);
+  const archivedFilter = document.getElementById('globalArchivedFilter')?.value || 'HIDE';
+  const clientStatusFilter = document.getElementById('globalClientStatusFilter')?.value || 'ALL';
+  const searchQuery = (document.getElementById('searchInput')?.value || '').trim().toLowerCase();
+
+  const rows = [];
+  const uniqueClientsSet = new Set();
+  let totalContracted = 0;
+  let totalPublished = 0;
+  let totalRemaining = 0;
+  let totalExcess = 0;
+  let completedContracts = 0;
+
+  (appData.clients || []).forEach(client => {
+    const archived = isClientArchived(client);
+    if (archivedFilter === 'HIDE' && archived) return;
+    if (archivedFilter === 'ONLY' && !archived) return;
+    if (clientStatusFilter !== 'ALL' && getClientStatus(client) !== clientStatusFilter) return;
+
+    if (searchQuery) {
+      const nameMatch = (client.name || '').toLowerCase().includes(searchQuery);
+      const companyMatch = (client.company || '').toLowerCase().includes(searchQuery);
+      const instaMatch = (client.instagram || '').toLowerCase().includes(searchQuery);
+      if (!nameMatch && !companyMatch && !instaMatch) return;
+    }
+
+    const m = getClientMetrics(client, monthFilter, includeCancelled);
+    m.contractBreakdowns.forEach(({ contract, metrics: cm }) => {
+      uniqueClientsSet.add(client.id);
+      if (contract.status !== 'Cancelado') {
+        totalContracted += cm.totalContracted;
+        totalPublished += cm.published;
+        totalRemaining += cm.remaining;
+        totalExcess += cm.excess;
+        if (cm.totalContracted > 0 && cm.remaining === 0) completedContracts += 1;
+      }
+      rows.push({
+        client,
+        contract,
+        cm
+      });
+    });
+  });
+
+  return {
+    monthFilter,
+    uniqueClientsCount: uniqueClientsSet.size,
+    contractsCount: rows.length,
+    totalContracted,
+    totalPublished,
+    totalRemaining,
+    totalExcess,
+    completedContracts,
+    rows
+  };
+}
+
+function openGeneralReportModal() {
+  closeAllKebabMenus();
+  const select = document.getElementById('generalReportPeriodSelect');
+  const globalSelect = document.getElementById('globalContractMonthFilter');
+  if (select && globalSelect) {
+    select.innerHTML = globalSelect.innerHTML;
+    select.value = globalSelect.value || 'ALL';
+  }
+  renderGeneralReportContent();
+  openModal('generalReportModal');
+}
+
+function renderGeneralReportContent() {
+  const area = document.getElementById('printableGeneralReportArea');
+  if (!area) return;
+
+  const data = getGeneralReportData();
+  const now = new Date();
+  const generatedLabel = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} às ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+  area.innerHTML = `
+    <div class="report-doc-header">
+      <div>
+        <div class="report-brand-mark">NasRuas de ITZ • Relatório Geral</div>
+        <div class="report-doc-title">Resumo Gerencial de Contratos</div>
+        <div class="report-doc-handle">${data.uniqueClientsCount} clientes únicos · ${data.contractsCount} contratos · ${data.completedContracts} completos</div>
+      </div>
+      <div style="text-align: right;">
+        <span class="report-stat-label">Período</span>
+        <div style="font-weight: 600; font-size: 0.95rem;">${escapeHtml(data.monthFilter === 'ALL' ? 'Todos os períodos' : data.monthFilter)}</div>
+        <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">Gerado em ${escapeHtml(generatedLabel)}</div>
+      </div>
+    </div>
+
+    <div class="report-summary-grid">
+      <div class="report-stat-box">
+        <span class="report-stat-label">Contratadas</span>
+        <strong class="report-stat-val">${data.totalContracted}</strong>
+      </div>
+      <div class="report-stat-box">
+        <span class="report-stat-label">Publicadas</span>
+        <strong class="report-stat-val text-success">${data.totalPublished}</strong>
+      </div>
+      <div class="report-stat-box">
+        <span class="report-stat-label">Restantes</span>
+        <strong class="report-stat-val">${data.totalRemaining}</strong>
+      </div>
+      <div class="report-stat-box">
+        <span class="report-stat-label">Excedentes</span>
+        <strong class="report-stat-val">${data.totalExcess > 0 ? `+${data.totalExcess}` : '0'}</strong>
+      </div>
+    </div>
+
+    ${data.rows.length === 0
+      ? `<p style="font-size: 0.875rem; color: var(--text-muted); padding: 8px 0;">Nenhum contrato encontrado para o recorte selecionado.</p>`
+      : `<div class="desktop-clients-table-wrap" style="margin-top: 12px;">
+          <table class="desktop-clients-table">
+            <thead>
+              <tr>
+                <th>Cliente</th>
+                <th>Período</th>
+                <th>Contratadas</th>
+                <th>Publicadas</th>
+                <th>Restantes</th>
+                <th>Excedentes</th>
+                <th>Progresso</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${data.rows.map(({ client, contract, cm }) => `
+                <tr>
+                  <td><strong>${escapeHtml(client.name)}</strong></td>
+                  <td>${escapeHtml(contract.period)}</td>
+                  <td class="tabular-nums">${cm.totalContracted}</td>
+                  <td class="tabular-nums">${cm.published}</td>
+                  <td class="tabular-nums">${cm.remaining}</td>
+                  <td class="tabular-nums">${cm.excess > 0 ? `+${cm.excess}` : '0'}</td>
+                  <td class="tabular-nums">${cm.percentage}%</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>`
+    }
+  `;
+}
+
+function sanitizeCsvCell(val) {
+  let str = String(val ?? '').replace(/\r?\n/g, ' ');
+  if (/^[=+\-@\t\r]/.test(str)) {
+    str = `'${str}`;
+  }
+  return `"${str.replace(/"/g, '""')}"`;
+}
+
+function exportGeneralReportCsv() {
+  const data = getGeneralReportData();
+  const headers = [
+    'Cliente',
+    'Instagram',
+    'Período',
+    'Status do Contrato',
+    'Contratadas',
+    'Publicadas',
+    'Restantes',
+    'Excedentes',
+    'Progresso (%)'
+  ];
+
+  const lines = [headers.map(sanitizeCsvCell).join(';')];
+  data.rows.forEach(({ client, contract, cm }) => {
+    lines.push([
+      client.name,
+      formatInstagram(client.instagram),
+      contract.period,
+      contract.status,
+      cm.totalContracted,
+      cm.published,
+      cm.remaining,
+      cm.excess,
+      `${cm.percentage}%`
+    ].map(sanitizeCsvCell).join(';'));
+  });
+
+  const csvContent = '\uFEFF' + lines.join('\r\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `nasruas-relatorio-${getLocalTodayISO()}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  showToast('CSV exportado com sucesso!');
+}
+
 // ==================== MODAIS DE CLIENTE E CONTRATO ====================
 function syncBodyFullscreenModalState() {
   if (typeof document === 'undefined' || !document.body) return;
-  const fullscreenIds = ['clientModal', 'contractModal', 'postModal', 'reportModal'];
+  const fullscreenIds = ['clientModal', 'contractModal', 'renewContractModal', 'postModal', 'reportModal', 'generalReportModal', 'trashModal', 'auditLogModal'];
   const anyOpen = fullscreenIds.some(id => {
     const el = document.getElementById(id);
     return el && !el.classList.contains('hidden');
@@ -2417,6 +3146,68 @@ function setClientMoreInfoExpanded(expanded) {
   }
 }
 
+/**
+ * Comprime a imagem selecionada via canvas (max 256x256, JPEG 0.82) para evitar
+ * salvar arquivos de 3-5 MB em Base64 no banco ou estourar o localStorage.
+ */
+function compressAvatarImage(file, maxSize = 256, quality = 0.82) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onerror = () => resolve('');
+    reader.onload = () => {
+      const rawDataUrl = reader.result;
+      if (typeof Image === 'undefined' || typeof document === 'undefined') {
+        return resolve(rawDataUrl);
+      }
+      const img = new Image();
+      img.onerror = () => resolve(rawDataUrl);
+      img.onload = () => {
+        try {
+          let { width, height } = img;
+          if (width > maxSize || height > maxSize) {
+            if (width >= height) {
+              height = Math.round((height * maxSize) / width);
+              width = maxSize;
+            } else {
+              width = Math.round((width * maxSize) / height);
+              height = maxSize;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressed = canvas.toDataURL('image/jpeg', quality);
+          resolve(compressed || rawDataUrl);
+        } catch (_) {
+          resolve(rawDataUrl);
+        }
+      };
+      img.src = rawDataUrl;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function uploadAvatarToStorageIfAvailable(dataUrl) {
+  if (!supabase || !dataUrl || !dataUrl.startsWith('data:image/')) return dataUrl;
+  try {
+    const res = await fetch(dataUrl);
+    const blob = await res.blob();
+    const fileName = `avatar_${Date.now()}_${Math.random().toString(36).slice(2, 7)}.jpg`;
+    const { error } = await supabase.storage.from('avatars').upload(fileName, blob, {
+      contentType: 'image/jpeg',
+      upsert: false
+    });
+    if (error) return dataUrl; // Fallback silencioso para DataURL já comprimido (~18 KB)
+    const { data: pub } = supabase.storage.from('avatars').getPublicUrl(fileName);
+    return pub?.publicUrl || dataUrl;
+  } catch (_) {
+    return dataUrl;
+  }
+}
+
 function updateClientAvatarPreview(avatarSrc = '', nameVal = '') {
   const preview = document.getElementById('clientModalAvatarPreview');
   if (!preview) return;
@@ -2427,6 +3218,70 @@ function updateClientAvatarPreview(avatarSrc = '', nameVal = '') {
     preview.textContent = initials;
   }
 }
+
+function getClientStatus(client) {
+  return client?.status || 'Ativo';
+}
+
+function isClientArchived(client) {
+  return Boolean(client?.archived);
+}
+
+function getClientLastPublishedDates(client, monthFilter = 'ALL', includeCancelled = false) {
+  const allPosts = (client?.posts || []).filter(p => p.status === 'Publicado' && p.date);
+  let lastAll = '';
+  let lastInPeriod = '';
+
+  allPosts.forEach(p => {
+    if (!lastAll || p.date > lastAll) {
+      lastAll = p.date;
+    }
+    const linked = getLinkedContractForPost(client, p);
+    if (!includeCancelled && linked && linked.status === 'Cancelado') return;
+    if (monthFilter === 'ALL') {
+      if (!lastInPeriod || p.date > lastInPeriod) lastInPeriod = p.date;
+    } else {
+      const pPeriod = linked ? normalizePeriod(linked.period) : '';
+      if (pPeriod.toLowerCase() === monthFilter.toLowerCase()) {
+        if (!lastInPeriod || p.date > lastInPeriod) lastInPeriod = p.date;
+      }
+    }
+  });
+
+  return { lastAll, lastInPeriod };
+}
+
+async function toggleArchiveClient(clientId) {
+  closeAllKebabMenus();
+  const client = appData.clients.find(c => c.id === clientId);
+  if (!client) return;
+  const nextArchived = !isClientArchived(client);
+
+  try {
+    if (supabase) {
+      const { error } = await supabase
+        .from('clientes')
+        .update({ arquivado: nextArchived })
+        .eq('id', clientId);
+      if (error) throw error;
+      await fetchFromSupabase();
+    } else {
+      client.archived = nextArchived;
+      saveData();
+    }
+    showToast(nextArchived ? 'Cliente arquivado (contratos e postagens preservados).' : 'Cliente restaurado para a carteira ativa.');
+    if (currentClientId === clientId) {
+      renderClientProfile();
+    } else {
+      renderDashboard();
+    }
+  } catch (err) {
+    setPersistenceErrorUI(err.message);
+    showToast('Não foi possível alterar o arquivamento: ' + (err.message || 'Erro no banco.'));
+  }
+}
+
+window.toggleArchiveClient = toggleArchiveClient;
 
 function openClientModal(clientId = null) {
   closeAllKebabMenus();
@@ -2445,6 +3300,8 @@ function openClientModal(clientId = null) {
     document.getElementById('clientName').value = client.name || '';
     document.getElementById('clientCompany').value = client.company || '';
     document.getElementById('clientInstagram').value = client.instagram || '';
+    const clientStatusEl = document.getElementById('clientStatus');
+    if (clientStatusEl) clientStatusEl.value = getClientStatus(client);
     document.getElementById('clientPhone').value = client.phone || '';
     document.getElementById('clientEmail').value = client.email || '';
     document.getElementById('clientAvatar').value = client.avatar && !client.avatar.startsWith('data:') ? client.avatar : '';
@@ -2457,6 +3314,8 @@ function openClientModal(clientId = null) {
   } else {
     document.getElementById('clientModalTitle').textContent = 'Novo cliente';
     document.getElementById('clientId').value = '';
+    const clientStatusEl = document.getElementById('clientStatus');
+    if (clientStatusEl) clientStatusEl.value = 'Ativo';
     updateClientAvatarPreview('', '');
     setClientMoreInfoExpanded(false);
   }
@@ -2475,6 +3334,7 @@ async function handleClientSubmit(e) {
   const phone = document.getElementById('clientPhone').value.trim();
   const email = document.getElementById('clientEmail').value.trim();
   const avatarUrl = document.getElementById('clientAvatar').value.trim();
+  const clientStatus = document.getElementById('clientStatus')?.value || 'Ativo';
   const notes = document.getElementById('clientNotes').value.trim();
   const errEl = document.getElementById('clientFormError');
   const btn = document.getElementById('btnSaveClient');
@@ -2513,7 +3373,7 @@ async function handleClientSubmit(e) {
     return;
   }
 
-  const finalAvatar = uploadedAvatarBase64 || avatarUrl || '';
+  let finalAvatar = uploadedAvatarBase64 || avatarUrl || '';
 
   isSubmittingClient = true;
   if (btn) {
@@ -2523,7 +3383,21 @@ async function handleClientSubmit(e) {
 
   try {
     if (supabase) {
+      if (uploadedAvatarBase64 && uploadedAvatarBase64.startsWith('data:image/')) {
+        finalAvatar = await uploadAvatarToStorageIfAvailable(uploadedAvatarBase64);
+      }
       const payload = {
+        nome: name,
+        empresa: company,
+        instagram,
+        telefone: phone,
+        email,
+        foto_url: finalAvatar,
+        observacoes: notes,
+        status: clientStatus
+      };
+
+      const basePayload = {
         nome: name,
         empresa: company,
         instagram,
@@ -2534,13 +3408,20 @@ async function handleClientSubmit(e) {
       };
 
       if (id) {
-        const { error } = await supabase.from('clientes').update(payload).eq('id', id);
-        if (error) throw error;
+        let res = await supabase.from('clientes').update(payload).eq('id', id);
+        if (res.error && String(res.error.message || '').includes('status')) {
+          res = await supabase.from('clientes').update(basePayload).eq('id', id);
+        }
+        if (res.error) throw res.error;
       } else {
-        const { error } = await supabase.from('clientes').insert([payload]);
-        if (error) throw error;
+        let res = await supabase.from('clientes').insert([payload]);
+        if (res.error && String(res.error.message || '').includes('status')) {
+          res = await supabase.from('clientes').insert([basePayload]);
+        }
+        if (res.error) throw res.error;
       }
       await fetchFromSupabase();
+      updateDbStatusUI(true);
       showToast(id ? 'Cliente atualizado!' : 'Cliente cadastrado!');
     } else {
       if (id) {
@@ -2553,6 +3434,7 @@ async function handleClientSubmit(e) {
           client.email = email;
           client.avatar = finalAvatar;
           client.notes = notes;
+          client.status = clientStatus;
         }
         showToast('Cliente atualizado!');
       } else {
@@ -2565,6 +3447,8 @@ async function handleClientSubmit(e) {
           email,
           avatar: finalAvatar,
           notes,
+          status: clientStatus,
+          archived: false,
           contracts: [],
           posts: []
         };
@@ -2600,21 +3484,31 @@ function confirmDeleteClient(clientId) {
   if (!client) return;
 
   openConfirmModal(
-    'Excluir Cliente',
-    `Deseja excluir "${client.name}" e todas as suas postagens e contratos? Essa ação não pode ser desfeita.`,
+    'Mover cliente para a Lixeira',
+    `Deseja mover "${client.name}" para a lixeira? Contratos e postagens sairão dos indicadores e poderão ser restaurados depois.`,
     async () => {
+      const deletedAt = new Date().toISOString();
       if (supabase) {
-        const { error } = await supabase.from('clientes').delete().eq('id', clientId);
-        if (error) {
-          showToast('Erro ao excluir cliente: ' + error.message);
+        let res = await supabase.from('clientes').update({ deleted_at: deletedAt }).eq('id', clientId);
+        if (res.error && String(res.error.message || '').includes('deleted_at')) {
+          res = await supabase.from('clientes').delete().eq('id', clientId);
+        }
+        if (res.error) {
+          setPersistenceErrorUI(res.error.message);
+          showToast('Erro ao mover cliente para lixeira: ' + res.error.message);
           return;
         }
         await fetchFromSupabase();
       } else {
+        ensureRecoveryStructures();
         appData.clients = appData.clients.filter(c => c.id !== clientId);
+        if (!appData.trash.clients.some(c => c.id === client.id)) {
+          appData.trash.clients.unshift({ ...client, deletedAt });
+        }
         saveData();
       }
-      showToast('Cliente excluído.');
+      recordAuditEvent('cliente', clientId, 'exclusao_lixeira', { nome: client.name });
+      showToast('Cliente movido para a lixeira.');
       backToDashboard();
     }
   );
@@ -2696,6 +3590,20 @@ async function handleContractSubmit(e) {
       errEl.classList.remove('hidden');
     }
     return;
+  }
+
+  if (id) {
+    const existingContract = (client.contracts || []).find(c => c.id === id);
+    if (existingContract) {
+      const cm = getContractMetrics(client, existingContract);
+      if (totalPosts < cm.published) {
+        const excessResult = cm.published - totalPosts;
+        const confirmed = window.confirm(
+          `Este contrato já possui ${cm.published} publicações publicadas. Reduzir para ${totalPosts} gerará ${excessResult} excedente(s). Deseja confirmar?`
+        );
+        if (!confirmed) return;
+      }
+    }
   }
 
   isSubmittingContract = true;
@@ -2901,7 +3809,179 @@ async function renewContractInOneClick(sourceContractId = null) {
     renderClientProfile();
     showToast(`Contrato renovado para ${nextInfo.period} (${totalPosts} postagens)!`);
   } catch (err) {
+    setPersistenceErrorUI(err.message);
     showToast('Erro ao renovar contrato: ' + (err.message || ''));
+  }
+}
+
+function checkRenewExistingContractWarning(client, periodInputVal) {
+  const warnBox = document.getElementById('renewExistingWarning');
+  const warnText = document.getElementById('renewExistingWarningText');
+  const openBtn = document.getElementById('btnOpenExistingRenewContract');
+  const confirmBtn = document.getElementById('btnConfirmRenewContract');
+  if (!client || !warnBox) return null;
+
+  const normalized = normalizePeriod(periodInputVal || '').toLowerCase();
+  const existing = (client.contracts || []).find(c => normalizePeriod(c.period).toLowerCase() === normalized);
+
+  if (existing) {
+    warnBox.classList.remove('hidden');
+    if (warnText) warnText.textContent = `Já existe o contrato de ${existing.period} para este cliente.`;
+    if (confirmBtn) confirmBtn.disabled = true;
+    if (openBtn) {
+      openBtn.onclick = () => {
+        closeModal('renewContractModal');
+        filterProfileByContractMonth(existing.period);
+      };
+    }
+    return existing;
+  }
+
+  warnBox.classList.add('hidden');
+  if (confirmBtn) confirmBtn.disabled = false;
+  return null;
+}
+
+function openRenewContractReviewModal(sourceContractId = null) {
+  closeAllKebabMenus();
+  const client = appData.clients.find(c => c.id === currentClientId);
+  if (!client) return;
+
+  const sorted = sortContractsChronologically(client.contracts || [], true);
+  if (sorted.length === 0) {
+    showToast('Crie o primeiro contrato do cliente para poder renovar nos próximos meses.');
+    openContractModal();
+    return;
+  }
+
+  let baseContract = null;
+  if (sourceContractId) {
+    baseContract = sorted.find(c => c.id === sourceContractId);
+  }
+  if (!baseContract) {
+    const selectedProfileMonth = document.getElementById('filterProfileContractMonth')?.value || 'ALL';
+    if (selectedProfileMonth !== 'ALL') {
+      baseContract = sorted.find(c => normalizePeriod(c.period).toLowerCase() === selectedProfileMonth.toLowerCase());
+    }
+  }
+  if (!baseContract) {
+    baseContract = sorted.find(c => c.status === 'Ativo') || sorted[0];
+  }
+
+  const nextInfo = computeNextContractPeriod(baseContract.period, baseContract.startDate, baseContract.endDate);
+  document.getElementById('renewSourceContractId').value = baseContract.id;
+  document.getElementById('renewPeriodInput').value = nextInfo.period;
+  document.getElementById('renewTotalPostsInput').value = Number(baseContract.totalPosts) || 1;
+  document.getElementById('renewFormError')?.classList.add('hidden');
+
+  checkRenewExistingContractWarning(client, nextInfo.period);
+  openModal('renewContractModal');
+}
+
+async function handleRenewContractSubmit(e) {
+  e.preventDefault();
+  const client = appData.clients.find(c => c.id === currentClientId);
+  if (!client) return;
+
+  const sourceId = document.getElementById('renewSourceContractId')?.value || '';
+  const period = (document.getElementById('renewPeriodInput')?.value || '').trim();
+  const totalPosts = Number(document.getElementById('renewTotalPostsInput')?.value) || 0;
+  const errEl = document.getElementById('renewFormError');
+  const confirmBtn = document.getElementById('btnConfirmRenewContract');
+
+  errEl?.classList.add('hidden');
+
+  if (!period) {
+    if (errEl) {
+      errEl.textContent = 'Informe o período do novo contrato.';
+      errEl.classList.remove('hidden');
+    }
+    return;
+  }
+  if (totalPosts <= 0) {
+    if (errEl) {
+      errEl.textContent = 'A quantidade contratada deve ser maior que zero.';
+      errEl.classList.remove('hidden');
+    }
+    return;
+  }
+  if (checkRenewExistingContractWarning(client, period)) return;
+
+  const baseContract = (client.contracts || []).find(c => c.id === sourceId) || (client.contracts || [])[0];
+  const nextInfo = computeNextContractPeriod(baseContract?.period || '', baseContract?.startDate || '', baseContract?.endDate || '');
+  const useDates = normalizePeriod(period).toLowerCase() === nextInfo.period.toLowerCase();
+
+  if (confirmBtn) {
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = 'Renovando...';
+  }
+
+  try {
+    const types = baseContract?.types || '';
+    const value = baseContract?.value !== '' && baseContract?.value !== null && baseContract?.value !== undefined
+      ? Number(baseContract.value)
+      : null;
+
+    if (supabase) {
+      const fullPayload = {
+        cliente_id: client.id,
+        periodo: period,
+        total_postagens: totalPosts,
+        tipos: types,
+        valor: value,
+        status: 'Ativo',
+        data_inicio: useDates ? (nextInfo.startDate || null) : null,
+        data_fim: useDates ? (nextInfo.endDate || null) : null
+      };
+      const basePayload = {
+        cliente_id: client.id,
+        periodo: period,
+        total_postagens: totalPosts,
+        tipos: types,
+        valor: value,
+        status: 'Ativo'
+      };
+      const res = await supabase.from('contratos').insert([fullPayload]);
+      if (res.error && String(res.error.message || '').includes('data_')) {
+        const fallback = await supabase.from('contratos').insert([basePayload]);
+        if (fallback.error) throw fallback.error;
+      } else if (res.error) {
+        throw res.error;
+      }
+      await fetchFromSupabase();
+      updateDbStatusUI(true);
+    } else {
+      client.contracts.push({
+        id: uid('cnt'),
+        period,
+        totalPosts,
+        startDate: useDates ? nextInfo.startDate : '',
+        endDate: useDates ? nextInfo.endDate : '',
+        types,
+        value: value !== null ? value : '',
+        status: 'Ativo'
+      });
+      client.contracts = sortContractsChronologically(client.contracts, true);
+      saveData();
+    }
+
+    closeModal('renewContractModal');
+    populateContractMonthFilters();
+    const profileSelect = document.getElementById('filterProfileContractMonth');
+    if (profileSelect) profileSelect.value = period;
+    renderClientProfile();
+    showToast(`Contrato renovado para ${period} (${totalPosts} postagens)!`);
+  } catch (err) {
+    setPersistenceErrorUI(err.message);
+    if (errEl) {
+      errEl.textContent = 'Erro ao renovar: ' + (err.message || 'Tente novamente.');
+      errEl.classList.remove('hidden');
+    }
+  } finally {
+    if (confirmBtn) {
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = 'Confirmar renovação';
+    }
   }
 }
 
@@ -2913,21 +3993,31 @@ function confirmDeleteContract(contractId) {
   if (!contract) return;
 
   openConfirmModal(
-    'Excluir Contrato',
-    `Deseja excluir o contrato "${contract.period}"? As postagens registradas serão mantidas.`,
+    'Mover contrato para a Lixeira',
+    `Deseja mover o contrato "${contract.period}" para a lixeira? As postagens registradas serão mantidas.`,
     async () => {
+      const deletedAt = new Date().toISOString();
       if (supabase) {
-        const { error } = await supabase.from('contratos').delete().eq('id', contractId);
-        if (error) {
-          showToast('Erro ao excluir contrato: ' + error.message);
+        let res = await supabase.from('contratos').update({ deleted_at: deletedAt }).eq('id', contractId);
+        if (res.error && String(res.error.message || '').includes('deleted_at')) {
+          res = await supabase.from('contratos').delete().eq('id', contractId);
+        }
+        if (res.error) {
+          setPersistenceErrorUI(res.error.message);
+          showToast('Erro ao excluir contrato: ' + res.error.message);
           return;
         }
         await fetchFromSupabase();
       } else {
+        ensureRecoveryStructures();
         client.contracts = client.contracts.filter(c => c.id !== contractId);
+        if (!appData.trash.contracts.some(c => c.id === contract.id)) {
+          appData.trash.contracts.unshift({ ...contract, clientId: client.id, clientName: client.name, deletedAt });
+        }
         saveData();
       }
-      showToast('Contrato removido.');
+      recordAuditEvent('contrato', contractId, 'exclusao_lixeira', { cliente: client.name, periodo: contract.period });
+      showToast('Contrato movido para a lixeira.');
       renderClientProfile();
     }
   );
@@ -2942,21 +4032,31 @@ function confirmDeletePost(postId, ownerClientId = null) {
   if (!post) return;
 
   openConfirmModal(
-    'Excluir Postagem',
-    `Deseja excluir a postagem "${post.title}"? O saldo será atualizado imediatamente.`,
+    'Mover postagem para a Lixeira',
+    `Deseja mover a postagem "${post.title}" para a lixeira? O saldo será atualizado imediatamente.`,
     async () => {
+      const deletedAt = new Date().toISOString();
       if (supabase) {
-        const { error } = await supabase.from('postagens').delete().eq('id', postId);
-        if (error) {
-          showToast('Erro ao excluir postagem: ' + error.message);
+        let res = await supabase.from('postagens').update({ deleted_at: deletedAt }).eq('id', postId);
+        if (res.error && String(res.error.message || '').includes('deleted_at')) {
+          res = await supabase.from('postagens').delete().eq('id', postId);
+        }
+        if (res.error) {
+          setPersistenceErrorUI(res.error.message);
+          showToast('Erro ao excluir postagem: ' + res.error.message);
           return;
         }
         await fetchFromSupabase();
       } else {
+        ensureRecoveryStructures();
         client.posts = client.posts.filter(p => p.id !== postId);
+        if (!appData.trash.posts.some(p => p.id === post.id)) {
+          appData.trash.posts.unshift({ ...post, clientId: client.id, clientName: client.name, deletedAt });
+        }
         saveData();
       }
-      showToast('Postagem excluída.');
+      recordAuditEvent('postagem', postId, 'exclusao_lixeira', { cliente: client.name, titulo: post.title });
+      showToast('Postagem movida para a lixeira.');
       if (currentClientId) {
         renderClientProfile();
       } else {
@@ -3010,6 +4110,257 @@ function exportUserDataJson() {
   showToast('Backup JSON exportado!');
 }
 
+// ==================== LIXEIRA, RESTAURAÇÃO, HISTÓRICO & IMPORTAÇÃO ====================
+function openTrashModal() {
+  renderTrashList();
+  openModal('trashModal');
+}
+
+function renderTrashList() {
+  const container = document.getElementById('trashListContainer');
+  if (!container) return;
+  ensureRecoveryStructures();
+
+  const items = [];
+  appData.trash.clients.forEach(c => items.push({ type: 'cliente', id: c.id, title: c.name, sub: `${(c.contracts || []).length} contrato(s) · ${(c.posts || []).length} postagem(ns)`, deletedAt: c.deletedAt }));
+  appData.trash.contracts.forEach(c => items.push({ type: 'contrato', id: c.id, title: `${c.period} (${c.clientName || 'Cliente'})`, sub: `${c.totalPosts} contratadas`, deletedAt: c.deletedAt }));
+  appData.trash.posts.forEach(p => items.push({ type: 'postagem', id: p.id, title: p.title, sub: `${p.clientName || 'Cliente'} · ${formatDateBR(p.date)}`, deletedAt: p.deletedAt }));
+
+  if (items.length === 0) {
+    container.innerHTML = `<p style="font-size:14px; color:var(--text-secondary); padding: 12px 0;">A lixeira está vazia.</p>`;
+    return;
+  }
+
+  container.innerHTML = items.map(item => `
+    <div class="monthly-history-row">
+      <div class="monthly-history-info">
+        <span class="monthly-history-period">[${escapeHtml(item.type)}] ${escapeHtml(item.title)}</span>
+        <span class="monthly-history-metrics">${escapeHtml(item.sub)}</span>
+      </div>
+      <div class="monthly-history-actions">
+        <button type="button" class="btn btn-primary btn-sm" onclick="restoreFromTrash('${escapeHtml(item.type)}', '${escapeHtml(item.id)}')">Restaurar</button>
+        <button type="button" class="btn btn-outline-danger btn-sm" onclick="hardDeleteFromTrash('${escapeHtml(item.type)}', '${escapeHtml(item.id)}')">Excluir</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function restoreFromTrash(type, id) {
+  ensureRecoveryStructures();
+  try {
+    if (supabase) {
+      const table = type === 'cliente' ? 'clientes' : (type === 'contrato' ? 'contratos' : 'postagens');
+      const { error } = await supabase.from(table).update({ deleted_at: null }).eq('id', id);
+      if (error) throw error;
+      await fetchFromSupabase();
+    } else {
+      if (type === 'cliente') {
+        const found = appData.trash.clients.find(c => c.id === id);
+        if (!found) return;
+        appData.trash.clients = appData.trash.clients.filter(c => c.id !== id);
+        if (!appData.clients.some(c => c.id === found.id)) {
+          delete found.deletedAt;
+          appData.clients.unshift(found);
+        }
+      } else if (type === 'contrato') {
+        const found = appData.trash.contracts.find(c => c.id === id);
+        if (!found) return;
+        const owner = appData.clients.find(c => c.id === found.clientId);
+        if (!owner) {
+          showToast('Restaure o cliente antes de restaurar este contrato.');
+          return;
+        }
+        appData.trash.contracts = appData.trash.contracts.filter(c => c.id !== id);
+        if (!owner.contracts.some(c => c.id === found.id)) {
+          delete found.deletedAt;
+          owner.contracts.push(found);
+          owner.contracts = sortContractsChronologically(owner.contracts, true);
+        }
+      } else if (type === 'postagem') {
+        const found = appData.trash.posts.find(p => p.id === id);
+        if (!found) return;
+        const owner = appData.clients.find(c => c.id === found.clientId);
+        if (!owner) {
+          showToast('Restaure o cliente antes de restaurar esta postagem.');
+          return;
+        }
+        appData.trash.posts = appData.trash.posts.filter(p => p.id !== id);
+        if (!owner.posts.some(p => p.id === found.id)) {
+          delete found.deletedAt;
+          owner.posts.unshift(found);
+        }
+      }
+      saveData();
+    }
+    recordAuditEvent(type, id, 'restauracao', {});
+    renderTrashList();
+    renderDashboard();
+    showToast('Registro restaurado sem duplicação!');
+  } catch (err) {
+    setPersistenceErrorUI(err.message);
+    showToast('Erro ao restaurar: ' + (err.message || 'Tente novamente.'));
+  }
+}
+
+async function hardDeleteFromTrash(type, id) {
+  ensureRecoveryStructures();
+  try {
+    if (supabase) {
+      const table = type === 'cliente' ? 'clientes' : (type === 'contrato' ? 'contratos' : 'postagens');
+      const { error } = await supabase.from(table).delete().eq('id', id);
+      if (error) throw error;
+      await fetchFromSupabase();
+    } else {
+      if (type === 'cliente') appData.trash.clients = appData.trash.clients.filter(c => c.id !== id);
+      if (type === 'contrato') appData.trash.contracts = appData.trash.contracts.filter(c => c.id !== id);
+      if (type === 'postagem') appData.trash.posts = appData.trash.posts.filter(p => p.id !== id);
+      saveData();
+    }
+    renderTrashList();
+    showToast('Registro removido definitivamente.');
+  } catch (err) {
+    showToast('Erro ao excluir definitivamente: ' + (err.message || ''));
+  }
+}
+
+function openAuditLogModal() {
+  renderAuditLogList();
+  openModal('auditLogModal');
+}
+
+function renderAuditLogList() {
+  const container = document.getElementById('auditLogListContainer');
+  if (!container) return;
+  ensureRecoveryStructures();
+
+  if (appData.auditLog.length === 0) {
+    container.innerHTML = `<p style="font-size:14px; color:var(--text-secondary); padding: 12px 0;">Nenhuma alteração registrada ainda.</p>`;
+    return;
+  }
+
+  container.innerHTML = appData.auditLog.map(entry => {
+    const dt = entry.criadoEm ? new Date(entry.criadoEm).toLocaleString('pt-BR') : '';
+    const detailsStr = entry.detalhes ? JSON.stringify(entry.detalhes) : '';
+    return `
+      <div class="monthly-history-row">
+        <div class="monthly-history-info">
+          <span class="monthly-history-period">${escapeHtml(entry.acao)} (${escapeHtml(entry.entidade)})</span>
+          <span class="monthly-history-metrics">${escapeHtml(dt)} · ${escapeHtml(entry.autorEmail || '')}</span>
+          ${detailsStr && detailsStr !== '{}' ? `<span class="monthly-history-metrics">${escapeHtml(detailsStr)}</span>` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function handleImportBackupFile(file) {
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const parsed = JSON.parse(text);
+    const importedClients = Array.isArray(parsed?.clients) ? parsed.clients : [];
+    if (importedClients.length === 0) {
+      showToast('Arquivo de backup sem clientes válidos.');
+      return;
+    }
+
+    const totalContracts = importedClients.reduce((acc, c) => acc + (c.contracts?.length || 0), 0);
+    const totalPosts = importedClients.reduce((acc, c) => acc + (c.posts?.length || 0), 0);
+    const targetMode = supabase ? 'na nuvem (Supabase)' : 'neste aparelho (Modo Local)';
+
+    openConfirmModal(
+      'Prévia de Importação de Backup',
+      `O arquivo contém ${importedClients.length} cliente(s), ${totalContracts} contrato(s) e ${totalPosts} postagem(ns). Os registros novos serão mesclados ${targetMode} sem duplicar IDs existentes. Deseja continuar?`,
+      async () => {
+        ensureRecoveryStructures();
+        let addedClients = 0;
+
+        if (supabase) {
+          try {
+            for (const impCli of importedClients) {
+              if (!impCli || !impCli.id || !impCli.name) continue;
+              const exists = appData.clients.some(c => c.id === impCli.id || (c.name || '').toLowerCase() === (impCli.name || '').toLowerCase());
+              if (exists) continue;
+
+              const cliPayload = {
+                nome: impCli.name,
+                empresa: impCli.company || '',
+                instagram: impCli.instagram || '',
+                telefone: impCli.phone || '',
+                email: impCli.email || '',
+                foto_url: impCli.avatar || '',
+                observacoes: impCli.notes || ''
+              };
+              const { data: insertedCli, error: cliErr } = await supabase.from('clientes').insert([cliPayload]).select('id').single();
+              if (cliErr) throw cliErr;
+              const newCliId = insertedCli.id;
+              const contractIdMap = {};
+
+              for (const cnt of (impCli.contracts || [])) {
+                const cntPayload = {
+                  cliente_id: newCliId,
+                  periodo: cnt.period || '',
+                  total_postagens: Math.max(1, Number(cnt.totalPosts) || 1),
+                  tipos: cnt.types || '',
+                  valor: cnt.value !== '' && cnt.value !== null && cnt.value !== undefined ? Number(cnt.value) : null,
+                  status: cnt.status || 'Ativo'
+                };
+                const { data: insertedCnt, error: cntErr } = await supabase.from('contratos').insert([cntPayload]).select('id').single();
+                if (cntErr) throw cntErr;
+                contractIdMap[cnt.id] = insertedCnt.id;
+              }
+
+              for (const pst of (impCli.posts || [])) {
+                const pstPayload = {
+                  cliente_id: newCliId,
+                  contrato_id: contractIdMap[pst.contractId] || null,
+                  data: pst.date || getLocalTodayISO(),
+                  tipo: pst.type || 'Reels',
+                  titulo: pst.title || 'Publicação',
+                  link: pst.link || '',
+                  status: pst.status || 'Pendente',
+                  observacoes: pst.notes || ''
+                };
+                const { error: pstErr } = await supabase.from('postagens').insert([pstPayload]);
+                if (pstErr) throw pstErr;
+              }
+              addedClients++;
+            }
+            await fetchFromSupabase();
+            updateDbStatusUI(true);
+          } catch (err) {
+            setPersistenceErrorUI(err.message);
+            showToast('Erro ao importar para a nuvem: ' + (err.message || 'Tente novamente.'));
+            return;
+          }
+        } else {
+          importedClients.forEach(impCli => {
+            if (!impCli || !impCli.id || !impCli.name) return;
+            const exists = appData.clients.some(c => c.id === impCli.id);
+            if (!exists) {
+              appData.clients.push({
+                ...impCli,
+                status: impCli.status || 'Ativo',
+                archived: Boolean(impCli.archived),
+                contracts: sortContractsChronologically(impCli.contracts || [], true),
+                posts: impCli.posts || []
+              });
+              addedClients++;
+            }
+          });
+          saveData();
+        }
+
+        recordAuditEvent('backup', 'importacao', 'importacao_backup', { clientesAdicionados: addedClients });
+        renderDashboard();
+        showToast(`Importação concluída: ${addedClients} cliente(s) adicionado(s).`);
+      }
+    );
+  } catch (_) {
+    showToast('Não foi possível ler o arquivo .json selecionado.');
+  }
+}
+
 // ==================== PWA (INSTALAR COMO APLICATIVO NO CELULAR) ====================
 let deferredPwaPrompt = null;
 
@@ -3059,7 +4410,10 @@ if (typeof window !== 'undefined') {
     openPostModal,
     openQuickPostFromCard,
     confirmDeletePost,
+    restoreFromTrash,
+    hardDeleteFromTrash,
     applyQuickStatusFilter,
+    goToPostsWithStatus,
     resetGlobalFilters,
     filterProfileByContractMonth,
     openDeliveryReportModal,
@@ -3072,8 +4426,9 @@ if (typeof window !== 'undefined') {
 document.addEventListener('DOMContentLoaded', () => {
   initBackendAndAuth();
   initPwaSupport();
+  updateMiniCalendarBadge();
 
-  document.getElementById('btnRenewContractOneClick')?.addEventListener('click', () => renewContractInOneClick());
+  document.getElementById('btnRenewContractOneClick')?.addEventListener('click', () => openRenewContractReviewModal());
 
   document.getElementById('loginForm')?.addEventListener('submit', handleLoginSubmit);
   document.getElementById('btnLogout')?.addEventListener('click', handleLogout);
@@ -3105,6 +4460,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Botões de ação nos cabeçalhos
   document.getElementById('btnNewClientHeader')?.addEventListener('click', () => openClientModal());
+  document.getElementById('btnQuickNewPostTile')?.addEventListener('click', () => openPostModal(null, null, true));
   document.getElementById('btnNewClientSidebar')?.addEventListener('click', () => openClientModal());
   document.getElementById('btnNewPostGlobalHeader')?.addEventListener('click', () => openPostModal(null, null, true));
   document.getElementById('btnNewContract')?.addEventListener('click', () => openContractModal());
@@ -3201,10 +4557,23 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('postStatus')?.addEventListener('change', updatePostSaveButtonText);
   document.getElementById('postLink')?.addEventListener('input', checkDuplicatePostLink);
 
-  // Relatório de entregas
+  // Relatório de entregas & Relatório geral
   document.getElementById('reportContractSelect')?.addEventListener('change', renderDeliveryReportContent);
+  document.getElementById('toggleReportMultiContracts')?.addEventListener('change', (e) => {
+    const wrap = document.getElementById('reportMultiContractsWrap');
+    const select = document.getElementById('reportContractSelect');
+    if (wrap) wrap.classList.toggle('hidden', !e.target.checked);
+    if (select) select.disabled = Boolean(e.target.checked);
+    renderDeliveryReportContent();
+  });
   document.getElementById('btnCopyReportText')?.addEventListener('click', copyDeliveryReportToClipboard);
+  document.getElementById('btnShareReportWhatsApp')?.addEventListener('click', shareDeliveryReportWhatsApp);
   document.getElementById('btnPrintReport')?.addEventListener('click', () => window.print());
+
+  document.getElementById('btnOpenGeneralReport')?.addEventListener('click', openGeneralReportModal);
+  document.getElementById('generalReportPeriodSelect')?.addEventListener('change', renderGeneralReportContent);
+  document.getElementById('btnExportGeneralCsv')?.addEventListener('click', exportGeneralReportCsv);
+  document.getElementById('btnPrintGeneralReport')?.addEventListener('click', () => window.print());
 
   // Busca e Filtros
   document.getElementById('searchInput')?.addEventListener('input', renderDashboard);
@@ -3227,6 +4596,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('globalPostStatusFilter')?.addEventListener('change', renderDashboard);
   document.getElementById('globalClientFilter')?.addEventListener('change', renderDashboard);
+  document.getElementById('globalClientStatusFilter')?.addEventListener('change', renderDashboard);
+  document.getElementById('globalArchivedFilter')?.addEventListener('change', renderDashboard);
+  document.getElementById('globalPortfolioConditionFilter')?.addEventListener('change', renderDashboard);
+  document.getElementById('globalClientSort')?.addEventListener('change', renderDashboard);
+
+  document.getElementById('btnClientsViewCards')?.addEventListener('click', () => setClientsViewMode('cards'));
+  document.getElementById('btnClientsViewTable')?.addEventListener('click', () => setClientsViewMode('table'));
 
   document.getElementById('btnClearGlobalFilters')?.addEventListener('click', resetGlobalFilters);
   document.getElementById('btnClearPostsFilters')?.addEventListener('click', resetGlobalFilters);
@@ -3246,22 +4622,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('filterProfileContractMonth')?.addEventListener('change', renderClientProfile);
 
-  document.getElementById('clientAvatarFile')?.addEventListener('change', (e) => {
+  document.getElementById('clientAvatarFile')?.addEventListener('change', async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const fileNameHint = document.getElementById('clientAvatarFileName');
-    if (fileNameHint) fileNameHint.textContent = file.name;
-    const reader = new FileReader();
-    reader.onload = () => {
-      uploadedAvatarBase64 = reader.result;
-      updateClientAvatarPreview(uploadedAvatarBase64, document.getElementById('clientName')?.value || '');
-    };
-    reader.readAsDataURL(file);
+    if (fileNameHint) fileNameHint.textContent = `${file.name} (otimizada)`;
+    uploadedAvatarBase64 = await compressAvatarImage(file);
+    updateClientAvatarPreview(uploadedAvatarBase64, document.getElementById('clientName')?.value || '');
   });
 
   document.getElementById('clientForm')?.addEventListener('submit', handleClientSubmit);
+  document.getElementById('renewContractForm')?.addEventListener('submit', handleRenewContractSubmit);
+  document.getElementById('renewPeriodInput')?.addEventListener('input', (e) => {
+    const client = appData.clients.find(c => c.id === currentClientId);
+    if (client) checkRenewExistingContractWarning(client, e.target.value);
+  });
   document.getElementById('contractForm')?.addEventListener('submit', handleContractSubmit);
   document.getElementById('postForm')?.addEventListener('submit', handlePostSubmit);
+  document.getElementById('btnSaveAndAddAnotherPost')?.addEventListener('click', () => {
+    const postFormEl = document.getElementById('postForm');
+    if (!postFormEl) return;
+    postSubmitKeepOpen = true;
+    if (typeof postFormEl.requestSubmit === 'function') {
+      postFormEl.requestSubmit();
+    } else {
+      postFormEl.dispatchEvent(new Event('submit', { cancelable: true }));
+    }
+  });
+  document.getElementById('globalPostsPeriodMode')?.addEventListener('change', renderDashboard);
 
   // Confirmação (simples ou reforçada)
   document.getElementById('btnConfirmAction')?.addEventListener('click', async () => {
@@ -3280,8 +4668,20 @@ document.addEventListener('DOMContentLoaded', () => {
     closeModal('confirmModal');
   });
 
-  // Ajustes -> Dados
+  // Ajustes -> Dados, Lixeira, Histórico, Backup e PWA
   document.getElementById('btnExportDataJson')?.addEventListener('click', exportUserDataJson);
+  document.getElementById('btnImportDataJson')?.addEventListener('click', () => {
+    document.getElementById('importBackupFile')?.click();
+  });
+  document.getElementById('importBackupFile')?.addEventListener('change', (e) => {
+    const file = e.target.files?.[0];
+    if (file) handleImportBackupFile(file);
+    e.target.value = '';
+  });
+  document.getElementById('btnOpenTrashModal')?.addEventListener('click', openTrashModal);
+  document.getElementById('btnOpenAuditLogModal')?.addEventListener('click', openAuditLogModal);
+  document.getElementById('btnClearPwaCache')?.addEventListener('click', clearAppPwaCache);
+  document.getElementById('btnNewPostSidebar')?.addEventListener('click', () => openGlobalNewPost());
 
   document.getElementById('btnClearData')?.addEventListener('click', () => {
     openConfirmModal(

@@ -91,41 +91,118 @@
 
       <div class="sidebar-footer">
         <button type="button" class="btn btn-primary w-full" id="btnNewClientSidebar">
-          + Cliente
+          + Novo cliente
+        </button>
+        <button type="button" class="btn btn-secondary w-full" id="btnNewPostSidebar">
+          + Nova postagem
         </button>
       </div>
     </aside>
 
     <!-- ==================== CONTEÚDO PRINCIPAL ==================== -->
     <div class="app-main">
-      <!-- ==================== TELA 1: CLIENTES (REDESIGN iOS ETAPA 1) ==================== -->
+      <!-- ==================== TELA 1: CLIENTES (ESTILO APP TOOLISAN + NASRUAS) ==================== -->
       <section id="dashboardView" class="view-section">
-        <!-- Cabeçalho iOS com Identidade NasRuas: Logo + Título à esquerda + Botão [+] à direita -->
-        <header class="ios-clients-header">
-          <div class="ios-brand-header-left">
-            <img src="/logo-nasruas.png" alt="NasRuas de ITZ" class="ios-header-logo">
-            <h1 class="ios-page-title" id="dashboardTitle">Clientes</h1>
+        <!-- App Hero Header (Soft Pastel + Logo + Mini Calendário + Busca Pill) -->
+        <header class="app-hero-header">
+          <div class="app-hero-top-row">
+            <div class="app-hero-greeting">
+              <img src="/logo-nasruas.png" alt="NasRuas de ITZ" class="ios-header-logo">
+              <h1 class="app-hero-title" id="dashboardTitle">
+                <span class="app-hero-brand">NasRuas</span> hoje?
+              </h1>
+            </div>
+            <div class="app-mini-calendar" aria-label="Data de hoje">
+              <span class="mini-cal-month" id="miniCalMonth">NOV</span>
+              <strong class="mini-cal-day" id="miniCalDay">21</strong>
+            </div>
           </div>
-          <button type="button" class="ios-add-btn" id="btnNewClientHeader" aria-label="Adicionar cliente" title="Adicionar cliente">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <line x1="12" y1="5" x2="12" y2="19"></line>
-              <line x1="5" y1="12" x2="19" y2="12"></line>
-            </svg>
-          </button>
-        </header>
 
-        <div class="ios-screen-body">
-          <!-- Busca com fundo cinza suave e placeholder curto -->
-          <div class="ios-search-wrap">
+          <!-- Busca Pill Branca dentro do Hero Header -->
+          <div class="app-hero-search-wrap">
             <label for="searchInput" class="visually-hidden">Buscar cliente</label>
             <svg class="ios-search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <circle cx="11" cy="11" r="8"></circle>
               <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
             </svg>
-            <input type="search" id="searchInput" class="ios-search-input" placeholder="Buscar cliente" aria-label="Buscar cliente" autocomplete="off">
+            <input type="search" id="searchInput" class="app-hero-search-input" placeholder="Buscar cliente, @instagram..." aria-label="Buscar cliente" autocomplete="off">
+          </div>
+        </header>
+
+        <div class="ios-screen-body">
+          <!-- Grade 3x2 de Atalhos Rápidos estilo App (Toolisan) -->
+          <div class="app-quick-grid" aria-label="Atalhos rápidos">
+            <button type="button" class="app-quick-tile" id="btnNewClientHeader">
+              <span class="app-tile-icon tile-icon-yellow">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="8.5" cy="7" r="4"></circle>
+                  <line x1="20" y1="8" x2="20" y2="14"></line>
+                  <line x1="23" y1="11" x2="17" y2="11"></line>
+                </svg>
+              </span>
+              <span class="app-tile-label">+ Cliente</span>
+            </button>
+
+            <button type="button" class="app-quick-tile" id="btnQuickNewPostTile">
+              <span class="app-tile-icon tile-icon-pink">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <rect x="3" y="3" width="18" height="18" rx="4"></rect>
+                  <line x1="12" y1="8" x2="12" y2="16"></line>
+                  <line x1="8" y1="12" x2="16" y2="12"></line>
+                </svg>
+              </span>
+              <span class="app-tile-label">+ Postagem</span>
+            </button>
+
+            <button type="button" class="app-quick-tile" id="btnOpenFiltersSheet">
+              <span class="app-tile-icon tile-icon-blue">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <line x1="4" y1="21" x2="4" y2="14"></line>
+                  <line x1="4" y1="10" x2="4" y2="3"></line>
+                  <line x1="12" y1="21" x2="12" y2="12"></line>
+                  <line x1="12" y1="8" x2="12" y2="3"></line>
+                  <line x1="20" y1="21" x2="20" y2="16"></line>
+                  <line x1="20" y1="12" x2="20" y2="3"></line>
+                </svg>
+              </span>
+              <span class="app-tile-label">Filtros <span id="activeFiltersBadge" class="app-tile-badge hidden">0</span></span>
+            </button>
+
+            <button type="button" class="app-quick-tile" onclick="goToPostsWithStatus('Pendente')">
+              <span class="app-tile-icon tile-icon-amber">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+              </span>
+              <span class="app-tile-label">Pendentes</span>
+            </button>
+
+            <button type="button" class="app-quick-tile" onclick="goToPostsWithStatus('Agendado')">
+              <span class="app-tile-icon tile-icon-purple">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                  <line x1="16" y1="2" x2="16" y2="6"></line>
+                  <line x1="8" y1="2" x2="8" y2="6"></line>
+                  <line x1="3" y1="10" x2="21" y2="10"></line>
+                </svg>
+              </span>
+              <span class="app-tile-label">Agendadas</span>
+            </button>
+
+            <button type="button" class="app-quick-tile" onclick="goToPostsWithStatus('Publicado')">
+              <span class="app-tile-icon tile-icon-green">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                </svg>
+              </span>
+              <span class="app-tile-label">Publicadas</span>
+            </button>
           </div>
 
-          <!-- Linha de Período (à esquerda com chevron único) e Botão Filtros (à direita na mesma linha) -->
+          <!-- Linha de Período + Limpar -->
           <div class="ios-period-filter-row">
             <div class="ios-period-control">
               <label for="globalContractMonthFilter" class="visually-hidden">Período do contrato</label>
@@ -141,29 +218,16 @@
             </div>
 
             <div class="ios-filter-actions">
-              <button type="button" class="ios-filter-btn" id="btnOpenFiltersSheet">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <line x1="4" y1="21" x2="4" y2="14"></line>
-                  <line x1="4" y1="10" x2="4" y2="3"></line>
-                  <line x1="12" y1="21" x2="12" y2="12"></line>
-                  <line x1="12" y1="8" x2="12" y2="3"></line>
-                  <line x1="20" y1="21" x2="20" y2="16"></line>
-                  <line x1="20" y1="12" x2="20" y2="3"></line>
-                  <line x1="1" y1="14" x2="7" y2="14"></line>
-                  <line x1="9" y1="8" x2="15" y2="8"></line>
-                  <line x1="17" y1="16" x2="23" y2="16"></line>
-                </svg>
-                <span>Filtros</span>
-                <span id="activeFiltersBadge" class="ios-filter-badge hidden">0</span>
+              <button type="button" class="ios-filter-btn" id="btnOpenGeneralReport">
+                Relatório geral
               </button>
-
               <button type="button" class="ios-clear-filter-btn hidden" id="btnClearGlobalFilters">
-                Limpar
+                Limpar filtros
               </button>
             </div>
           </div>
 
-          <!-- Bloco de 3 Indicadores (Sempre 3 colunas na mesma linha, sem separadores soltos) -->
+          <!-- Bloco de 3 Indicadores (Sempre 3 colunas na mesma linha) -->
           <div class="ios-summary-grid" id="dashboardStats" aria-label="Resumo do período">
             <div class="ios-summary-col">
               <span class="ios-summary-label">Contratadas</span>
@@ -188,7 +252,13 @@
           <!-- Cabeçalho da Seção: SEUS CLIENTES + contagem à direita -->
           <div class="ios-section-header">
             <span class="ios-section-title">SEUS CLIENTES</span>
-            <span class="ios-section-count"><span id="statTotalClients">0</span> <span id="statClientsWord">clientes</span></span>
+            <div class="ios-section-right">
+              <div class="desktop-view-toggle" id="clientsViewToggle" role="group" aria-label="Modo de visualização">
+                <button type="button" class="view-toggle-btn active" data-clients-view="cards" id="btnClientsViewCards">Cards</button>
+                <button type="button" class="view-toggle-btn" data-clients-view="table" id="btnClientsViewTable">Tabela</button>
+              </div>
+              <span class="ios-section-count"><span id="statTotalClients">0</span> <span id="statClientsWord">clientes</span></span>
+            </div>
           </div>
 
           <!-- Lista de Clientes -->
@@ -277,6 +347,18 @@
             </div>
           </div>
 
+          <div class="posts-period-mode-row">
+            <label for="globalPostsPeriodMode" class="posts-period-mode-label">Recorte do mês:</label>
+            <select id="globalPostsPeriodMode" class="select-filter" aria-label="Modo de recorte do período">
+              <option value="contract">Por período do contrato</option>
+              <option value="date">Por data da publicação</option>
+            </select>
+          </div>
+
+          <div id="postsPeriodModeNotice" class="filter-info-banner hidden">
+            <span>Exibindo postagens pela data efetiva da publicação. O saldo dos contratos considera o período vinculado a cada contrato.</span>
+          </div>
+
           <div id="globalPostsList" class="posts-list"></div>
         </div>
       </section>
@@ -287,6 +369,8 @@
         <header class="profile-compact-topbar" id="profileHeaderCard"></header>
 
         <div class="ios-screen-body">
+          <div class="profile-desktop-layout">
+            <div class="profile-desktop-left">
           <!-- Resumo do Contrato Selecionado & Ações Hierarquizadas -->
           <div class="ios-client-card">
             <div class="profile-contract-selector-row">
@@ -353,6 +437,16 @@
             </div>
           </div>
 
+          <!-- Histórico Mensal do Cliente -->
+          <div class="profile-monthly-history-section" id="profileMonthlyHistorySection">
+            <div class="profile-posts-header">
+              <span class="ios-section-title">HISTÓRICO MENSAL</span>
+            </div>
+            <div id="profileMonthlyHistoryList" class="monthly-history-list"></div>
+          </div>
+            </div>
+
+            <div class="profile-desktop-right">
           <!-- Histórico de Publicações logo abaixo -->
           <div class="profile-posts-section">
             <div class="profile-posts-header">
@@ -377,6 +471,8 @@
             </div>
 
             <div id="postsList" class="posts-list"></div>
+          </div>
+            </div>
           </div>
         </div>
       </section>
@@ -456,6 +552,22 @@
                   <p><strong>Android (Chrome):</strong> Toque no menu <strong>⋮</strong> do navegador e selecione <em>"Instalar aplicativo"</em> ou <em>"Adicionar à tela inicial"</em>.</p>
                   <p><strong>iPhone (Safari):</strong> Toque em <strong>Compartilhar</strong> na barra inferior e selecione <em>"Adicionar à Tela de Início"</em>.</p>
                 </div>
+
+                <div class="settings-row">
+                  <div class="settings-row-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <polyline points="23 4 23 10 17 10"></polyline>
+                      <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                    </svg>
+                  </div>
+                  <div class="settings-row-info">
+                    <div class="settings-row-label">Limpar cache do app (PWA)</div>
+                    <div class="settings-row-sub">Atualiza arquivos visuais sem apagar seus dados</div>
+                  </div>
+                  <button type="button" class="btn btn-secondary btn-sm" id="btnClearPwaCache">
+                    Limpar cache
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -477,6 +589,56 @@
                   </div>
                   <button type="button" class="btn btn-secondary btn-sm" id="btnExportDataJson">
                     Exportar
+                  </button>
+                </div>
+
+                <div class="settings-row">
+                  <div class="settings-row-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                      <polyline points="17 8 12 3 7 8"></polyline>
+                      <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                  </div>
+                  <div class="settings-row-info">
+                    <div class="settings-row-label">Importar backup (.json)</div>
+                    <div class="settings-row-sub">Visualiza prévia e confirma antes de restaurar</div>
+                  </div>
+                  <input type="file" id="importBackupFile" accept=".json,application/json" class="sr-only-file-input">
+                  <button type="button" class="btn btn-secondary btn-sm" id="btnImportDataJson">
+                    Importar
+                  </button>
+                </div>
+
+                <div class="settings-row">
+                  <div class="settings-row-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <polyline points="3 6 5 6 21 6"></polyline>
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    </svg>
+                  </div>
+                  <div class="settings-row-info">
+                    <div class="settings-row-label">Lixeira</div>
+                    <div class="settings-row-sub" id="trashCountSub">Restaurar clientes, contratos ou postagens excluídos</div>
+                  </div>
+                  <button type="button" class="btn btn-secondary btn-sm" id="btnOpenTrashModal">
+                    Abrir
+                  </button>
+                </div>
+
+                <div class="settings-row">
+                  <div class="settings-row-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <polyline points="12 6 12 12 16 14"></polyline>
+                    </svg>
+                  </div>
+                  <div class="settings-row-info">
+                    <div class="settings-row-label">Histórico de alterações</div>
+                    <div class="settings-row-sub">Registro de edições de contrato, status e restaurações</div>
+                  </div>
+                  <button type="button" class="btn btn-secondary btn-sm" id="btnOpenAuditLogModal">
+                    Ver log
                   </button>
                 </div>
 
@@ -589,6 +751,47 @@
         </div>
 
         <div class="form-group">
+          <label for="globalClientStatusFilter">Status do cliente</label>
+          <select id="globalClientStatusFilter">
+            <option value="ALL">Todos (Ativo, Pausado, Encerrado)</option>
+            <option value="Ativo">Ativo</option>
+            <option value="Pausado">Pausado</option>
+            <option value="Encerrado">Encerrado</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="globalPortfolioConditionFilter">Situação do contrato</label>
+          <select id="globalPortfolioConditionFilter">
+            <option value="ALL">Todas as situações</option>
+            <option value="WITH_REMAINING">Com saldo restante</option>
+            <option value="COMPLETED">Contratos completos (100%)</option>
+            <option value="CONTRACT_NO_POSTS">Com contrato e sem publicações</option>
+            <option value="NO_CONTRACT">Sem contrato no período</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="globalArchivedFilter">Clientes arquivados</label>
+          <select id="globalArchivedFilter">
+            <option value="HIDE">Ocultar arquivados (padrão)</option>
+            <option value="INCLUDE">Incluir arquivados</option>
+            <option value="ONLY">Somente arquivados</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="globalClientSort">Ordenar clientes por</label>
+          <select id="globalClientSort">
+            <option value="name_asc">Nome (A–Z)</option>
+            <option value="remaining_desc">Maior saldo restante</option>
+            <option value="progress_asc">Menor percentual concluído</option>
+            <option value="last_post_desc">Publicação mais recente</option>
+            <option value="last_post_asc">Publicação mais antiga</option>
+          </select>
+        </div>
+
+        <div class="form-group">
           <label class="checkbox-inline" style="min-height: 44px;">
             <input type="checkbox" id="toggleShowCancelled">
             <span>Incluir contratos cancelados</span>
@@ -634,6 +837,15 @@
           <div class="form-group">
             <label for="clientInstagram">Instagram</label>
             <input type="text" id="clientInstagram" placeholder="@usuario">
+          </div>
+
+          <div class="form-group">
+            <label for="clientStatus">Status do cliente</label>
+            <select id="clientStatus">
+              <option value="Ativo">Ativo</option>
+              <option value="Pausado">Pausado</option>
+              <option value="Encerrado">Encerrado</option>
+            </select>
           </div>
 
           <!-- Campos secundários recolhidos em "Mais informações" -->
@@ -754,6 +966,11 @@
         <button type="button" class="btn-icon-close" data-close-modal="postModal" aria-label="Fechar">&times;</button>
       </div>
 
+      <div class="form-group modal-client-selector-top hidden" id="postClientSelectGroup">
+        <label for="postClientSelect">Cliente <span class="req">*</span></label>
+        <select id="postClientSelect"></select>
+      </div>
+
       <!-- Aviso quando o cliente não possui nenhum contrato -->
       <div id="postNoContractWarning" class="modal-body hidden">
         <div class="empty-state">
@@ -769,11 +986,6 @@
         <div class="modal-body">
           <input type="hidden" id="postId">
           <input type="hidden" id="postTargetClientId">
-
-          <div class="form-group hidden" id="postClientSelectGroup">
-            <label for="postClientSelect">Cliente <span class="req">*</span></label>
-            <select id="postClientSelect"></select>
-          </div>
 
           <div class="form-group">
             <label for="postContractId">Contrato <span class="req">*</span></label>
@@ -840,9 +1052,46 @@
           <p id="postFormError" class="auth-error hidden"></p>
         </div>
 
-        <div class="modal-footer">
+        <div class="modal-footer modal-footer-wrap">
           <button type="button" class="btn btn-ghost" data-close-modal="postModal">Cancelar</button>
+          <button type="button" class="btn btn-secondary" id="btnSaveAndAddAnotherPost">Salvar e adicionar outra</button>
           <button type="submit" class="btn btn-primary" id="btnSavePost">Salvar como publicada</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: REVISÃO DE RENOVAÇÃO DE CONTRATO ==================== -->
+  <div class="modal-backdrop fullscreen-mobile-backdrop hidden no-print" id="renewContractModal" role="dialog" aria-modal="true" aria-labelledby="renewModalTitle">
+    <div class="modal-card fullscreen-mobile-card">
+      <div class="modal-header">
+        <div>
+          <h3 class="modal-title" id="renewModalTitle">Renovar contrato</h3>
+          <p class="modal-subtitle">Revise o período e a quantidade antes de confirmar</p>
+        </div>
+        <button type="button" class="btn-icon-close" data-close-modal="renewContractModal" aria-label="Fechar">&times;</button>
+      </div>
+      <form id="renewContractForm" class="modal-form-layout" novalidate>
+        <div class="modal-body">
+          <input type="hidden" id="renewSourceContractId">
+          <div class="form-group">
+            <label for="renewPeriodInput">Novo período <span class="req">*</span></label>
+            <input type="text" id="renewPeriodInput" required placeholder="Ex: Dezembro/2026">
+          </div>
+          <div class="form-group">
+            <label for="renewTotalPostsInput">Quantidade contratada <span class="req">*</span></label>
+            <input type="number" id="renewTotalPostsInput" min="1" required>
+          </div>
+          <p class="form-helper-text">Não copia publicações, links nem saldo pendente do contrato anterior.</p>
+          <div id="renewExistingWarning" class="warning-banner hidden" style="margin-top: 10px;">
+            <span id="renewExistingWarningText">Já existe um contrato para este período.</span>
+            <button type="button" class="btn btn-secondary btn-sm" id="btnOpenExistingRenewContract" style="margin-top: 6px;">Abrir contrato existente</button>
+          </div>
+          <p id="renewFormError" class="auth-error hidden"></p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" data-close-modal="renewContractModal">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="btnConfirmRenewContract">Confirmar renovação</button>
         </div>
       </form>
     </div>
@@ -864,10 +1113,18 @@
           <div class="form-group" style="flex: 1; min-width: 0;">
             <label for="reportContractSelect">Contrato</label>
             <select id="reportContractSelect"></select>
+            <label class="checkbox-inline" style="margin-top: 8px; min-height: 32px;">
+              <input type="checkbox" id="toggleReportMultiContracts">
+              <span>Consolidar vários contratos</span>
+            </label>
+            <div id="reportMultiContractsWrap" class="report-multi-contracts hidden"></div>
           </div>
           <div class="report-actions-bar">
             <button type="button" class="btn btn-secondary" id="btnCopyReportText">
               Copiar resumo
+            </button>
+            <button type="button" class="btn btn-secondary" id="btnShareReportWhatsApp">
+              WhatsApp
             </button>
             <button type="button" class="btn btn-primary" id="btnPrintReport">
               Imprimir / PDF
@@ -876,6 +1133,72 @@
         </div>
 
         <div id="printableReportArea" class="printable-report"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: RELATÓRIO GERAL POR PERÍODO ==================== -->
+  <div class="modal-backdrop fullscreen-mobile-backdrop hidden" id="generalReportModal" role="dialog" aria-modal="true" aria-labelledby="generalReportModalTitle">
+    <div class="modal-card modal-lg fullscreen-mobile-card">
+      <div class="modal-header no-print">
+        <div>
+          <h3 class="modal-title" id="generalReportModalTitle">Relatório geral</h3>
+          <p class="modal-subtitle">Visão consolidada por período e cliente</p>
+        </div>
+        <button type="button" class="btn-icon-close" data-close-modal="generalReportModal" aria-label="Fechar">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="report-controls no-print">
+          <div class="form-group" style="flex: 1; min-width: 0;">
+            <label for="generalReportPeriodSelect">Período do relatório</label>
+            <select id="generalReportPeriodSelect">
+              <option value="ALL">Todos os períodos</option>
+            </select>
+          </div>
+          <div class="report-actions-bar">
+            <button type="button" class="btn btn-secondary" id="btnExportGeneralCsv">
+              Exportar CSV
+            </button>
+            <button type="button" class="btn btn-primary" id="btnPrintGeneralReport">
+              Imprimir / PDF
+            </button>
+          </div>
+        </div>
+
+        <div id="printableGeneralReportArea" class="printable-report"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: LIXEIRA (RECUPERAÇÃO) ==================== -->
+  <div class="modal-backdrop fullscreen-mobile-backdrop hidden no-print" id="trashModal" role="dialog" aria-modal="true" aria-labelledby="trashModalTitle">
+    <div class="modal-card modal-lg fullscreen-mobile-card">
+      <div class="modal-header">
+        <div>
+          <h3 class="modal-title" id="trashModalTitle">Lixeira</h3>
+          <p class="modal-subtitle">Itens excluídos não entram nos indicadores e podem ser restaurados sem duplicar</p>
+        </div>
+        <button type="button" class="btn-icon-close" data-close-modal="trashModal" aria-label="Fechar">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="trashListContainer" class="monthly-history-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: HISTÓRICO DE ALTERAÇÕES ==================== -->
+  <div class="modal-backdrop fullscreen-mobile-backdrop hidden no-print" id="auditLogModal" role="dialog" aria-modal="true" aria-labelledby="auditLogModalTitle">
+    <div class="modal-card modal-lg fullscreen-mobile-card">
+      <div class="modal-header">
+        <div>
+          <h3 class="modal-title" id="auditLogModalTitle">Histórico de alterações</h3>
+          <p class="modal-subtitle">Alterações relevantes de quantidade, contrato, status e recuperação</p>
+        </div>
+        <button type="button" class="btn-icon-close" data-close-modal="auditLogModal" aria-label="Fechar">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="auditLogListContainer" class="monthly-history-list"></div>
       </div>
     </div>
   </div>
