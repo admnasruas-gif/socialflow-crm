@@ -4,12 +4,14 @@
  * Usa estratégia Network-First para sempre buscar dados e código atualizados quando online.
  */
 
-const CACHE_NAME = 'socialflow-pwa-v7';
+const CACHE_NAME = 'socialflow-pwa-v8';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/icon.svg'
+  '/logo-nasruas.png',
+  '/app-icon-192.png',
+  '/app-icon-512.png'
 ];
 
 self.addEventListener('install', (event) => {
