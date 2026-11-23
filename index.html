@@ -240,10 +240,14 @@
             <button type="button" class="btn btn-secondary btn-sm" id="btnOpenLegacyClassificationModal">Revisar</button>
           </div>
 
-          <!-- Visões internas da carteira (Mensais ativos por padrão) -->
+          <!-- Visões internas da carteira (Todos por padrão, com destaque para Mensais ativos no topo) -->
           <div class="category-chips-container">
             <div class="status-chips-scroll" id="clientCategoryTabs" role="tablist" aria-label="Categorias de acordos">
-              <button type="button" class="status-chip active" data-client-category="Mensal">
+              <button type="button" class="status-chip active" data-client-category="ALL">
+                <span>Todos</span>
+                <span class="chip-num tabular-nums" id="catCountAll">0</span>
+              </button>
+              <button type="button" class="status-chip" data-client-category="Mensal">
                 <span>Mensais ativos</span>
                 <span class="chip-num tabular-nums" id="catCountMensal">0</span>
               </button>
@@ -254,10 +258,6 @@
               <button type="button" class="status-chip" data-client-category="Parceria">
                 <span>Parceiros</span>
                 <span class="chip-num tabular-nums" id="catCountParceria">0</span>
-              </button>
-              <button type="button" class="status-chip" data-client-category="ALL">
-                <span>Todos</span>
-                <span class="chip-num tabular-nums" id="catCountAll">0</span>
               </button>
             </div>
           </div>

@@ -883,7 +883,7 @@ textarea:focus-visible,
 }
 
 /* ==========================================================================
-   NAVEGAÇÃO INFERIOR iOS (3 ITENS, 58px + SAFE AREA 1x)
+   NAVEGAÇÃO INFERIOR iOS (4 ITENS NA MESMA LINHA, 58px + SAFE AREA 1x)
    ========================================================================== */
 .mobile-bottom-nav {
   position: fixed;
@@ -895,7 +895,7 @@ textarea:focus-visible,
   border-top: 1px solid var(--border);
   padding-bottom: var(--safe-bottom);
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 body.fullscreen-modal-open .mobile-bottom-nav {
@@ -907,6 +907,8 @@ body.fullscreen-modal-open .mobile-bottom-nav {
   background: transparent;
   height: var(--bottom-nav-h);
   min-height: 44px;
+  min-width: 0;
+  padding: 4px 2px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -917,10 +919,19 @@ body.fullscreen-modal-open .mobile-bottom-nav {
   transition: color 150ms ease;
 }
 
+.bottom-nav-item:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
 .bottom-nav-label {
   font-size: 11px;
   font-weight: 500;
-  line-height: 1;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .bottom-nav-item.active {
@@ -1353,24 +1364,25 @@ body.fullscreen-modal-open .mobile-bottom-nav {
 .expandable-trigger { width: 100%; min-height: 48px; padding: 0 16px; background: transparent; border: none; display: flex; align-items: center; justify-content: space-between; font-size: 14px; font-weight: 500; cursor: pointer; }
 .expandable-body { padding: 0 16px 16px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 16px; }
 .detail-lines-list { display: flex; flex-direction: column; }
-.detail-line-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 14px; flex-wrap: wrap; }
+.detail-line-row { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 12px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
 .detail-line-row:last-child { border-bottom: none; }
-.detail-line-label { color: var(--text-secondary); }
-.detail-line-value { font-weight: 500; text-align: right; }
+.detail-line-label { color: var(--text-secondary); font-size: 13px; }
+.detail-line-value { font-weight: 500; text-align: left; width: 100%; overflow-wrap: anywhere; word-break: break-word; }
 .contracts-manage-section { border-top: 1px solid var(--border); padding-top: 12px; display: flex; flex-direction: column; gap: 8px; }
 .contracts-manage-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .contracts-manage-title { font-size: 14px; font-weight: 600; color: var(--text-secondary); }
-.contracts-manage-controls { display: flex; align-items: center; gap: 12px; }
+.contracts-manage-controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .contract-line-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--border); }
 .contract-line-item:last-child { border-bottom: none; }
 .contract-mini-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
-.contract-mini-period { font-weight: 600; font-size: 14px; }
+.contract-mini-period { font-weight: 600; font-size: 14px; overflow-wrap: anywhere; }
 .contract-mini-sub { font-size: 13px; color: var(--text-secondary); }
 .profile-posts-section { display: flex; flex-direction: column; gap: 12px; }
 .profile-posts-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .section-title { font-size: 18px; font-weight: 600; }
-.profile-posts-filters { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.select-filter { min-height: 44px; padding: 0 12px; border-radius: var(--radius-field); border: 1px solid var(--border); background: var(--surface); font-size: 14px; }
+.profile-posts-filters { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; max-width: 100%; }
+.select-filter { min-height: 44px; padding: 0 12px; border-radius: var(--radius-field); border: 1px solid var(--border); background: var(--surface); color: var(--text); font-family: inherit; font-size: 14px; font-weight: 500; max-width: 100%; min-width: 0; }
+.select-filter:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 .posts-list { display: flex; flex-direction: column; gap: 10px; }
 .post-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
@@ -1549,13 +1561,15 @@ body.fullscreen-modal-open .mobile-bottom-nav {
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    width: 232px;
+    gap: 20px;
+    width: 240px;
     background: var(--surface);
     border-right: 1px solid var(--border);
     padding: 20px 12px;
     position: sticky;
     top: 0;
     height: 100vh;
+    overflow-y: auto;
     flex-shrink: 0;
   }
 
@@ -1893,27 +1907,27 @@ body.fullscreen-modal-open .mobile-bottom-nav {
 
 .monthly-history-row {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 12px 14px;
+  border-radius: var(--radius-card);
+  padding: 16px;
 }
 
 .monthly-history-info {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
   min-width: 0;
 }
 
 .monthly-history-period {
-  font-size: 14px;
-  font-weight: 700;
+  font-size: 15px;
+  font-weight: 600;
   color: var(--text);
+  overflow-wrap: anywhere;
 }
 
 .monthly-history-metrics {
@@ -1923,9 +1937,53 @@ body.fullscreen-modal-open .mobile-bottom-nav {
 }
 
 .monthly-history-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
+}
+
+.monthly-history-actions > .btn:first-child {
+  grid-column: 1 / -1;
+  order: 3;
+}
+
+@media (min-width: 520px) {
+  .monthly-history-actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .monthly-history-actions > .btn:first-child {
+    grid-column: auto;
+    order: 0;
+  }
+}
+
+@media (min-width: 680px) {
+  .detail-line-row {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 16px;
+  }
+  .detail-line-label {
+    width: 160px;
+    flex-shrink: 0;
+  }
+  .detail-line-value {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+@media (min-width: 768px) {
+  .monthly-history-row {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .monthly-history-actions {
+    width: auto;
+    flex-shrink: 0;
+  }
 }
 
 .report-multi-contracts {

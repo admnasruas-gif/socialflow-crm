@@ -268,7 +268,7 @@ const SAMPLE_DATA = {
 let appData = { clients: [], videos: [] };
 let currentClientId = null;
 let dashboardMode = 'clients'; // 'clients' | 'posts' | 'videos'
-let activeClientCategory = 'Mensal'; // 'Mensal' | 'Avulso' | 'Parceria' | 'ALL'
+let activeClientCategory = 'ALL'; // 'Mensal' | 'Avulso' | 'Parceria' | 'ALL'
 let videoStatusFilter = 'ALL';
 let pendingConfirmCallback = null;
 let pendingConfirmRequiredWord = null;
@@ -779,12 +779,153 @@ async function handleLogout() {
 }
 
 // ==================== HELPERS DE PERÍODO E VÍNCULO DE CONTRATO ====================
+function extractSingleMonthYear(periodStr = '') {
+  const clean = normalizePeriod(periodStr)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  if (!clean) return { month: 0, year: 0 };
+
+  const isoMatch = clean.match(/^(\d{4})[\s\/\-](\d{1,2})$/);
+  if (isoMatch) return { year: Number(isoMatch[1]), month: Number(isoMatch[2]) };
+
+  const brNumMatch = clean.match(/^(\d{1,2})[\s\/\-](\d{4})$/);
+  if (brNumMatch) return { year: Number(brNumMatch[2]), month: Number(brNumMatch[1]) };
+
+  const yearMatch = clean.match(/\b(20\d{2}|19\d{2})\b/);
+  const year = yearMatch ? Number(yearMatch[1]) : 0;
+
+  const tokens = clean.split(/[^a-z0-9]+/).filter(Boolean);
+  let month = 0;
+  for (const tok of tokens) {
+    if (PT_MONTHS_MAP[tok]) {
+      month = PT_MONTHS_MAP[tok];
+      break;
+    }
+  }
+  return { month, year };
+}
+
+function periodLabelsMatch(labelA = '', labelB = '') {
+  const a = normalizePeriod(labelA).toLowerCase();
+  const b = normalizePeriod(labelB).toLowerCase();
+  if (!a || !b) return false;
+  if (a === b) return true;
+
+  const pa = extractSingleMonthYear(labelA);
+  const pb = extractSingleMonthYear(labelB);
+  if (pa.month > 0 && pb.month > 0 && pa.month === pb.month) {
+    if (pa.year > 0 && pb.year > 0) return pa.year === pb.year;
+    return true;
+  }
+  return false;
+}
+
+function extractContractPeriodMonths(contract) {
+  if (!contract) return [];
+  const type = contract.agreementType || null;
+  // Acordos Avulso e Parceria usam agreementTitle (ex.: "Permuta Festa"), não período mensal
+  if (type === 'Avulso' || type === 'Parceria') return [];
+
+  const raw = normalizePeriod(contract.period || '');
+  if (!raw) return [];
+  if (!type && parsePeriodSortKey(raw) <= 0) return [];
+
+  const clean = raw
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  const yearMatch = clean.match(/\b(20\d{2}|19\d{2})\b/);
+  const explicitYear = yearMatch ? Number(yearMatch[1]) : 0;
+
+  const tokens = clean.split(/[^a-z0-9]+/).filter(Boolean);
+  const foundMonths = [];
+  tokens.forEach(tok => {
+    const m = PT_MONTHS_MAP[tok];
+    if (m && !foundMonths.includes(m)) {
+      foundMonths.push(m);
+    }
+  });
+
+  if (foundMonths.length > 1) {
+    let curYear = explicitYear;
+    return foundMonths.map((m, idx) => {
+      if (curYear > 0 && idx > 0 && m < foundMonths[idx - 1]) {
+        curYear += 1;
+      }
+      const name = PT_MONTH_NAMES[m - 1];
+      return curYear > 0 ? `${name}/${curYear}` : name;
+    });
+  }
+
+  if (foundMonths.length === 1 && Number(contract.durationMonths) > 1 && contract.startDate && contract.endDate) {
+    const start = parseLocalDate(contract.startDate);
+    const end = parseLocalDate(contract.endDate);
+    if (start && end && end >= start) {
+      const result = [];
+      let y = start.getFullYear();
+      let m = start.getMonth() + 1;
+      const endY = end.getFullYear();
+      const endM = end.getMonth() + 1;
+      let guard = 0;
+      while ((y < endY || (y === endY && m <= endM)) && guard < 24) {
+        const name = PT_MONTH_NAMES[m - 1];
+        result.push(explicitYear > 0 ? `${name}/${y}` : name);
+        m += 1;
+        if (m > 12) {
+          m = 1;
+          y += 1;
+        }
+        guard += 1;
+      }
+      if (result.length > 0) return result;
+    }
+  }
+
+  if (parsePeriodSortKey(raw) > 0) {
+    return [raw];
+  }
+  return [];
+}
+
+function contractMatchesPeriod(contract, monthFilter = 'ALL') {
+  if (!monthFilter || monthFilter === 'ALL') return true;
+  if (!contract) return false;
+
+  const rawPeriod = normalizePeriod(contract.period || '');
+  if (rawPeriod && rawPeriod.toLowerCase() === monthFilter.toLowerCase()) return true;
+
+  const months = extractContractPeriodMonths(contract);
+  if (months.some(m => periodLabelsMatch(m, monthFilter))) return true;
+
+  const type = contract.agreementType || null;
+  if (type === 'Avulso' || type === 'Parceria') {
+    const target = extractSingleMonthYear(monthFilter);
+    if (target.month > 0 && (contract.startDate || contract.endDate)) {
+      const start = parseLocalDate(contract.startDate || contract.endDate);
+      const end = parseLocalDate(contract.endDate || contract.startDate);
+      if (start && end) {
+        const checkYear = target.year > 0 ? target.year : start.getFullYear();
+        const monthStart = new Date(checkYear, target.month - 1, 1, 0, 0, 0, 0);
+        const monthEnd = new Date(checkYear, target.month, 0, 23, 59, 59, 999);
+        return start <= monthEnd && end >= monthStart;
+      }
+    }
+    if (parsePeriodSortKey(rawPeriod) > 0 && periodLabelsMatch(rawPeriod, monthFilter)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function getAllContractMonths() {
   const set = new Set();
   appData.clients.forEach(client => {
     (client.contracts || []).forEach(c => {
-      const p = normalizePeriod(c.period);
-      if (p) set.add(p);
+      extractContractPeriodMonths(c).forEach(p => {
+        if (p) set.add(p);
+      });
     });
   });
   return Array.from(set).sort((a, b) => comparePeriodsChronologically(a, b, true));
@@ -875,8 +1016,8 @@ function getAgreementTypeBadgeText(contract) {
 }
 
 function getContractMetrics(client, contract, todayISO = getLocalTodayISO()) {
-  const isUndefinedPartnership = contract.agreementType === 'Parceria' && contract.hasDefinedQuantity === false;
-  const totalContracted = isUndefinedPartnership ? 0 : Math.max(0, Number(contract.totalPosts) || 0);
+  const isUnlimitedQuantity = (contract.agreementType === 'Parceria' || contract.agreementType === 'Avulso') && contract.hasDefinedQuantity === false;
+  const totalContracted = isUnlimitedQuantity ? 0 : Math.max(0, Number(contract.totalPosts) || 0);
   const allClientPosts = client.posts || [];
 
   const linkedPosts = allClientPosts.filter(p => {
@@ -885,9 +1026,9 @@ function getContractMetrics(client, contract, todayISO = getLocalTodayISO()) {
   });
 
   const published = linkedPosts.filter(p => p.status === 'Publicado').length;
-  const remaining = isUndefinedPartnership ? 0 : Math.max(0, totalContracted - published);
-  const excess = isUndefinedPartnership ? 0 : Math.max(0, published - totalContracted);
-  const percentage = (!isUndefinedPartnership && totalContracted > 0)
+  const remaining = isUnlimitedQuantity ? 0 : Math.max(0, totalContracted - published);
+  const excess = isUnlimitedQuantity ? 0 : Math.max(0, published - totalContracted);
+  const percentage = (!isUnlimitedQuantity && totalContracted > 0)
     ? Math.min(100, Math.round((published / totalContracted) * 100))
     : 0;
 
@@ -902,8 +1043,12 @@ function getContractMetrics(client, contract, todayISO = getLocalTodayISO()) {
     deliveryState = 'Cancelado';
     deliveryBadgeClass = 'badge-cancelado-cinza';
     barFillClass = 'fill-cancelado';
-  } else if (isUndefinedPartnership) {
-    deliveryState = contract.status === 'Encerrado' ? 'Encerrada' : (contract.status === 'Pausado' ? 'Pausada' : 'Parceria ativa');
+  } else if (isUnlimitedQuantity) {
+    if (contract.agreementType === 'Parceria') {
+      deliveryState = contract.status === 'Encerrado' ? 'Encerrada' : (contract.status === 'Pausado' ? 'Pausada' : 'Parceria ativa');
+    } else {
+      deliveryState = contract.status === 'Encerrado' ? 'Encerrado' : (contract.status === 'Pausado' ? 'Pausado' : 'Avulso ativo');
+    }
     deliveryBadgeClass = contract.status === 'Encerrado' ? 'badge-concluido' : 'badge-andamento';
     barFillClass = 'fill-andamento';
   } else if (totalContracted > 0 && remaining === 0) {
@@ -926,7 +1071,7 @@ function getContractMetrics(client, contract, todayISO = getLocalTodayISO()) {
   }
 
   return {
-    hasDefinedQuantity: !isUndefinedPartnership,
+    hasDefinedQuantity: !isUnlimitedQuantity,
     totalContracted,
     published,
     remaining,
@@ -948,10 +1093,7 @@ function getClientMetrics(client, monthFilter = 'ALL', includeCancelled = false,
   const consideredContracts = allContracts.filter(c => {
     if (!includeCancelled && c.status === 'Cancelado') return false;
     if (categoryFilter !== 'ALL' && c.agreementType !== categoryFilter) return false;
-    if (monthFilter !== 'ALL') {
-      const periodLabel = normalizePeriod(c.period || '').toLowerCase();
-      if (periodLabel !== monthFilter.toLowerCase()) return false;
-    }
+    if (monthFilter !== 'ALL' && !contractMatchesPeriod(c, monthFilter)) return false;
     return true;
   });
 
@@ -987,8 +1129,7 @@ function getClientMetrics(client, monthFilter = 'ALL', includeCancelled = false,
     const linked = getLinkedContractForPost(client, p);
     if (!includeCancelled && linked && linked.status === 'Cancelado') return false;
     if (monthFilter === 'ALL') return true;
-    const pPeriod = linked ? normalizePeriod(linked.period) : '';
-    return pPeriod.toLowerCase() === monthFilter.toLowerCase();
+    return linked ? contractMatchesPeriod(linked, monthFilter) : false;
   });
 
   const countPendente = postsInPeriod.filter(p => p.status === 'Pendente').length;
@@ -1013,7 +1154,8 @@ function getClientMetrics(client, monthFilter = 'ALL', includeCancelled = false,
     overallBadgeClass = 'badge-concluido';
     overallFillClass = 'fill-cancelado';
   } else if (hasUndefinedPartnership && totalContracted === 0) {
-    overallDeliveryState = 'Parceria contínua';
+    const allParceria = consideredContracts.every(c => c.agreementType === 'Parceria');
+    overallDeliveryState = allParceria ? 'Parceria contínua' : 'Quantidade livre';
     overallBadgeClass = 'badge-andamento';
     overallFillClass = 'fill-andamento';
   } else if (hasOverdueContract) {
@@ -1382,7 +1524,7 @@ function renderDashboard() {
     if (monthFilter !== 'ALL' && portfolioConditionFilter !== 'NO_CONTRACT') {
       const hasContractInMonth = (c.contracts || []).some(cnt => {
         if (!includeCancelled && cnt.status === 'Cancelado') return false;
-        return normalizePeriod(cnt.period).toLowerCase() === monthFilter.toLowerCase();
+        return contractMatchesPeriod(cnt, monthFilter);
       });
       if (!hasContractInMonth) return false;
     }
@@ -1397,8 +1539,7 @@ function renderDashboard() {
       const linked = getLinkedContractForPost(c, p);
       if (!includeCancelled && linked && linked.status === 'Cancelado') return false;
       if (monthFilter === 'ALL') return true;
-      const pPeriod = linked ? normalizePeriod(linked.period) : '';
-      return pPeriod.toLowerCase() === monthFilter.toLowerCase();
+      return linked ? contractMatchesPeriod(linked, monthFilter) : false;
     });
 
     clientPostsInMonth.forEach(p => {
@@ -1439,8 +1580,7 @@ function renderDashboard() {
       if (!includeCancelled && linked && linked.status === 'Cancelado') return false;
       if (activeClientCategory !== 'ALL' && (!linked || linked.agreementType !== activeClientCategory)) return false;
       if (monthFilter === 'ALL') return true;
-      const pPeriod = linked ? normalizePeriod(linked.period) : '';
-      return pPeriod.toLowerCase() === monthFilter.toLowerCase();
+      return linked ? contractMatchesPeriod(linked, monthFilter) : false;
     });
     return clientPostsInMonth.some(p => p.status === statusFilter);
   });
@@ -1451,14 +1591,24 @@ function renderDashboard() {
   };
 
   // Atualiza contadores das visões internas (Mensais ativos, Avulsos, Parceiros, Todos)
-  const countCategoryClients = (cat) => clientsInPeriod.filter(c => {
-    if (cat === 'ALL') return true;
-    return getClientMetrics(c, monthFilter, includeCancelled, getLocalTodayISO(), cat).contractBreakdowns.length > 0;
+  const countCategoryClients = (list, cat) => list.filter(c => (
+    getClientMetrics(c, monthFilter, includeCancelled, getLocalTodayISO(), cat).contractBreakdowns.length > 0
+  )).length;
+  const countOtherClients = (list) => list.filter(c => {
+    const mAll = getClientMetrics(c, monthFilter, includeCancelled, getLocalTodayISO(), 'ALL');
+    return !mAll.contractBreakdowns.some(b => ['Mensal', 'Avulso', 'Parceria'].includes(b.contract.agreementType));
   }).length;
-  setTxt('catCountMensal', countCategoryClients('Mensal'));
-  setTxt('catCountAvulso', countCategoryClients('Avulso'));
-  setTxt('catCountParceria', countCategoryClients('Parceria'));
-  setTxt('catCountAll', clientsInPeriod.length);
+  const countAllCategoryEntries = (list) => (
+    countCategoryClients(list, 'Mensal') +
+    countCategoryClients(list, 'Avulso') +
+    countCategoryClients(list, 'Parceria') +
+    countOtherClients(list)
+  );
+
+  setTxt('catCountMensal', countCategoryClients(clientsInPeriod, 'Mensal'));
+  setTxt('catCountAvulso', countCategoryClients(clientsInPeriod, 'Avulso'));
+  setTxt('catCountParceria', countCategoryClients(clientsInPeriod, 'Parceria'));
+  setTxt('catCountAll', countAllCategoryEntries(clientsInPeriod));
 
   // Banner de classificação de acordos legados (sem tipo_acordo definido)
   const legacyBanner = document.getElementById('legacyClassificationBanner');
@@ -1532,8 +1682,12 @@ function renderDashboard() {
     totalContractsCount += m.contractBreakdowns.length;
   });
 
-  setTxt('statTotalClients', filteredClients.length);
-  const clientWord = filteredClients.length === 1 ? 'cliente' : 'clientes';
+  const displayedClientsCount = activeClientCategory === 'ALL'
+    ? countAllCategoryEntries(filteredClients)
+    : filteredClients.length;
+
+  setTxt('statTotalClients', displayedClientsCount);
+  const clientWord = displayedClientsCount === 1 ? 'cliente' : 'clientes';
   const contractWord = totalContractsCount === 1 ? 'contrato' : 'contratos';
   setTxt('statClientsWord', `${clientWord} · ${totalContractsCount} ${contractWord}`);
   setTxt('statTotalContracted', totalContracted);
@@ -1973,10 +2127,12 @@ function renderGlobalPostsFeed(monthFilter, statusFilter, clientFilter, queryStr
       if (!includeCancelled && linked && linked.status === 'Cancelado') return;
       const postContractPeriod = linked ? normalizePeriod(linked.period) : '';
       const postDatePeriod = getPeriodFromISODate(post.date);
-      const periodToCompare = periodMode === 'date' ? postDatePeriod : postContractPeriod;
 
-      if (monthFilter !== 'ALL' && periodToCompare.toLowerCase() !== monthFilter.toLowerCase()) {
-        return;
+      if (monthFilter !== 'ALL') {
+        const matches = periodMode === 'date'
+          ? periodLabelsMatch(postDatePeriod, monthFilter)
+          : (linked ? contractMatchesPeriod(linked, monthFilter) : false);
+        if (!matches) return;
       }
       if (statusFilter !== 'ALL' && post.status !== statusFilter) {
         return;
@@ -3486,11 +3642,8 @@ function getClientLastPublishedDates(client, monthFilter = 'ALL', includeCancell
     if (!includeCancelled && linked && linked.status === 'Cancelado') return;
     if (monthFilter === 'ALL') {
       if (!lastInPeriod || p.date > lastInPeriod) lastInPeriod = p.date;
-    } else {
-      const pPeriod = linked ? normalizePeriod(linked.period) : '';
-      if (pPeriod.toLowerCase() === monthFilter.toLowerCase()) {
-        if (!lastInPeriod || p.date > lastInPeriod) lastInPeriod = p.date;
-      }
+    } else if (linked && contractMatchesPeriod(linked, monthFilter)) {
+      if (!lastInPeriod || p.date > lastInPeriod) lastInPeriod = p.date;
     }
   });
 
@@ -3824,11 +3977,12 @@ function syncContractAgreementFields() {
     if (titleInput) titleInput.placeholder = 'Ex: Divulgação da inauguração';
     subGroup?.classList.add('hidden');
     notesGroup?.classList.add('hidden');
-    defQtyGroup?.classList.add('hidden');
+    defQtyGroup?.classList.remove('hidden');
     periodGroup?.classList.add('hidden');
     durationGroup?.classList.add('hidden');
-    totalPostsGroup?.classList.remove('hidden');
     valueGroup?.classList.remove('hidden');
+    const hasQty = defQtyCheck ? defQtyCheck.checked : true;
+    totalPostsGroup?.classList.toggle('hidden', !hasQty);
   } else {
     // Parceria
     titleGroup?.classList.remove('hidden');
@@ -3917,7 +4071,7 @@ async function handleContractSubmit(e) {
   const agreementTitle = (document.getElementById('contractAgreementTitle')?.value || '').trim();
   const partnershipSubtype = document.getElementById('contractPartnershipSubtype')?.value || '';
   const partnershipNotes = (document.getElementById('contractPartnershipNotes')?.value || '').trim();
-  const hasDefinedQuantity = agreementType === 'Parceria'
+  const hasDefinedQuantity = (agreementType === 'Parceria' || agreementType === 'Avulso')
     ? Boolean(document.getElementById('contractHasDefinedQuantity')?.checked)
     : true;
   const rawPeriod = document.getElementById('contractPeriod').value.trim();
