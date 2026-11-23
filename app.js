@@ -2243,18 +2243,6 @@ async function clearAppPwaCache() {
   }
 }
 
-function getPeriodFromISODate(isoDate) {
-  const m = String(isoDate || '').match(/^(\d{4})-(\d{2})-\d{2}$/);
-  if (!m) return '';
-  const monthIdx = Number(m[2]) - 1;
-  if (monthIdx < 0 || monthIdx > 11) return '';
-  const months = [
-    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
-  ];
-  return `${months[monthIdx]}/${m[1]}`;
-}
-
 function renderGlobalPostsFeed(monthFilter, statusFilter, clientFilter, queryStr, includeCancelled) {
   const listEl = document.getElementById('globalPostsList');
   const countLabel = document.getElementById('globalPostsCountLabel');
