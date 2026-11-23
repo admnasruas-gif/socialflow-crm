@@ -74,6 +74,13 @@
             </svg>
             <span>Postagens</span>
           </button>
+          <button type="button" class="nav-item" id="navVideosBtn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="23 7 16 12 23 17 23 7"></polygon>
+              <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+            </svg>
+            <span>Vídeos</span>
+          </button>
           <button type="button" class="nav-item" id="navSettingsBtn">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="3"></circle>
@@ -223,6 +230,34 @@
               </button>
               <button type="button" class="ios-clear-filter-btn hidden" id="btnClearGlobalFilters">
                 Limpar filtros
+              </button>
+            </div>
+          </div>
+
+          <!-- Banner discreto de classificação de acordos legados -->
+          <div id="legacyClassificationBanner" class="warning-banner hidden" style="margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;">
+            <span id="legacyClassificationText">Existem acordos antigos aguardando classificação (Mensal, Avulso ou Parceria).</span>
+            <button type="button" class="btn btn-secondary btn-sm" id="btnOpenLegacyClassificationModal">Revisar</button>
+          </div>
+
+          <!-- Visões internas da carteira (Mensais ativos por padrão) -->
+          <div class="status-chips-container" style="margin-bottom: 12px;">
+            <div class="status-chips-scroll" id="clientCategoryTabs" role="tablist" aria-label="Categorias de acordos">
+              <button type="button" class="status-chip active" data-client-category="Mensal">
+                <span>Mensais ativos</span>
+                <span class="chip-num tabular-nums" id="catCountMensal">0</span>
+              </button>
+              <button type="button" class="status-chip" data-client-category="Avulso">
+                <span>Avulsos</span>
+                <span class="chip-num tabular-nums" id="catCountAvulso">0</span>
+              </button>
+              <button type="button" class="status-chip" data-client-category="Parceria">
+                <span>Parceiros</span>
+                <span class="chip-num tabular-nums" id="catCountParceria">0</span>
+              </button>
+              <button type="button" class="status-chip" data-client-category="ALL">
+                <span>Todos</span>
+                <span class="chip-num tabular-nums" id="catCountAll">0</span>
               </button>
             </div>
           </div>
@@ -477,6 +512,53 @@
         </div>
       </section>
 
+      <!-- ==================== TELA 4B: VÍDEOS (INDEPENDENTE DE CLIENTES) ==================== -->
+      <section id="videosView" class="view-section hidden">
+        <header class="ios-clients-header">
+          <div class="ios-brand-header-left">
+            <img src="/logo-nasruas.png" alt="NasRuas de ITZ" class="ios-header-logo">
+            <div class="screen-header-titles">
+              <h1 class="ios-page-title">Vídeos</h1>
+              <span class="screen-count-meta" id="videosCountLabel">0 vídeos</span>
+            </div>
+          </div>
+          <button type="button" class="ios-add-btn" id="btnNewVideoHeader" aria-label="Novo vídeo" title="Novo vídeo">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+          </button>
+        </header>
+
+        <div class="ios-screen-body">
+          <div class="ios-search-wrap">
+            <label for="videosSearchInput" class="visually-hidden">Buscar vídeo por título</label>
+            <svg class="ios-search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="search" id="videosSearchInput" class="ios-search-input" placeholder="Buscar vídeo por título" aria-label="Buscar vídeo por título" autocomplete="off">
+          </div>
+
+          <div class="ios-period-filter-row" style="flex-wrap: wrap; gap: 10px;">
+            <div class="status-chips-container">
+              <div class="status-chips-scroll" id="videoStatusPills" role="tablist" aria-label="Filtrar vídeos por status">
+                <button type="button" class="status-chip active" data-video-status="ALL">Todos</button>
+                <button type="button" class="status-chip" data-video-status="A fazer">A fazer</button>
+                <button type="button" class="status-chip" data-video-status="Em produção">Em produção</button>
+                <button type="button" class="status-chip" data-video-status="Concluído">Concluído</button>
+              </div>
+            </div>
+            <label class="checkbox-inline" style="min-height: 36px;">
+              <input type="checkbox" id="toggleShowArchivedVideos">
+              <span>Arquivados</span>
+            </label>
+          </div>
+
+          <div id="videosList" class="posts-list"></div>
+        </div>
+      </section>
+
       <!-- ==================== TELA 4: AJUSTES (LISTAS AGRUPADAS iOS ETAPA 2) ==================== -->
       <section id="settingsView" class="view-section hidden">
         <header class="ios-clients-header">
@@ -706,6 +788,13 @@
         </svg>
         <span class="bottom-nav-label">Postagens</span>
       </button>
+      <button type="button" class="bottom-nav-item" id="mobileNavVideos">
+        <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polygon points="23 7 16 12 23 17 23 7"></polygon>
+          <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+        </svg>
+        <span class="bottom-nav-label">Vídeos</span>
+      </button>
       <button type="button" class="bottom-nav-item" id="mobileNavSettings">
         <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <circle cx="12" cy="12" r="3"></circle>
@@ -906,11 +995,41 @@
           <input type="hidden" id="contractId">
 
           <div class="form-group">
-            <label for="contractPeriod">Período (Mês/Ano) <span class="req">*</span></label>
-            <input type="text" id="contractPeriod" required placeholder="Ex: Novembro/2026 ou Nov/Dez/Jan">
+            <label for="contractAgreementType">Tipo de acordo <span class="req">*</span></label>
+            <select id="contractAgreementType" required>
+              <option value="Mensal">Mensal (Pacote recorrente)</option>
+              <option value="Avulso">Avulso (Pacote ou ação pontual)</option>
+              <option value="Parceria">Parceria (Permuta / Collab / Institucional)</option>
+            </select>
           </div>
 
-          <div class="form-group">
+          <div class="form-group hidden" id="contractAgreementTitleGroup">
+            <label for="contractAgreementTitle" id="contractAgreementTitleLabel">Nome do pacote ou ação <span class="req">*</span></label>
+            <input type="text" id="contractAgreementTitle" placeholder="Ex: Divulgação de inauguração">
+          </div>
+
+          <div class="form-group hidden" id="contractPartnershipSubtypeGroup">
+            <label for="contractPartnershipSubtype">Tipo de parceria (opcional)</label>
+            <select id="contractPartnershipSubtype">
+              <option value="">Não especificado</option>
+              <option value="Permuta">Permuta</option>
+              <option value="Colaboração">Colaboração</option>
+              <option value="Institucional">Institucional</option>
+              <option value="Outro">Outro</option>
+            </select>
+          </div>
+
+          <div class="form-group hidden" id="contractPartnershipNotesGroup">
+            <label for="contractPartnershipNotes">Descrição do combinado</label>
+            <textarea id="contractPartnershipNotes" rows="2" placeholder="Descreva o combinado da parceria"></textarea>
+          </div>
+
+          <div class="form-group" id="contractPeriodGroup">
+            <label for="contractPeriod">Período (Mês/Ano) <span class="req">*</span></label>
+            <input type="text" id="contractPeriod" placeholder="Ex: Novembro/2026 ou Nov/Dez/Jan">
+          </div>
+
+          <div class="form-group" id="contractDurationGroup">
             <label for="contractDurationMonths">Duração do contrato</label>
             <select id="contractDurationMonths">
               <option value="1">1 mês (Mensal)</option>
@@ -921,26 +1040,35 @@
             </select>
           </div>
 
-          <div class="form-group">
-            <label for="contractTotalPosts">Postagens contratadas <span class="req">*</span></label>
-            <input type="number" id="contractTotalPosts" required min="1" max="1000" placeholder="Ex: 8">
+          <div class="form-group hidden" id="contractHasDefinedQuantityGroup">
+            <label class="checkbox-inline" style="min-height: 40px;">
+              <input type="checkbox" id="contractHasDefinedQuantity" checked>
+              <span>Quantidade combinada definida</span>
+            </label>
+          </div>
+
+          <div class="form-group" id="contractTotalPostsGroup">
+            <label for="contractTotalPosts">Quantidade de publicações <span class="req">*</span></label>
+            <input type="number" id="contractTotalPosts" min="1" max="1000" placeholder="Ex: 8">
           </div>
 
           <div class="form-group">
             <label for="contractStatus">Status <span class="req">*</span></label>
             <select id="contractStatus" required>
               <option value="Ativo">Ativo</option>
+              <option value="Pausado">Pausado</option>
               <option value="Concluído">Concluído</option>
+              <option value="Encerrado">Encerrado</option>
               <option value="Cancelado">Cancelado</option>
             </select>
           </div>
 
-          <div class="form-group">
+          <div class="form-group" id="contractTypesGroup">
             <label for="contractTypes">Formatos acordados</label>
             <input type="text" id="contractTypes" placeholder="Ex: 4 Reels, 4 Carrosséis">
           </div>
 
-          <div class="form-group">
+          <div class="form-group" id="contractValueGroup">
             <label for="contractValue">Valor R$</label>
             <input type="number" id="contractValue" step="0.01" min="0" placeholder="0,00">
           </div>
@@ -951,7 +1079,7 @@
           </div>
 
           <div class="form-group">
-            <label for="contractEndDate">Fim do prazo</label>
+            <label for="contractEndDate">Fim do prazo (opcional)</label>
             <input type="date" id="contractEndDate">
           </div>
 
@@ -1211,6 +1339,89 @@
       <div class="modal-body">
         <div id="auditLogListContainer" class="monthly-history-list"></div>
       </div>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: CLASSIFICAÇÃO DE ACORDOS LEGADOS ==================== -->
+  <div class="modal-backdrop fullscreen-mobile-backdrop hidden no-print" id="legacyClassificationModal" role="dialog" aria-modal="true" aria-labelledby="legacyClassificationTitle">
+    <div class="modal-card modal-lg fullscreen-mobile-card">
+      <div class="modal-header">
+        <div>
+          <h3 class="modal-title" id="legacyClassificationTitle">Classificar acordos existentes</h3>
+          <p class="modal-subtitle">Revise e confirme o tipo de cada acordo antigo antes de salvar</p>
+        </div>
+        <button type="button" class="btn-icon-close" data-close-modal="legacyClassificationModal" aria-label="Fechar">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="legacyClassificationList" class="monthly-history-list"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" data-close-modal="legacyClassificationModal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="btnSaveLegacyClassifications">Confirmar classificações</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: VÍDEO INDEPENDENTE ==================== -->
+  <div class="modal-backdrop fullscreen-mobile-backdrop hidden no-print" id="videoModal" role="dialog" aria-modal="true" aria-labelledby="videoModalTitle">
+    <div class="modal-card fullscreen-mobile-card">
+      <div class="modal-header">
+        <div>
+          <h3 class="modal-title" id="videoModalTitle">Novo vídeo</h3>
+          <p class="modal-subtitle">Projeto independente — sem vínculo com clientes ou saldos</p>
+        </div>
+        <button type="button" class="btn-icon-close" data-close-modal="videoModal" aria-label="Fechar">&times;</button>
+      </div>
+      <form id="videoForm" class="modal-form-layout" novalidate>
+        <div class="modal-body">
+          <input type="hidden" id="videoId">
+
+          <div class="form-group">
+            <label for="videoTitle">Título do vídeo <span class="req">*</span></label>
+            <input type="text" id="videoTitle" required placeholder="Ex: Reels institucional NasRuas">
+          </div>
+
+          <div class="form-group">
+            <label for="videoStatus">Status</label>
+            <select id="videoStatus">
+              <option value="A fazer">A fazer</option>
+              <option value="Em produção">Em produção</option>
+              <option value="Concluído">Concluído</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="videoDescription">Descrição (opcional)</label>
+            <textarea id="videoDescription" rows="2" placeholder="Resumo do projeto de vídeo"></textarea>
+          </div>
+
+          <div class="form-group">
+            <label for="videoDueDate">Data prevista (opcional)</label>
+            <input type="date" id="videoDueDate">
+          </div>
+
+          <div class="form-group">
+            <label for="videoMaterialLink">Link da pasta / material (opcional)</label>
+            <input type="url" id="videoMaterialLink" placeholder="https://...">
+          </div>
+
+          <div class="form-group">
+            <label for="videoFinalLink">Link do vídeo final (opcional)</label>
+            <input type="url" id="videoFinalLink" placeholder="https://...">
+          </div>
+
+          <div class="form-group">
+            <label for="videoNotes">Observações</label>
+            <textarea id="videoNotes" rows="2" placeholder="Anotações gerais"></textarea>
+          </div>
+
+          <p id="videoFormError" class="auth-error hidden"></p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" data-close-modal="videoModal">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="btnSaveVideo">Salvar vídeo</button>
+        </div>
+      </form>
     </div>
   </div>
 

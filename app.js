@@ -66,6 +66,7 @@ const SAMPLE_DATA = {
       contracts: [
         {
           id: 'sample_cnt_101',
+          agreementType: 'Mensal',
           period: 'Novembro/2026',
           totalPosts: 8,
           types: '4 Reels, 4 Carrosséis',
@@ -131,6 +132,7 @@ const SAMPLE_DATA = {
       contracts: [
         {
           id: 'sample_cnt_201',
+          agreementType: 'Mensal',
           period: 'Novembro/2026',
           totalPosts: 12,
           types: '6 Reels, 6 Carrosséis',
@@ -206,6 +208,7 @@ const SAMPLE_DATA = {
       contracts: [
         {
           id: 'sample_cnt_301',
+          agreementType: 'Mensal',
           period: 'Novembro/2026',
           totalPosts: 4,
           types: '2 Reels, 2 Fotos',
@@ -262,9 +265,11 @@ const SAMPLE_DATA = {
 };
 
 // Estado da aplicação
-let appData = { clients: [] };
+let appData = { clients: [], videos: [] };
 let currentClientId = null;
-let dashboardMode = 'clients'; // 'clients' | 'posts'
+let dashboardMode = 'clients'; // 'clients' | 'posts' | 'videos'
+let activeClientCategory = 'Mensal'; // 'Mensal' | 'Avulso' | 'Parceria' | 'ALL'
+let videoStatusFilter = 'ALL';
 let pendingConfirmCallback = null;
 let pendingConfirmRequiredWord = null;
 let uploadedAvatarBase64 = '';
@@ -425,7 +430,7 @@ function computeNextContractPeriod(currentPeriodStr = '', prevStartDate = '', pr
 }
 
 // ==================== BANCO DE DADOS: SUPABASE & LOCALSTORAGE ====================
-function mapSupabaseRowsToAppData(clientesRows = [], contratosRows = [], postagensRows = []) {
+function mapSupabaseRowsToAppData(clientesRows = [], contratosRows = [], postagensRows = [], videosRows = []) {
   const trashClients = [];
   const trashContracts = [];
   const trashPosts = [];
@@ -438,6 +443,11 @@ function mapSupabaseRowsToAppData(clientesRows = [], contratosRows = [], postage
         id: cnt.id,
         clientId: cli.id,
         clientName: cli.nome || '',
+        agreementType: cnt.tipo_acordo || null,
+        agreementTitle: cnt.titulo_acordo || '',
+        partnershipSubtype: cnt.subtipo_parceria || '',
+        hasDefinedQuantity: cnt.quantidade_definida !== false,
+        partnershipNotes: cnt.descricao_combinado || '',
         period: cnt.periodo || '',
         totalPosts: Number(cnt.total_postagens) || 0,
         durationMonths: Number(cnt.duracao_meses) || inferContractDurationMonths({ startDate: cnt.data_inicio, endDate: cnt.data_fim }),
@@ -497,8 +507,24 @@ function mapSupabaseRowsToAppData(clientesRows = [], contratosRows = [], postage
     }
   });
 
+  const mappedVideos = (videosRows || [])
+    .filter(v => !v.deleted_at)
+    .map(v => ({
+      id: v.id,
+      title: v.titulo || '',
+      description: v.descricao || '',
+      status: v.status || 'A fazer',
+      dueDate: v.data_prevista || '',
+      materialLink: v.link_material || '',
+      finalLink: v.link_final || '',
+      notes: v.observacoes || '',
+      archived: Boolean(v.arquivado),
+      createdAt: v.criado_em
+    }));
+
   return {
     clients: activeClients,
+    videos: mappedVideos,
     trash: {
       clients: trashClients,
       contracts: trashContracts,
@@ -510,20 +536,24 @@ function mapSupabaseRowsToAppData(clientesRows = [], contratosRows = [], postage
 
 async function fetchFromSupabase() {
   if (!supabase) return;
-  const [resClientes, resContratos, resPostagens] = await Promise.all([
+  const [resClientes, resContratos, resPostagens, resVideos] = await Promise.all([
     supabase.from('clientes').select('*').order('criado_em', { ascending: false }),
     supabase.from('contratos').select('*').order('criado_em', { ascending: false }),
-    supabase.from('postagens').select('*').order('data', { ascending: false })
+    supabase.from('postagens').select('*').order('data', { ascending: false }),
+    supabase.from('videos').select('*').order('criado_em', { ascending: false }).then(r => r).catch(() => ({ data: [], error: null }))
   ]);
 
   if (resClientes.error) throw resClientes.error;
   if (resContratos.error) throw resContratos.error;
   if (resPostagens.error) throw resPostagens.error;
 
+  const videosData = resVideos && !resVideos.error ? (resVideos.data || []) : [];
+
   appData = mapSupabaseRowsToAppData(
     resClientes.data || [],
     resContratos.data || [],
-    resPostagens.data || []
+    resPostagens.data || [],
+    videosData
   );
 }
 
@@ -551,6 +581,9 @@ function loadData() {
 }
 
 function ensureRecoveryStructures() {
+  if (!Array.isArray(appData.videos)) {
+    appData.videos = [];
+  }
   if (!appData.trash) {
     appData.trash = { clients: [], contracts: [], posts: [] };
   }
@@ -824,8 +857,21 @@ function populateContractMonthFilters() {
 }
 
 // ==================== CÁLCULOS DE MÉTRICAS E PROGRESSO ====================
+function getContractDisplayLabel(contract) {
+  if (!contract) return 'Acordo';
+  if (contract.agreementType === 'Avulso' || contract.agreementType === 'Parceria') {
+    return contract.agreementTitle || contract.period || contract.agreementType;
+  }
+  return contract.period || contract.agreementTitle || 'Contrato';
+}
+
+function getAgreementTypeBadgeText(contract) {
+  return contract?.agreementType || 'A classificar';
+}
+
 function getContractMetrics(client, contract, todayISO = getLocalTodayISO()) {
-  const totalContracted = Math.max(0, Number(contract.totalPosts) || 0);
+  const isUndefinedPartnership = contract.agreementType === 'Parceria' && contract.hasDefinedQuantity === false;
+  const totalContracted = isUndefinedPartnership ? 0 : Math.max(0, Number(contract.totalPosts) || 0);
   const allClientPosts = client.posts || [];
 
   const linkedPosts = allClientPosts.filter(p => {
@@ -834,9 +880,9 @@ function getContractMetrics(client, contract, todayISO = getLocalTodayISO()) {
   });
 
   const published = linkedPosts.filter(p => p.status === 'Publicado').length;
-  const remaining = Math.max(0, totalContracted - published);
-  const excess = Math.max(0, published - totalContracted);
-  const percentage = totalContracted > 0
+  const remaining = isUndefinedPartnership ? 0 : Math.max(0, totalContracted - published);
+  const excess = isUndefinedPartnership ? 0 : Math.max(0, published - totalContracted);
+  const percentage = (!isUndefinedPartnership && totalContracted > 0)
     ? Math.min(100, Math.round((published / totalContracted) * 100))
     : 0;
 
@@ -851,6 +897,10 @@ function getContractMetrics(client, contract, todayISO = getLocalTodayISO()) {
     deliveryState = 'Cancelado';
     deliveryBadgeClass = 'badge-cancelado-cinza';
     barFillClass = 'fill-cancelado';
+  } else if (isUndefinedPartnership) {
+    deliveryState = contract.status === 'Encerrado' ? 'Encerrada' : (contract.status === 'Pausado' ? 'Pausada' : 'Parceria ativa');
+    deliveryBadgeClass = contract.status === 'Encerrado' ? 'badge-concluido' : 'badge-andamento';
+    barFillClass = 'fill-andamento';
   } else if (totalContracted > 0 && remaining === 0) {
     deliveryState = 'Entregue';
     deliveryBadgeClass = 'badge-entregue';
@@ -871,6 +921,7 @@ function getContractMetrics(client, contract, todayISO = getLocalTodayISO()) {
   }
 
   return {
+    hasDefinedQuantity: !isUndefinedPartnership,
     totalContracted,
     published,
     remaining,
@@ -886,20 +937,20 @@ function getContractMetrics(client, contract, todayISO = getLocalTodayISO()) {
   };
 }
 
-function getClientMetrics(client, monthFilter = 'ALL', includeCancelled = false, todayISO = getLocalTodayISO()) {
+function getClientMetrics(client, monthFilter = 'ALL', includeCancelled = false, todayISO = getLocalTodayISO(), categoryFilter = 'ALL') {
   const allContracts = sortContractsChronologically(client.contracts || [], true);
 
   const consideredContracts = allContracts.filter(c => {
     if (!includeCancelled && c.status === 'Cancelado') return false;
-    if (monthFilter !== 'ALL' && normalizePeriod(c.period).toLowerCase() !== monthFilter.toLowerCase()) return false;
+    if (categoryFilter !== 'ALL' && c.agreementType !== categoryFilter) return false;
+    if (monthFilter !== 'ALL') {
+      const periodLabel = normalizePeriod(c.period || '').toLowerCase();
+      if (periodLabel !== monthFilter.toLowerCase()) return false;
+    }
     return true;
   });
 
-  const activeContractsCount = allContracts.filter(c => {
-    if (c.status !== 'Ativo') return false;
-    if (monthFilter !== 'ALL' && normalizePeriod(c.period).toLowerCase() !== monthFilter.toLowerCase()) return false;
-    return true;
-  }).length;
+  const activeContractsCount = consideredContracts.filter(c => c.status === 'Ativo').length;
 
   let totalContracted = 0;
   let totalPublished = 0;
@@ -907,14 +958,20 @@ function getClientMetrics(client, monthFilter = 'ALL', includeCancelled = false,
   let totalExcess = 0;
   let hasOverdueContract = false;
   let hasDueSoonContract = false;
+  let hasUndefinedPartnership = false;
 
   const contractBreakdowns = consideredContracts.map(cnt => {
     const cm = getContractMetrics(client, cnt, todayISO);
     if (cnt.status !== 'Cancelado') {
-      totalContracted += cm.totalContracted;
-      totalPublished += cm.published;
-      remaining += cm.remaining;
-      totalExcess += cm.excess;
+      if (!cm.hasDefinedQuantity) {
+        hasUndefinedPartnership = true;
+        totalPublished += cm.published;
+      } else {
+        totalContracted += cm.totalContracted;
+        totalPublished += cm.published;
+        remaining += cm.remaining;
+        totalExcess += cm.excess;
+      }
       if (cm.isOverdue) hasOverdueContract = true;
       if (cm.isDueSoon) hasDueSoonContract = true;
     }
@@ -950,12 +1007,17 @@ function getClientMetrics(client, monthFilter = 'ALL', includeCancelled = false,
     overallDeliveryState = 'Sem contrato';
     overallBadgeClass = 'badge-concluido';
     overallFillClass = 'fill-cancelado';
+  } else if (hasUndefinedPartnership && totalContracted === 0) {
+    overallDeliveryState = 'Parceria contínua';
+    overallBadgeClass = 'badge-andamento';
+    overallFillClass = 'fill-andamento';
   } else if (hasOverdueContract) {
     overallDeliveryState = 'Em atraso';
     overallBadgeClass = 'badge-atraso';
     overallFillClass = 'fill-atraso';
   } else if (totalContracted > 0 && remaining === 0) {
-    overallDeliveryState = 'Entregue';
+    const allMensal = consideredContracts.every(c => c.agreementType === 'Mensal');
+    overallDeliveryState = allMensal ? 'Pacote completo' : 'Entregue';
     overallBadgeClass = 'badge-entregue';
     overallFillClass = 'fill-entregue';
   } else if (hasDueSoonContract) {
@@ -1112,6 +1174,7 @@ function updateNavActiveState(activeSection) {
   const navMap = {
     clients: ['navClientsBtn', 'mobileNavClients'],
     posts: ['navPipelineBtn', 'mobileNavPosts'],
+    videos: ['navVideosBtn', 'mobileNavVideos'],
     settings: ['navSettingsBtn', 'mobileNavSettings']
   };
 
@@ -1131,11 +1194,13 @@ function updateNavActiveState(activeSection) {
 function showMainView(viewName) {
   const dashView = document.getElementById('dashboardView');
   const postsView = document.getElementById('globalPostsSubView');
+  const videosView = document.getElementById('videosView');
   const profView = document.getElementById('profileView');
   const setView = document.getElementById('settingsView');
 
   dashView?.classList.add('hidden');
   postsView?.classList.add('hidden');
+  videosView?.classList.add('hidden');
   profView?.classList.add('hidden');
   setView?.classList.add('hidden');
 
@@ -1146,6 +1211,12 @@ function showMainView(viewName) {
     currentClientId = null;
     setView?.classList.remove('hidden');
     updateNavActiveState('settings');
+  } else if (viewName === 'videos') {
+    currentClientId = null;
+    dashboardMode = 'videos';
+    videosView?.classList.remove('hidden');
+    updateNavActiveState('videos');
+    renderVideosView();
   } else if (viewName === 'posts') {
     currentClientId = null;
     dashboardMode = 'posts';
@@ -1162,6 +1233,8 @@ function showMainView(viewName) {
 function setDashboardMode(mode) {
   if (mode === 'posts') {
     showMainView('posts');
+  } else if (mode === 'videos') {
+    showMainView('videos');
   } else {
     showMainView('clients');
   }
@@ -1206,6 +1279,16 @@ function setClientsViewMode(mode) {
   document.getElementById('btnClientsViewTable')?.classList.toggle('active', clientsViewMode === 'table');
   renderDashboard();
 }
+
+function setClientCategory(cat) {
+  activeClientCategory = ['Mensal', 'Avulso', 'Parceria', 'ALL'].includes(cat) ? cat : 'Mensal';
+  document.querySelectorAll('[data-client-category]').forEach(btn => {
+    btn.classList.toggle('active', btn.getAttribute('data-client-category') === activeClientCategory);
+  });
+  renderDashboard();
+}
+
+window.setClientCategory = setClientCategory;
 
 function renderDashboard() {
   populateContractMonthFilters();
@@ -1320,9 +1403,11 @@ function renderDashboard() {
     });
   });
 
-  // 2. Filtra clientes exibidos por status de postagem e situação da carteira
+  // 2. Filtra clientes exibidos por categoria, status de postagem e situação da carteira
   const filteredClients = clientsInPeriod.filter(c => {
-    const m = getClientMetrics(c, monthFilter, includeCancelled);
+    const m = getClientMetrics(c, monthFilter, includeCancelled, getLocalTodayISO(), activeClientCategory);
+
+    if (activeClientCategory !== 'ALL' && m.contractBreakdowns.length === 0) return false;
 
     if (portfolioConditionFilter === 'WITH_REMAINING' && m.remaining <= 0) return false;
     if (portfolioConditionFilter === 'COMPLETED' && !(m.contractBreakdowns.length > 0 && m.remaining === 0 && m.totalContracted > 0)) return false;
@@ -1336,12 +1421,39 @@ function renderDashboard() {
     const clientPostsInMonth = (c.posts || []).filter(p => {
       const linked = getLinkedContractForPost(c, p);
       if (!includeCancelled && linked && linked.status === 'Cancelado') return false;
+      if (activeClientCategory !== 'ALL' && (!linked || linked.agreementType !== activeClientCategory)) return false;
       if (monthFilter === 'ALL') return true;
       const pPeriod = linked ? normalizePeriod(linked.period) : '';
       return pPeriod.toLowerCase() === monthFilter.toLowerCase();
     });
     return clientPostsInMonth.some(p => p.status === statusFilter);
   });
+
+  const setTxt = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = val;
+  };
+
+  // Atualiza contadores das visões internas (Mensais ativos, Avulsos, Parceiros, Todos)
+  const countCategoryClients = (cat) => clientsInPeriod.filter(c => {
+    if (cat === 'ALL') return true;
+    return getClientMetrics(c, monthFilter, includeCancelled, getLocalTodayISO(), cat).contractBreakdowns.length > 0;
+  }).length;
+  setTxt('catCountMensal', countCategoryClients('Mensal'));
+  setTxt('catCountAvulso', countCategoryClients('Avulso'));
+  setTxt('catCountParceria', countCategoryClients('Parceria'));
+  setTxt('catCountAll', clientsInPeriod.length);
+
+  // Banner de classificação de acordos legados (sem tipo_acordo definido)
+  const legacyList = getUnclassifiedLegacyContracts();
+  const legacyBanner = document.getElementById('legacyClassificationBanner');
+  const legacyText = document.getElementById('legacyClassificationText');
+  if (legacyBanner) {
+    legacyBanner.classList.toggle('hidden', legacyList.length === 0);
+    if (legacyText && legacyList.length > 0) {
+      legacyText.textContent = `${legacyList.length} acordo(s) antigo(s) aguardando classificação (Mensal, Avulso ou Parceria).`;
+    }
+  }
 
   // 3. Ordena clientes conforme seleção
   filteredClients.sort((a, b) => {
@@ -1362,10 +1474,6 @@ function renderDashboard() {
     return (a.name || '').localeCompare(b.name || '', 'pt-BR');
   });
 
-  const setTxt = (id, val) => {
-    const el = document.getElementById(id);
-    if (el) el.textContent = val;
-  };
   setTxt('pillCountAll', funnelCounts.ALL);
   setTxt('pillCountPendente', funnelCounts['Pendente']);
   setTxt('pillCountProducao', funnelCounts['Em produção']);
@@ -1400,7 +1508,7 @@ function renderDashboard() {
   let totalContractsCount = 0;
 
   filteredClients.forEach(client => {
-    const m = getClientMetrics(client, monthFilter, includeCancelled);
+    const m = getClientMetrics(client, monthFilter, includeCancelled, getLocalTodayISO(), activeClientCategory);
     totalContracted += m.totalContracted;
     totalPublished += m.totalPublished;
     totalRemaining += m.remaining;
@@ -1438,7 +1546,7 @@ function renderClientsTable(filteredClients, monthFilter, statusFilter, searchQu
 
   const rowsHtml = [];
   filteredClients.forEach(client => {
-    const m = getClientMetrics(client, monthFilter, includeCancelled);
+    const m = getClientMetrics(client, monthFilter, includeCancelled, getLocalTodayISO(), activeClientCategory);
     const lastDates = getClientLastPublishedDates(client, monthFilter, includeCancelled);
     const lastPostDisplay = monthFilter !== 'ALL'
       ? (lastDates.lastInPeriod ? `${formatDateBR(lastDates.lastInPeriod)} (período)` : (lastDates.lastAll ? `${formatDateBR(lastDates.lastAll)} (geral)` : '—'))
@@ -1469,18 +1577,20 @@ function renderClientsTable(filteredClients, monthFilter, statusFilter, searchQu
     }
 
     m.contractBreakdowns.forEach(({ contract, metrics: cm }) => {
+      const label = getContractDisplayLabel(contract);
+      const typeTag = getAgreementTypeBadgeText(contract);
       rowsHtml.push(`
         <tr>
           <td>
             <button type="button" class="post-client-link" onclick="openClientProfile('${escapeHtml(client.id)}')">${escapeHtml(client.name)}</button>
             ${statusTag ? `<span class="badge badge-concluido" style="margin-left:6px;">${escapeHtml(statusTag)}</span>` : ''}
           </td>
-          <td><strong>${escapeHtml(contract.period)}</strong></td>
-          <td class="tabular-nums">${cm.totalContracted}</td>
+          <td><strong>${escapeHtml(label)}</strong> <span class="badge badge-concluido" style="margin-left:4px;">${escapeHtml(typeTag)}</span></td>
+          <td class="tabular-nums">${cm.hasDefinedQuantity ? cm.totalContracted : 'Livre'}</td>
           <td class="tabular-nums">${cm.published}</td>
-          <td class="tabular-nums">${cm.remaining}</td>
-          <td class="tabular-nums">${cm.excess > 0 ? `+${cm.excess}` : '0'}</td>
-          <td class="tabular-nums">${cm.percentage}%</td>
+          <td class="tabular-nums">${cm.hasDefinedQuantity ? cm.remaining : '—'}</td>
+          <td class="tabular-nums">${cm.hasDefinedQuantity ? (cm.excess > 0 ? `+${cm.excess}` : '0') : '—'}</td>
+          <td class="tabular-nums">${cm.hasDefinedQuantity ? `${cm.percentage}%` : '—'}</td>
           <td class="tabular-nums">${escapeHtml(lastPostDisplay)}</td>
           <td class="table-actions-cell">
             <button type="button" class="btn btn-primary btn-sm" onclick="openQuickPostFromCard('${escapeHtml(client.id)}', '${escapeHtml(contract.id)}')">+ Postar</button>
@@ -1521,21 +1631,32 @@ function renderClientsGrid(filteredClients, monthFilter, statusFilter, searchQue
 
   if (filteredClients.length === 0) {
     const hasFilter = searchQuery || monthFilter !== 'ALL' || statusFilter !== 'ALL';
+    const isCategoryEmpty = !hasFilter && activeClientCategory !== 'ALL';
+    const catTitle = activeClientCategory === 'Mensal'
+      ? 'Nenhum cliente mensal ativo'
+      : (activeClientCategory === 'Avulso' ? 'Nenhum acordo avulso encontrado' : 'Nenhuma parceria cadastrada');
     grid.innerHTML = `
       <div class="empty-state" style="grid-column: 1 / -1;">
-        <h4>${hasFilter ? 'Nenhum cliente encontrado' : 'Nenhum cliente cadastrado'}</h4>
-        <p>${hasFilter ? 'Altere ou limpe os filtros aplicados para ver outros clientes.' : 'Cadastre seu primeiro cliente para acompanhar contratos e entregas.'}</p>
-        ${hasFilter
-          ? `<button type="button" class="btn btn-secondary" onclick="resetGlobalFilters()">Limpar filtros</button>`
-          : `<button type="button" class="btn btn-primary" onclick="openClientModal()">+ Cliente</button>`
-        }
+        <h4>${isCategoryEmpty ? catTitle : (hasFilter ? 'Nenhum cliente encontrado' : 'Nenhum cliente cadastrado')}</h4>
+        <p>${isCategoryEmpty
+          ? 'Você pode cadastrar um novo acordo ou consultar as outras categorias da carteira.'
+          : (hasFilter ? 'Altere ou limpe os filtros aplicados para ver outros clientes.' : 'Cadastre seu primeiro cliente para acompanhar contratos e entregas.')}</p>
+        ${isCategoryEmpty
+          ? `<div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:center;">
+               <button type="button" class="btn btn-secondary" onclick="setClientCategory('Avulso')">Ver Avulsos</button>
+               <button type="button" class="btn btn-secondary" onclick="setClientCategory('Parceria')">Ver Parceiros</button>
+               <button type="button" class="btn btn-secondary" onclick="setClientCategory('ALL')">Ver Todos</button>
+             </div>`
+          : (hasFilter
+              ? `<button type="button" class="btn btn-secondary" onclick="resetGlobalFilters()">Limpar filtros</button>`
+              : `<button type="button" class="btn btn-primary" onclick="openClientModal()">+ Cliente</button>`)}
       </div>
     `;
     return;
   }
 
   grid.innerHTML = filteredClients.map(client => {
-    const m = getClientMetrics(client, monthFilter, includeCancelled);
+    const m = getClientMetrics(client, monthFilter, includeCancelled, getLocalTodayISO(), activeClientCategory);
     const avatarHtml = renderAvatarHtml(client);
 
     const cardStateClass = m.hasOverdueContract
@@ -1556,14 +1677,26 @@ function renderClientsGrid(filteredClients, monthFilter, statusFilter, searchQue
       remainingLabel = '0 restantes';
     } else if (m.contractBreakdowns.length === 1) {
       const { contract, metrics: cm } = m.contractBreakdowns[0];
-      periodLabel = escapeHtml(contract.period);
-      deliveredLabel = `${cm.published} de ${cm.totalContracted} entregues`;
-      remainingLabel = `${cm.remaining} ${cm.remaining === 1 ? 'restante' : 'restantes'}${cm.excess > 0 ? ` (+${cm.excess} extra)` : ''}`;
+      const dispLabel = getContractDisplayLabel(contract);
+      const typeTag = getAgreementTypeBadgeText(contract);
+      periodLabel = `${escapeHtml(dispLabel)} <span class="badge badge-concluido" style="margin-left:4px;">${escapeHtml(typeTag)}</span>`;
+      if (!cm.hasDefinedQuantity) {
+        deliveredLabel = `${cm.published} publicadas`;
+        remainingLabel = 'Sem limite definido';
+      } else {
+        deliveredLabel = `${cm.published} de ${cm.totalContracted} entregues`;
+        remainingLabel = `${cm.remaining} ${cm.remaining === 1 ? 'restante' : 'restantes'}${cm.excess > 0 ? ` (+${cm.excess} extra)` : ''}`;
+      }
     } else {
-      const latestPeriod = m.contractBreakdowns[0].contract.period;
-      periodLabel = `${m.contractBreakdowns.length} contratos (atual: ${escapeHtml(latestPeriod)})`;
-      deliveredLabel = `${m.totalPublished} de ${m.totalContracted} entregues`;
-      remainingLabel = `${m.remaining} ${m.remaining === 1 ? 'restante' : 'restantes'}${m.totalExcess > 0 ? ` (+${m.totalExcess} extra)` : ''}`;
+      const latestLabel = getContractDisplayLabel(m.contractBreakdowns[0].contract);
+      periodLabel = `${m.contractBreakdowns.length} contratos (atual: ${escapeHtml(latestLabel)})`;
+      if (m.hasUndefinedPartnership && m.totalContracted === 0) {
+        deliveredLabel = `${m.totalPublished} publicadas`;
+        remainingLabel = 'Sem limite definido';
+      } else {
+        deliveredLabel = `${m.totalPublished} de ${m.totalContracted} entregues`;
+        remainingLabel = `${m.remaining} ${m.remaining === 1 ? 'restante' : 'restantes'}${m.totalExcess > 0 ? ` (+${m.totalExcess} extra)` : ''}`;
+      }
     }
 
     const subtitleText = instaFormatted || client.company || '';
@@ -2342,11 +2475,16 @@ function populateContractSelectForPostModal(client, postId = null, preselectedCo
   form?.classList.remove('hidden');
 
   const contractsForSelect = validContracts.length > 0 ? validContracts : sortedContracts;
+  const formatOption = (c) => {
+    const typeTag = getAgreementTypeBadgeText(c);
+    const label = getContractDisplayLabel(c);
+    return `<option value="${escapeHtml(c.id)}">[${escapeHtml(typeTag)}] ${escapeHtml(label)} (${escapeHtml(c.status)})</option>`;
+  };
   if (activeContracts.length > 1 && !postId && !preselectedContractId) {
-    contractSelect.innerHTML = `<option value="">Selecione o contrato...</option>` +
-      contractsForSelect.map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.period)} (${escapeHtml(c.status)})</option>`).join('');
+    contractSelect.innerHTML = `<option value="">Selecione o acordo...</option>` +
+      contractsForSelect.map(formatOption).join('');
   } else {
-    contractSelect.innerHTML = contractsForSelect.map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.period)} (${escapeHtml(c.status)})</option>`).join('');
+    contractSelect.innerHTML = contractsForSelect.map(formatOption).join('');
   }
 
   if (preselectedContractId && contractsForSelect.some(c => c.id === preselectedContractId)) {
@@ -2672,20 +2810,24 @@ function generateMultiContractReportData(client, contracts) {
   let totalPublished = 0;
   let totalRemaining = 0;
   let totalExcess = 0;
+  let hasDefinedQty = false;
   const contractIds = new Set();
 
   contracts.forEach(c => {
     contractIds.add(c.id);
     if (c.status === 'Cancelado') return;
     const cm = getContractMetrics(client, c);
-    totalContracted += cm.totalContracted;
+    if (cm.hasDefinedQuantity) {
+      hasDefinedQty = true;
+      totalContracted += cm.totalContracted;
+      totalRemaining += cm.remaining;
+      totalExcess += cm.excess;
+    }
     totalPublished += cm.published;
-    totalRemaining += cm.remaining;
-    totalExcess += cm.excess;
   });
 
   const deliveredTowardContract = Math.max(0, totalContracted - totalRemaining);
-  const percentage = totalContracted > 0
+  const percentage = (hasDefinedQty && totalContracted > 0)
     ? Math.min(100, Math.round((deliveredTowardContract / totalContracted) * 100))
     : 0;
 
@@ -2698,20 +2840,24 @@ function generateMultiContractReportData(client, contracts) {
     .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
 
   const periodLabel = contracts.length === 1
-    ? contracts[0].period
-    : `${contracts.length} contratos (${contracts.map(c => c.period).join(', ')})`;
+    ? getContractDisplayLabel(contracts[0])
+    : `${contracts.length} acordos (${contracts.map(c => getContractDisplayLabel(c)).join(', ')})`;
 
   const lines = [
     'RELATÓRIO DE ENTREGAS',
-    `Cliente: ${client.name}${insta ? ` (${insta})` : ''}`,
-    `Período: ${periodLabel}`,
-    `Gerado em: ${generatedLabel}`,
-    `Contratadas: ${totalContracted}`,
-    `Publicadas: ${totalPublished}`,
-    `Restantes: ${totalRemaining}`,
-    `Progresso: ${percentage}%`
+    `Contato: ${client.name}${insta ? ` (${insta})` : ''}`,
+    `Acordo: ${periodLabel}`,
+    `Gerado em: ${generatedLabel}`
   ];
-  if (totalExcess > 0) lines.push(`Excedente entregue: +${totalExcess}`);
+  if (hasDefinedQty) {
+    lines.push(`Contratadas: ${totalContracted}`);
+    lines.push(`Publicadas: ${totalPublished}`);
+    lines.push(`Restantes: ${totalRemaining}`);
+    lines.push(`Progresso: ${percentage}%`);
+    if (totalExcess > 0) lines.push(`Excedente entregue: +${totalExcess}`);
+  } else {
+    lines.push(`Publicações realizadas: ${totalPublished} (Parceria sem limite definido)`);
+  }
   lines.push('');
 
   if (deliveredPosts.length === 0) {
@@ -2728,7 +2874,7 @@ function generateMultiContractReportData(client, contracts) {
     text: lines.join('\n').trim(),
     periodLabel,
     generatedLabel,
-    cm: { totalContracted, published: totalPublished, remaining: totalRemaining, excess: totalExcess, percentage },
+    cm: { hasDefinedQuantity: hasDefinedQty, totalContracted, published: totalPublished, remaining: totalRemaining, excess: totalExcess, percentage },
     deliveredPosts
   };
 }
@@ -2824,7 +2970,7 @@ function renderDeliveryReportContent() {
     <div class="report-summary-grid">
       <div class="report-stat-box">
         <span class="report-stat-label">Contratadas</span>
-        <strong class="report-stat-val">${cm.totalContracted}</strong>
+        <strong class="report-stat-val">${cm.hasDefinedQuantity ? cm.totalContracted : 'Livre'}</strong>
       </div>
       <div class="report-stat-box">
         <span class="report-stat-label">Publicadas</span>
@@ -2832,11 +2978,11 @@ function renderDeliveryReportContent() {
       </div>
       <div class="report-stat-box">
         <span class="report-stat-label">Restantes</span>
-        <strong class="report-stat-val">${cm.remaining}</strong>
+        <strong class="report-stat-val">${cm.hasDefinedQuantity ? cm.remaining : '—'}</strong>
       </div>
       <div class="report-stat-box">
         <span class="report-stat-label">${cm.excess > 0 ? 'Excedente' : 'Progresso'}</span>
-        <strong class="report-stat-val ${cm.excess > 0 ? 'text-success' : ''}">${cm.excess > 0 ? `+${cm.excess}` : `${cm.percentage}%`}</strong>
+        <strong class="report-stat-val ${cm.excess > 0 ? 'text-success' : ''}">${cm.hasDefinedQuantity ? (cm.excess > 0 ? `+${cm.excess}` : `${cm.percentage}%`) : 'Contínua'}</strong>
       </div>
     </div>
 
@@ -2921,6 +3067,8 @@ function getGeneralReportData(periodOverride = null) {
 
   const rows = [];
   const uniqueClientsSet = new Set();
+  const categoryClientSets = { Mensal: new Set(), Avulso: new Set(), Parceria: new Set() };
+  const byCategoryCount = { Mensal: 0, Avulso: 0, Parceria: 0, SemCategoria: 0 };
   let totalContracted = 0;
   let totalPublished = 0;
   let totalRemaining = 0;
@@ -2943,12 +3091,22 @@ function getGeneralReportData(periodOverride = null) {
     const m = getClientMetrics(client, monthFilter, includeCancelled);
     m.contractBreakdowns.forEach(({ contract, metrics: cm }) => {
       uniqueClientsSet.add(client.id);
+      const cat = contract.agreementType;
+      if (cat && categoryClientSets[cat]) {
+        categoryClientSets[cat].add(client.id);
+        byCategoryCount[cat] += 1;
+      } else {
+        byCategoryCount.SemCategoria += 1;
+      }
+
       if (contract.status !== 'Cancelado') {
-        totalContracted += cm.totalContracted;
+        if (cm.hasDefinedQuantity) {
+          totalContracted += cm.totalContracted;
+          totalRemaining += cm.remaining;
+          totalExcess += cm.excess;
+          if (cm.totalContracted > 0 && cm.remaining === 0) completedContracts += 1;
+        }
         totalPublished += cm.published;
-        totalRemaining += cm.remaining;
-        totalExcess += cm.excess;
-        if (cm.totalContracted > 0 && cm.remaining === 0) completedContracts += 1;
       }
       rows.push({
         client,
@@ -2958,10 +3116,15 @@ function getGeneralReportData(periodOverride = null) {
     });
   });
 
+  const sumCategoriesUnique = categoryClientSets.Mensal.size + categoryClientSets.Avulso.size + categoryClientSets.Parceria.size;
+  const hasOverlap = sumCategoriesUnique > uniqueClientsSet.size;
+
   return {
     monthFilter,
     uniqueClientsCount: uniqueClientsSet.size,
     contractsCount: rows.length,
+    byCategoryCount,
+    hasOverlap,
     totalContracted,
     totalPublished,
     totalRemaining,
@@ -2995,8 +3158,9 @@ function renderGeneralReportContent() {
     <div class="report-doc-header">
       <div>
         <div class="report-brand-mark">NasRuas de ITZ • Relatório Geral</div>
-        <div class="report-doc-title">Resumo Gerencial de Contratos</div>
-        <div class="report-doc-handle">${data.uniqueClientsCount} clientes únicos · ${data.contractsCount} contratos · ${data.completedContracts} completos</div>
+        <div class="report-doc-title">Resumo Gerencial de Acordos</div>
+        <div class="report-doc-handle">${data.uniqueClientsCount} contatos únicos · ${data.contractsCount} acordos (Mensais: ${data.byCategoryCount.Mensal} · Avulsos: ${data.byCategoryCount.Avulso} · Parceiros: ${data.byCategoryCount.Parceria})</div>
+        ${data.hasOverlap ? `<div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">Nota: um mesmo contato pode aparecer em mais de uma categoria sem duplicar a contagem de contatos únicos.</div>` : ''}
       </div>
       <div style="text-align: right;">
         <span class="report-stat-label">Período</span>
@@ -3030,8 +3194,9 @@ function renderGeneralReportContent() {
           <table class="desktop-clients-table">
             <thead>
               <tr>
-                <th>Cliente</th>
-                <th>Período</th>
+                <th>Contato</th>
+                <th>Categoria</th>
+                <th>Acordo / Período</th>
                 <th>Contratadas</th>
                 <th>Publicadas</th>
                 <th>Restantes</th>
@@ -3043,12 +3208,13 @@ function renderGeneralReportContent() {
               ${data.rows.map(({ client, contract, cm }) => `
                 <tr>
                   <td><strong>${escapeHtml(client.name)}</strong></td>
-                  <td>${escapeHtml(contract.period)}</td>
-                  <td class="tabular-nums">${cm.totalContracted}</td>
+                  <td>${escapeHtml(getAgreementTypeBadgeText(contract))}</td>
+                  <td>${escapeHtml(getContractDisplayLabel(contract))}</td>
+                  <td class="tabular-nums">${cm.hasDefinedQuantity ? cm.totalContracted : 'Livre'}</td>
                   <td class="tabular-nums">${cm.published}</td>
-                  <td class="tabular-nums">${cm.remaining}</td>
-                  <td class="tabular-nums">${cm.excess > 0 ? `+${cm.excess}` : '0'}</td>
-                  <td class="tabular-nums">${cm.percentage}%</td>
+                  <td class="tabular-nums">${cm.hasDefinedQuantity ? cm.remaining : '—'}</td>
+                  <td class="tabular-nums">${cm.hasDefinedQuantity ? (cm.excess > 0 ? `+${cm.excess}` : '0') : '—'}</td>
+                  <td class="tabular-nums">${cm.hasDefinedQuantity ? `${cm.percentage}%` : '—'}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -3111,7 +3277,7 @@ function exportGeneralReportCsv() {
 // ==================== MODAIS DE CLIENTE E CONTRATO ====================
 function syncBodyFullscreenModalState() {
   if (typeof document === 'undefined' || !document.body) return;
-  const fullscreenIds = ['clientModal', 'contractModal', 'renewContractModal', 'postModal', 'reportModal', 'generalReportModal', 'trashModal', 'auditLogModal'];
+  const fullscreenIds = ['clientModal', 'contractModal', 'renewContractModal', 'postModal', 'reportModal', 'generalReportModal', 'trashModal', 'auditLogModal', 'legacyClassificationModal', 'videoModal'];
   const anyOpen = fullscreenIds.some(id => {
     const el = document.getElementById(id);
     return el && !el.classList.contains('hidden');
@@ -3558,6 +3724,56 @@ function applyContractDurationDates() {
   endEl.value = `${yyyy}-${mm}-${dd}`;
 }
 
+function syncContractAgreementFields() {
+  const type = document.getElementById('contractAgreementType')?.value || 'Mensal';
+  const titleGroup = document.getElementById('contractAgreementTitleGroup');
+  const titleLabel = document.getElementById('contractAgreementTitleLabel');
+  const titleInput = document.getElementById('contractAgreementTitle');
+  const subGroup = document.getElementById('contractPartnershipSubtypeGroup');
+  const notesGroup = document.getElementById('contractPartnershipNotesGroup');
+  const periodGroup = document.getElementById('contractPeriodGroup');
+  const durationGroup = document.getElementById('contractDurationGroup');
+  const defQtyGroup = document.getElementById('contractHasDefinedQuantityGroup');
+  const defQtyCheck = document.getElementById('contractHasDefinedQuantity');
+  const totalPostsGroup = document.getElementById('contractTotalPostsGroup');
+  const valueGroup = document.getElementById('contractValueGroup');
+
+  if (type === 'Mensal') {
+    titleGroup?.classList.add('hidden');
+    subGroup?.classList.add('hidden');
+    notesGroup?.classList.add('hidden');
+    defQtyGroup?.classList.add('hidden');
+    periodGroup?.classList.remove('hidden');
+    durationGroup?.classList.remove('hidden');
+    totalPostsGroup?.classList.remove('hidden');
+    valueGroup?.classList.remove('hidden');
+  } else if (type === 'Avulso') {
+    titleGroup?.classList.remove('hidden');
+    if (titleLabel) titleLabel.innerHTML = 'Nome do pacote ou ação <span class="req">*</span>';
+    if (titleInput) titleInput.placeholder = 'Ex: Divulgação da inauguração';
+    subGroup?.classList.add('hidden');
+    notesGroup?.classList.add('hidden');
+    defQtyGroup?.classList.add('hidden');
+    periodGroup?.classList.add('hidden');
+    durationGroup?.classList.add('hidden');
+    totalPostsGroup?.classList.remove('hidden');
+    valueGroup?.classList.remove('hidden');
+  } else {
+    // Parceria
+    titleGroup?.classList.remove('hidden');
+    if (titleLabel) titleLabel.innerHTML = 'Identificação da parceria <span class="req">*</span>';
+    if (titleInput) titleInput.placeholder = 'Ex: Parceria Evento / Permuta';
+    subGroup?.classList.remove('hidden');
+    notesGroup?.classList.remove('hidden');
+    defQtyGroup?.classList.remove('hidden');
+    periodGroup?.classList.add('hidden');
+    durationGroup?.classList.add('hidden');
+    valueGroup?.classList.add('hidden');
+    const hasQty = defQtyCheck ? defQtyCheck.checked : true;
+    totalPostsGroup?.classList.toggle('hidden', !hasQty);
+  }
+}
+
 // --- Modal Contrato ---
 function openContractModal(contractId = null) {
   closeAllKebabMenus();
@@ -3568,12 +3784,27 @@ function openContractModal(contractId = null) {
   if (form && typeof form.reset === 'function') form.reset();
   document.getElementById('contractFormError')?.classList.add('hidden');
   const durationEl = document.getElementById('contractDurationMonths');
+  const typeEl = document.getElementById('contractAgreementType');
+  const defQtyCheck = document.getElementById('contractHasDefinedQuantity');
 
   if (contractId) {
     const contract = (client.contracts || []).find(c => c.id === contractId);
     if (!contract) return;
-    document.getElementById('contractModalTitle').textContent = 'Editar Contrato';
+    document.getElementById('contractModalTitle').textContent = 'Editar Acordo / Contrato';
     document.getElementById('contractId').value = contract.id;
+    if (typeEl) typeEl.value = contract.agreementType || 'Mensal';
+    if (document.getElementById('contractAgreementTitle')) {
+      document.getElementById('contractAgreementTitle').value = contract.agreementTitle || contract.period || '';
+    }
+    if (document.getElementById('contractPartnershipSubtype')) {
+      document.getElementById('contractPartnershipSubtype').value = contract.partnershipSubtype || '';
+    }
+    if (document.getElementById('contractPartnershipNotes')) {
+      document.getElementById('contractPartnershipNotes').value = contract.partnershipNotes || '';
+    }
+    if (defQtyCheck) {
+      defQtyCheck.checked = contract.hasDefinedQuantity !== false;
+    }
     document.getElementById('contractPeriod').value = contract.period || '';
     document.getElementById('contractTotalPosts').value = contract.totalPosts || '';
     if (durationEl) {
@@ -3587,14 +3818,19 @@ function openContractModal(contractId = null) {
     document.getElementById('contractValue').value = contract.value || '';
     document.getElementById('contractStatus').value = contract.status || 'Ativo';
   } else {
-    document.getElementById('contractModalTitle').textContent = 'Novo Contrato';
+    document.getElementById('contractModalTitle').textContent = 'Novo Acordo / Contrato';
     document.getElementById('contractId').value = '';
+    if (typeEl) {
+      typeEl.value = (activeClientCategory === 'Avulso' || activeClientCategory === 'Parceria') ? activeClientCategory : 'Mensal';
+    }
+    if (defQtyCheck) defQtyCheck.checked = true;
     if (durationEl) durationEl.value = '1';
     document.getElementById('contractStartDate').value = '';
     document.getElementById('contractEndDate').value = '';
     document.getElementById('contractStatus').value = 'Ativo';
   }
 
+  syncContractAgreementFields();
   openModal('contractModal');
 }
 
@@ -3606,21 +3842,31 @@ async function handleContractSubmit(e) {
   if (!client) return;
 
   const id = document.getElementById('contractId').value;
-  const period = document.getElementById('contractPeriod').value.trim();
-  const durationMonths = Math.max(1, Number(document.getElementById('contractDurationMonths')?.value) || 1);
-  const totalPosts = Number(document.getElementById('contractTotalPosts').value) || 0;
+  const agreementType = document.getElementById('contractAgreementType')?.value || 'Mensal';
+  const agreementTitle = (document.getElementById('contractAgreementTitle')?.value || '').trim();
+  const partnershipSubtype = document.getElementById('contractPartnershipSubtype')?.value || '';
+  const partnershipNotes = (document.getElementById('contractPartnershipNotes')?.value || '').trim();
+  const hasDefinedQuantity = agreementType === 'Parceria'
+    ? Boolean(document.getElementById('contractHasDefinedQuantity')?.checked)
+    : true;
+  const rawPeriod = document.getElementById('contractPeriod').value.trim();
+  const period = agreementType === 'Mensal' ? rawPeriod : (agreementTitle || rawPeriod);
+  const durationMonths = agreementType === 'Mensal'
+    ? Math.max(1, Number(document.getElementById('contractDurationMonths')?.value) || 1)
+    : 1;
+  const totalPosts = hasDefinedQuantity ? (Number(document.getElementById('contractTotalPosts').value) || 0) : 0;
   const startDate = document.getElementById('contractStartDate')?.value || '';
   const endDate = document.getElementById('contractEndDate')?.value || '';
   const types = document.getElementById('contractTypes').value.trim();
   const valueRaw = document.getElementById('contractValue').value;
-  const value = valueRaw !== '' ? Number(valueRaw) : null;
+  const value = (agreementType !== 'Parceria' && valueRaw !== '') ? Number(valueRaw) : null;
   const status = document.getElementById('contractStatus').value;
   const errEl = document.getElementById('contractFormError');
   const btn = document.getElementById('btnSaveContract');
 
   errEl?.classList.add('hidden');
 
-  if (!period) {
+  if (agreementType === 'Mensal' && !rawPeriod) {
     if (errEl) {
       errEl.textContent = 'Informe o mês e ano do contrato (ex.: Novembro/2026).';
       errEl.classList.remove('hidden');
@@ -3628,7 +3874,15 @@ async function handleContractSubmit(e) {
     return;
   }
 
-  if (totalPosts <= 0) {
+  if (agreementType !== 'Mensal' && !agreementTitle) {
+    if (errEl) {
+      errEl.textContent = agreementType === 'Parceria' ? 'Informe a identificação da parceria.' : 'Informe o nome do pacote ou ação avulsa.';
+      errEl.classList.remove('hidden');
+    }
+    return;
+  }
+
+  if (hasDefinedQuantity && totalPosts <= 0) {
     if (errEl) {
       errEl.textContent = 'A quantidade contratada deve ser maior que zero.';
       errEl.classList.remove('hidden');
@@ -3648,7 +3902,7 @@ async function handleContractSubmit(e) {
     const existingContract = (client.contracts || []).find(c => c.id === id);
     if (existingContract) {
       const cm = getContractMetrics(client, existingContract);
-      if (totalPosts < cm.published) {
+      if (hasDefinedQuantity && totalPosts < cm.published) {
         const excessResult = cm.published - totalPosts;
         const confirmed = window.confirm(
           `Este contrato já possui ${cm.published} publicações publicadas. Reduzir para ${totalPosts} gerará ${excessResult} excedente(s). Deseja confirmar?`
@@ -3668,6 +3922,12 @@ async function handleContractSubmit(e) {
     if (supabase) {
       const fullPayload = {
         cliente_id: client.id,
+        tipo_acordo: agreementType,
+        titulo_acordo: agreementTitle,
+        subtipo_parceria: partnershipSubtype,
+        quantidade_definida: hasDefinedQuantity,
+        descricao_combinado: partnershipNotes,
+        duracao_meses: durationMonths,
         periodo: period,
         total_postagens: totalPosts,
         tipos: types,
@@ -3683,13 +3943,15 @@ async function handleContractSubmit(e) {
         total_postagens: totalPosts,
         tipos: types,
         valor: value,
-        status
+        status,
+        data_inicio: startDate || null,
+        data_fim: endDate || null
       };
 
       let opError = null;
       if (id) {
         const res = await supabase.from('contratos').update(fullPayload).eq('id', id);
-        if (res.error && String(res.error.message || '').includes('data_')) {
+        if (res.error && /(tipo_acordo|titulo_acordo|subtipo_parceria|quantidade_definida|descricao_combinado|duracao_meses)/.test(String(res.error.message || ''))) {
           const fallback = await supabase.from('contratos').update(basePayload).eq('id', id);
           opError = fallback.error;
         } else {
@@ -3697,7 +3959,7 @@ async function handleContractSubmit(e) {
         }
       } else {
         const res = await supabase.from('contratos').insert([fullPayload]);
-        if (res.error && String(res.error.message || '').includes('data_')) {
+        if (res.error && /(tipo_acordo|titulo_acordo|subtipo_parceria|quantidade_definida|descricao_combinado|duracao_meses)/.test(String(res.error.message || ''))) {
           const fallback = await supabase.from('contratos').insert([basePayload]);
           opError = fallback.error;
         } else {
@@ -3707,12 +3969,17 @@ async function handleContractSubmit(e) {
 
       if (opError) throw opError;
       await fetchFromSupabase();
-      showToast(id ? 'Contrato atualizado!' : 'Contrato salvo!');
+      showToast(id ? 'Acordo atualizado!' : 'Acordo salvo!');
     } else {
       if (!client.contracts) client.contracts = [];
       if (id) {
         const contract = client.contracts.find(c => c.id === id);
         if (contract) {
+          contract.agreementType = agreementType;
+          contract.agreementTitle = agreementTitle;
+          contract.partnershipSubtype = partnershipSubtype;
+          contract.hasDefinedQuantity = hasDefinedQuantity;
+          contract.partnershipNotes = partnershipNotes;
           contract.period = period;
           contract.durationMonths = durationMonths;
           contract.totalPosts = totalPosts;
@@ -3722,10 +3989,15 @@ async function handleContractSubmit(e) {
           contract.value = value !== null ? value : '';
           contract.status = status;
         }
-        showToast('Contrato atualizado!');
+        showToast('Acordo atualizado!');
       } else {
         client.contracts.push({
           id: uid('cnt'),
+          agreementType,
+          agreementTitle,
+          partnershipSubtype,
+          hasDefinedQuantity,
+          partnershipNotes,
           period,
           durationMonths,
           totalPosts,
@@ -4415,6 +4687,326 @@ async function handleImportBackupFile(file) {
   }
 }
 
+// ==================== CLASSIFICAÇÃO DE ACORDOS LEGADOS ====================
+function suggestLegacyAgreementType(contract) {
+  if (contract?.agreementType === 'Mensal' || contract?.agreementType === 'Avulso' || contract?.agreementType === 'Parceria') {
+    return { suggestion: contract.agreementType, confidence: 'definida', reason: 'Já classificado' };
+  }
+  const periodStr = String(contract?.period || '').trim();
+  const isMonthYear = /^(janeiro|fevereiro|mar[cç]o|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\/\d{4}$/i.test(periodStr);
+  if (isMonthYear && (Number(contract?.totalPosts) || 0) > 0) {
+    return { suggestion: 'Mensal', confidence: 'alta', reason: 'Período no formato Mês/Ano' };
+  }
+  if (!isMonthYear && Number(contract?.value) > 0) {
+    return { suggestion: 'Avulso', confidence: 'media', reason: 'Período descritivo com valor informado' };
+  }
+  return { suggestion: 'Revisar', confidence: 'ambigua', reason: 'Sem padrão claro — revise manualmente' };
+}
+
+function getUnclassifiedLegacyContracts() {
+  const list = [];
+  (appData.clients || []).forEach(client => {
+    (client.contracts || []).forEach(contract => {
+      if (!contract.agreementType) {
+        list.push({ client, contract, ...suggestLegacyAgreementType(contract) });
+      }
+    });
+  });
+  return list;
+}
+
+function openLegacyClassificationModal() {
+  const list = getUnclassifiedLegacyContracts();
+  const container = document.getElementById('legacyClassificationList');
+  if (!container) return;
+
+  if (list.length === 0) {
+    container.innerHTML = `<p style="font-size:14px; color:var(--text-secondary); padding: 12px 0;">Todos os acordos já estão classificados.</p>`;
+  } else {
+    container.innerHTML = list.map(({ client, contract, suggestion, reason }) => {
+      const defaultChoice = (suggestion === 'Mensal' || suggestion === 'Avulso' || suggestion === 'Parceria') ? suggestion : 'Mensal';
+      return `
+        <div class="monthly-history-row">
+          <div class="monthly-history-info">
+            <span class="monthly-history-period">${escapeHtml(client.name)} — ${escapeHtml(contract.period || 'Sem período')}</span>
+            <span class="monthly-history-metrics">${Number(contract.totalPosts) || 0} contratadas · Sugestão: <strong>${escapeHtml(suggestion)}</strong> (${escapeHtml(reason)})</span>
+          </div>
+          <div>
+            <select class="select-filter" data-legacy-contract-id="${escapeHtml(contract.id)}" data-legacy-client-id="${escapeHtml(client.id)}" aria-label="Classificar acordo">
+              <option value="Mensal" ${defaultChoice === 'Mensal' ? 'selected' : ''}>Mensal</option>
+              <option value="Avulso" ${defaultChoice === 'Avulso' ? 'selected' : ''}>Avulso</option>
+              <option value="Parceria" ${defaultChoice === 'Parceria' ? 'selected' : ''}>Parceria</option>
+            </select>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+  openModal('legacyClassificationModal');
+}
+
+async function applyLegacyClassifications() {
+  const selects = Array.from(document.querySelectorAll('[data-legacy-contract-id]'));
+  if (selects.length === 0) {
+    closeModal('legacyClassificationModal');
+    return;
+  }
+
+  try {
+    for (const sel of selects) {
+      const contractId = sel.getAttribute('data-legacy-contract-id');
+      const clientId = sel.getAttribute('data-legacy-client-id');
+      const chosenType = sel.value;
+      if (!['Mensal', 'Avulso', 'Parceria'].includes(chosenType)) continue;
+
+      if (supabase) {
+        const { error } = await supabase.from('contratos').update({ tipo_acordo: chosenType }).eq('id', contractId);
+        if (error) throw error;
+      } else {
+        const cli = appData.clients.find(c => c.id === clientId);
+        const cnt = (cli?.contracts || []).find(c => c.id === contractId);
+        if (cnt) cnt.agreementType = chosenType;
+      }
+    }
+    if (supabase) {
+      await fetchFromSupabase();
+    } else {
+      saveData();
+    }
+    closeModal('legacyClassificationModal');
+    renderDashboard();
+    showToast('Acordos classificados com sucesso!');
+  } catch (err) {
+    setPersistenceErrorUI(err.message);
+    showToast('Erro ao salvar classificação: ' + (err.message || 'Verifique se a migração v5 foi aplicada no Supabase.'));
+  }
+}
+
+// ==================== ABA INDEPENDENTE: VÍDEOS ====================
+function renderVideosView() {
+  ensureRecoveryStructures();
+  const listEl = document.getElementById('videosList');
+  const countEl = document.getElementById('videosCountLabel');
+  const searchQuery = (document.getElementById('videosSearchInput')?.value || '').trim().toLowerCase();
+  const showArchived = Boolean(document.getElementById('toggleShowArchivedVideos')?.checked);
+  if (!listEl) return;
+
+  const filtered = (appData.videos || []).filter(v => {
+    if (!showArchived && v.archived) return false;
+    if (videoStatusFilter !== 'ALL' && v.status !== videoStatusFilter) return false;
+    if (searchQuery && !(v.title || '').toLowerCase().includes(searchQuery)) return false;
+    return true;
+  });
+
+  if (countEl) {
+    countEl.textContent = `${filtered.length} ${filtered.length === 1 ? 'vídeo' : 'vídeos'}`;
+  }
+
+  if (filtered.length === 0) {
+    listEl.innerHTML = `
+      <div class="empty-state" style="grid-column: 1 / -1;">
+        <h4>Nenhum vídeo encontrado</h4>
+        <p>Projetos de vídeo aqui são independentes dos clientes e não consomem saldo de publicações.</p>
+        <button type="button" class="btn btn-primary" onclick="openVideoModal()">+ Novo vídeo</button>
+      </div>
+    `;
+    return;
+  }
+
+  listEl.innerHTML = filtered.map(v => {
+    const badgeCls = v.status === 'Concluído' ? 'badge-entregue' : (v.status === 'Em produção' ? 'badge-producao' : 'badge-pendente');
+    return `
+      <article class="post-card">
+        <div class="post-card-top">
+          <div class="post-meta-left">
+            <span class="badge ${badgeCls}">${escapeHtml(v.status)}</span>
+            ${v.dueDate ? `<span class="post-date tabular-nums">${escapeHtml(formatDateBR(v.dueDate))}</span>` : ''}
+            ${v.archived ? `<span class="badge badge-concluido">Arquivado</span>` : ''}
+          </div>
+          <div style="display:flex; gap:6px;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="openVideoModal('${escapeHtml(v.id)}')">Editar</button>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="toggleArchiveVideo('${escapeHtml(v.id)}')">${v.archived ? 'Restaurar' : 'Arquivar'}</button>
+            <button type="button" class="btn btn-ghost btn-sm text-danger" onclick="confirmDeleteVideo('${escapeHtml(v.id)}')">Excluir</button>
+          </div>
+        </div>
+        <h3 class="post-title">${escapeHtml(v.title)}</h3>
+        ${v.description ? `<p style="font-size:13px; color:var(--text-secondary); margin: 4px 0 0;">${escapeHtml(v.description)}</p>` : ''}
+        ${(v.materialLink || v.finalLink) ? `
+          <div class="post-card-bottom" style="gap: 12px; flex-wrap: wrap;">
+            ${v.materialLink ? `<a href="${escapeHtml(v.materialLink)}" target="_blank" rel="noopener noreferrer" class="post-external-link">Material</a>` : ''}
+            ${v.finalLink ? `<a href="${escapeHtml(v.finalLink)}" target="_blank" rel="noopener noreferrer" class="post-external-link">Vídeo final</a>` : ''}
+          </div>
+        ` : ''}
+      </article>
+    `;
+  }).join('');
+}
+
+function openVideoModal(videoId = null) {
+  ensureRecoveryStructures();
+  const form = document.getElementById('videoForm');
+  if (form && typeof form.reset === 'function') form.reset();
+  document.getElementById('videoFormError')?.classList.add('hidden');
+
+  if (videoId) {
+    const v = (appData.videos || []).find(item => item.id === videoId);
+    if (!v) return;
+    document.getElementById('videoModalTitle').textContent = 'Editar vídeo';
+    document.getElementById('videoId').value = v.id;
+    document.getElementById('videoTitle').value = v.title || '';
+    document.getElementById('videoStatus').value = v.status || 'A fazer';
+    document.getElementById('videoDescription').value = v.description || '';
+    document.getElementById('videoDueDate').value = v.dueDate || '';
+    document.getElementById('videoMaterialLink').value = v.materialLink || '';
+    document.getElementById('videoFinalLink').value = v.finalLink || '';
+    document.getElementById('videoNotes').value = v.notes || '';
+  } else {
+    document.getElementById('videoModalTitle').textContent = 'Novo vídeo';
+    document.getElementById('videoId').value = '';
+    document.getElementById('videoStatus').value = 'A fazer';
+  }
+  openModal('videoModal');
+}
+
+async function handleVideoSubmit(e) {
+  e.preventDefault();
+  ensureRecoveryStructures();
+
+  const id = document.getElementById('videoId').value;
+  const title = document.getElementById('videoTitle').value.trim();
+  const status = document.getElementById('videoStatus').value || 'A fazer';
+  const description = document.getElementById('videoDescription').value.trim();
+  const dueDate = document.getElementById('videoDueDate').value || '';
+  const materialLink = document.getElementById('videoMaterialLink').value.trim();
+  const finalLink = document.getElementById('videoFinalLink').value.trim();
+  const notes = document.getElementById('videoNotes').value.trim();
+  const errEl = document.getElementById('videoFormError');
+
+  errEl?.classList.add('hidden');
+
+  if (!title) {
+    if (errEl) {
+      errEl.textContent = 'O título do vídeo é obrigatório.';
+      errEl.classList.remove('hidden');
+    }
+    return;
+  }
+
+  if ((materialLink && !isValidHttpUrl(materialLink)) || (finalLink && !isValidHttpUrl(finalLink))) {
+    if (errEl) {
+      errEl.textContent = 'Os links devem começar com http:// ou https://.';
+      errEl.classList.remove('hidden');
+    }
+    return;
+  }
+
+  try {
+    if (supabase) {
+      const payload = {
+        titulo: title,
+        descricao: description,
+        status,
+        data_prevista: dueDate || null,
+        link_material: materialLink,
+        link_final: finalLink,
+        observacoes: notes
+      };
+      if (id) {
+        const { error } = await supabase.from('videos').update(payload).eq('id', id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('videos').insert([payload]);
+        if (error) throw error;
+      }
+      await fetchFromSupabase();
+    } else {
+      if (id) {
+        const v = appData.videos.find(item => item.id === id);
+        if (v) {
+          v.title = title;
+          v.status = status;
+          v.description = description;
+          v.dueDate = dueDate;
+          v.materialLink = materialLink;
+          v.finalLink = finalLink;
+          v.notes = notes;
+        }
+      } else {
+        appData.videos.unshift({
+          id: uid('vid'),
+          title,
+          description,
+          status,
+          dueDate,
+          materialLink,
+          finalLink,
+          notes,
+          archived: false,
+          createdAt: new Date().toISOString()
+        });
+      }
+      saveData();
+    }
+    closeModal('videoModal');
+    renderVideosView();
+    showToast(id ? 'Vídeo atualizado!' : 'Vídeo cadastrado!');
+  } catch (err) {
+    setPersistenceErrorUI(err.message);
+    if (errEl) {
+      errEl.textContent = 'Erro ao salvar vídeo: ' + (err.message || 'Erro desconhecido.');
+      errEl.classList.remove('hidden');
+    }
+  }
+}
+
+async function toggleArchiveVideo(videoId) {
+  ensureRecoveryStructures();
+  const v = appData.videos.find(item => item.id === videoId);
+  if (!v) return;
+  const nextArchived = !v.archived;
+
+  try {
+    if (supabase) {
+      const { error } = await supabase.from('videos').update({ arquivado: nextArchived }).eq('id', videoId);
+      if (error) throw error;
+      await fetchFromSupabase();
+    } else {
+      v.archived = nextArchived;
+      saveData();
+    }
+    renderVideosView();
+    showToast(nextArchived ? 'Vídeo arquivado.' : 'Vídeo restaurado.');
+  } catch (err) {
+    showToast('Erro ao atualizar vídeo: ' + (err.message || ''));
+  }
+}
+
+function confirmDeleteVideo(videoId) {
+  ensureRecoveryStructures();
+  const v = appData.videos.find(item => item.id === videoId);
+  if (!v) return;
+  openConfirmModal(
+    'Excluir Vídeo',
+    `Deseja excluir o projeto de vídeo "${v.title}"? Isso não altera nenhum cliente ou saldo de publicações.`,
+    async () => {
+      try {
+        if (supabase) {
+          const { error } = await supabase.from('videos').update({ deleted_at: new Date().toISOString() }).eq('id', videoId);
+          if (error) throw error;
+          await fetchFromSupabase();
+        } else {
+          appData.videos = appData.videos.filter(item => item.id !== videoId);
+          saveData();
+        }
+        renderVideosView();
+        showToast('Vídeo excluído.');
+      } catch (err) {
+        showToast('Erro ao excluir vídeo: ' + (err.message || ''));
+      }
+    }
+  );
+}
+
 // ==================== PWA (INSTALAR COMO APLICATIVO NO CELULAR) ====================
 let deferredPwaPrompt = null;
 
@@ -4466,6 +5058,10 @@ if (typeof window !== 'undefined') {
     confirmDeletePost,
     restoreFromTrash,
     hardDeleteFromTrash,
+    openVideoModal,
+    toggleArchiveVideo,
+    confirmDeleteVideo,
+    openLegacyClassificationModal,
     applyQuickStatusFilter,
     goToPostsWithStatus,
     resetGlobalFilters,
@@ -4692,8 +5288,34 @@ document.addEventListener('DOMContentLoaded', () => {
     if (client) checkRenewExistingContractWarning(client, e.target.value);
   });
   document.getElementById('contractForm')?.addEventListener('submit', handleContractSubmit);
+  document.getElementById('contractAgreementType')?.addEventListener('change', syncContractAgreementFields);
+  document.getElementById('contractHasDefinedQuantity')?.addEventListener('change', syncContractAgreementFields);
   document.getElementById('contractDurationMonths')?.addEventListener('change', applyContractDurationDates);
   document.getElementById('contractStartDate')?.addEventListener('change', applyContractDurationDates);
+
+  // Categorias de acordos (Mensais ativos, Avulsos, Parceiros, Todos) e Legados
+  document.querySelectorAll('[data-client-category]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      setClientCategory(btn.getAttribute('data-client-category'));
+    });
+  });
+  document.getElementById('btnOpenLegacyClassificationModal')?.addEventListener('click', openLegacyClassificationModal);
+  document.getElementById('btnSaveLegacyClassifications')?.addEventListener('click', applyLegacyClassifications);
+
+  // Aba independente Vídeos
+  document.getElementById('navVideosBtn')?.addEventListener('click', () => setDashboardMode('videos'));
+  document.getElementById('mobileNavVideos')?.addEventListener('click', () => setDashboardMode('videos'));
+  document.getElementById('btnNewVideoHeader')?.addEventListener('click', () => openVideoModal());
+  document.getElementById('videosSearchInput')?.addEventListener('input', renderVideosView);
+  document.getElementById('toggleShowArchivedVideos')?.addEventListener('change', renderVideosView);
+  document.querySelectorAll('[data-video-status]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      videoStatusFilter = btn.getAttribute('data-video-status') || 'ALL';
+      document.querySelectorAll('[data-video-status]').forEach(b => b.classList.toggle('active', b === btn));
+      renderVideosView();
+    });
+  });
+  document.getElementById('videoForm')?.addEventListener('submit', handleVideoSubmit);
   document.getElementById('postForm')?.addEventListener('submit', handlePostSubmit);
   document.getElementById('btnSaveAndAddAnotherPost')?.addEventListener('click', () => {
     const postFormEl = document.getElementById('postForm');
