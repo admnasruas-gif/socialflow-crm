@@ -489,7 +489,19 @@ export function filterSales(salesState, clients = [], filters = {}) {
   });
 }
 
-export function computeSalesKPIs(filteredSales = [], salesState) {
+function computeReceiptAmountInCompetence(receiptSummary, competence) {
+  if (!competence || competence === 'ALL') return receiptSummary.totalRecebidoCentavos;
+
+  return receiptSummary.movements.reduce((total, movement) => {
+    const raw = Math.abs(Math.round(Number(movement.valorCentavos) || 0));
+    if (competenceFromISODate(movement.dataRecebimento) !== competence) return total;
+    if (movement.tipoMovimento === 'estorno') return total - raw;
+    if (receiptSummary.reversedIds.has(movement.id)) return total;
+    return total + raw;
+  }, 0);
+}
+
+export function computeSalesKPIs(filteredSales = [], salesState, filters = {}) {
   const state = ensureSalesState({ salesState });
 
   let totalVendidoCentavos = 0;
@@ -537,6 +549,10 @@ export function computeSalesKPIs(filteredSales = [], salesState) {
     qtdVendas: filteredSales.length,
     totalVendidoCentavos,
     totalRecebidoCentavos,
+    totalRecebidoNoPeriodoCentavos: filteredSales.reduce((total, sale) => {
+      const receiptSummary = computeSaleReceiptSummary(sale, state.receipts);
+      return total + computeReceiptAmountInCompetence(receiptSummary, filters.competencia);
+    }, 0),
     saldoReceberCentavos,
     aguardandoConferenciaCount,
     comDivergenciaCount,

@@ -3787,6 +3787,25 @@ select.post-status-quick-select {
 
 .sales-kpi-grid {
   display: grid;
+  gap: 14px;
+}
+
+.sales-kpi-group {
+  display: grid;
+  gap: 7px;
+}
+
+.sales-kpi-group-title {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.sales-kpi-group-grid {
+  display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
@@ -4237,6 +4256,23 @@ select.post-status-quick-select {
   padding: 8px 12px;
   font-size: 13px;
   line-height: 1.4;
+}
+
+.sales-alert-action {
+  width: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.sales-alert-action span {
+  margin-left: 6px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .sales-alerts-banner .sales-alert-line {

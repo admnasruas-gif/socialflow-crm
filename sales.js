@@ -681,25 +681,33 @@ function renderSalesKPIs(filteredSales) {
   const grid = el('salesKpisGrid');
   if (!grid) return;
   const state = getSalesStateSafe();
-  const k = computeSalesKPIs(filteredSales, state);
+  const k = computeSalesKPIs(filteredSales, state, salesFilterState);
 
   const items = [
-    { label: 'Qtd. de vendas', value: String(k.qtdVendas), sub: 'Lançamentos filtrados', tone: '' },
-    { label: 'Total vendido', value: formatCentsBR(k.totalVendidoCentavos), sub: 'Contabilizado 1x por venda', tone: '' },
-    { label: 'Total recebido', value: formatCentsBR(k.totalRecebidoCentavos), sub: 'Baixado dos clientes', tone: 'kpi-green' },
-    { label: 'Saldo a receber', value: formatCentsBR(k.saldoReceberCentavos), sub: 'Em aberto de clientes', tone: k.saldoReceberCentavos > 0 ? 'kpi-amber' : '' },
-    { label: 'Aguardando conferência', value: String(k.aguardandoConferenciaCount), sub: 'Vendas pendentes', tone: k.aguardandoConferenciaCount > 0 ? 'kpi-amber' : '' },
-    { label: 'Com divergência', value: String(k.comDivergenciaCount), sub: 'Conferência ou excedente', tone: k.comDivergenciaCount > 0 ? 'kpi-red' : '' },
-    { label: 'Comissões apuradas', value: formatCentsBR(k.comissoesApuradasCentavos), sub: `Pendentes: ${formatCentsBR(k.comissoesPendentesCentavos)} • A definir: ${k.comissoesADefinirCount}`, tone: 'kpi-purple' },
-    { label: 'Comissões pagas', value: formatCentsBR(k.comissoesPagasCentavos), sub: 'Baixas confirmadas', tone: 'kpi-green' }
+    { group: 'Receita', label: 'Qtd. de vendas', value: String(k.qtdVendas), sub: 'Lançamentos filtrados', tone: '' },
+    { group: 'Receita', label: 'Total vendido', value: formatCentsBR(k.totalVendidoCentavos), sub: 'Contabilizado 1x por venda', tone: '' },
+    { group: 'Receita', label: 'Recebido no período', value: formatCentsBR(k.totalRecebidoNoPeriodoCentavos), sub: salesFilterState.competencia === 'ALL' ? 'Todos os movimentos ativos' : `Movimentos de ${formatCompetenceLabel(salesFilterState.competencia)}`, tone: 'kpi-green' },
+    { group: 'Receita', label: 'Recebido acumulado', value: formatCentsBR(k.totalRecebidoCentavos), sub: 'Todos os movimentos ativos', tone: 'kpi-green' },
+    { group: 'Receita', label: 'Saldo a receber', value: formatCentsBR(k.saldoReceberCentavos), sub: 'Em aberto de clientes', tone: k.saldoReceberCentavos > 0 ? 'kpi-amber' : '' },
+    { group: 'Pendências', label: 'Aguardando conferência', value: String(k.aguardandoConferenciaCount), sub: 'Vendas pendentes', tone: k.aguardandoConferenciaCount > 0 ? 'kpi-amber' : '' },
+    { group: 'Pendências', label: 'Com divergência', value: String(k.comDivergenciaCount), sub: 'Conferência ou excedente', tone: k.comDivergenciaCount > 0 ? 'kpi-red' : '' },
+    { group: 'Comissões', label: 'Comissões apuradas', value: formatCentsBR(k.comissoesApuradasCentavos), sub: `Pendentes: ${formatCentsBR(k.comissoesPendentesCentavos)} • A definir: ${k.comissoesADefinirCount}`, tone: 'kpi-purple' },
+    { group: 'Comissões', label: 'Comissões pagas', value: formatCentsBR(k.comissoesPagasCentavos), sub: 'Baixas confirmadas', tone: 'kpi-green' }
   ];
 
-  grid.innerHTML = items.map(it => `
-    <div class="sales-kpi-card ${it.tone}">
-      <div class="sales-kpi-label">${escapeStr(it.label)}</div>
-      <div class="sales-kpi-value tabular-nums">${escapeStr(it.value)}</div>
-      <div class="sales-kpi-sub">${escapeStr(it.sub)}</div>
-    </div>
+  grid.innerHTML = ['Receita', 'Pendências', 'Comissões'].map(group => `
+    <section class="sales-kpi-group" aria-label="${group}">
+      <h2 class="sales-kpi-group-title">${group}</h2>
+      <div class="sales-kpi-group-grid">
+        ${items.filter(it => it.group === group).map(it => `
+          <div class="sales-kpi-card ${it.tone}">
+            <div class="sales-kpi-label">${escapeStr(it.label)}</div>
+            <div class="sales-kpi-value tabular-nums">${escapeStr(it.value)}</div>
+            <div class="sales-kpi-sub">${escapeStr(it.sub)}</div>
+          </div>
+        `).join('')}
+      </div>
+    </section>
   `).join('');
 }
 
@@ -717,12 +725,12 @@ function renderSalesAlertsBanner(filteredSales) {
     }
   }
 
-  const k = computeSalesKPIs(filteredSales, state);
+  const k = computeSalesKPIs(filteredSales, state, salesFilterState);
   if (k.comDivergenciaCount > 0) {
-    alerts.push(`<strong>${k.comDivergenciaCount} venda(s)</strong> com divergência sinalizada.`);
+    alerts.push(`<button type="button" class="sales-alert-action" onclick="applySalesQuickFilter('conferenciaStatus', 'divergencia')"><strong>${k.comDivergenciaCount} venda(s)</strong> com divergência sinalizada. <span>Ver pendências →</span></button>`);
   }
   if (k.comissoesADefinirCount > 0) {
-    alerts.push(`<strong>${k.comissoesADefinirCount} venda(s)</strong> com comissão "A definir".`);
+    alerts.push(`<button type="button" class="sales-alert-action" onclick="applySalesQuickFilter('comissaoStatus', 'a_definir')"><strong>${k.comissoesADefinirCount} venda(s)</strong> com comissão "A definir". <span>Ver pendências →</span></button>`);
   }
 
   if (alerts.length === 0) {
@@ -867,6 +875,7 @@ function renderSalesLancamentosList(filteredSales) {
         <td style="text-align:right;">
           <div class="sales-actions-cell">
             <button type="button" class="btn btn-secondary btn-sm" onclick="openSaleDetailModal('${escapeStr(r.sale.id)}')">Conferir</button>
+            ${!r.locked && r.receipt.statusRecebimento !== 'recebido' ? `<button type="button" class="btn btn-primary btn-sm" onclick="openSaleReceiptModal('${escapeStr(r.sale.id)}')">Receber</button>` : ''}
             ${!r.locked ? `<button type="button" class="btn btn-ghost btn-sm" onclick="openSaleModal('${escapeStr(r.sale.id)}')">Editar</button>` : ''}
           </div>
         </td>
@@ -910,7 +919,8 @@ function renderSalesLancamentosList(filteredSales) {
           <span class="sales-table-sub">Beneficiário: ${escapeStr(r.benef?.nome || 'A definir')}</span>
           <div style="display:flex; gap:6px;">
             ${!r.locked ? `<button type="button" class="btn btn-ghost btn-sm" onclick="openSaleModal('${escapeStr(r.sale.id)}')">Editar</button>` : ''}
-            <button type="button" class="btn btn-primary btn-sm" onclick="openSaleDetailModal('${escapeStr(r.sale.id)}')">Abrir</button>
+            ${!r.locked && r.receipt.statusRecebimento !== 'recebido' ? `<button type="button" class="btn btn-primary btn-sm" onclick="openSaleReceiptModal('${escapeStr(r.sale.id)}')">Receber</button>` : ''}
+            <button type="button" class="btn btn-secondary btn-sm" onclick="openSaleDetailModal('${escapeStr(r.sale.id)}')">Abrir</button>
           </div>
         </div>
       </div>
@@ -1902,6 +1912,18 @@ export function openSaleDetailModal(saleId) {
   currentDetailSaleId = saleId;
   renderSaleDetailModal();
   core()?.openModal?.('saleDetailModal');
+}
+
+export function openSaleReceiptModal(saleId) {
+  openSaleDetailModal(saleId);
+  window.setTimeout(() => el('detailReceiptValue')?.focus(), 0);
+}
+
+export function applySalesQuickFilter(key, value) {
+  if (!Object.prototype.hasOwnProperty.call(salesFilterState, key)) return;
+  activeSalesSubtab = 'lancamentos';
+  salesFilterState[key] = value;
+  renderSalesView();
 }
 
 function renderSaleDetailModal() {
@@ -3738,6 +3760,7 @@ if (typeof window !== 'undefined') {
     checkFinancialDeletionGuard,
     openSaleModal,
     openSaleDetailModal,
+    openSaleReceiptModal,
     openSaleForContract,
     openSalesForClient,
     openSalesConfigModal,
@@ -3749,6 +3772,8 @@ if (typeof window !== 'undefined') {
   Object.assign(window, {
     openSaleModal,
     openSaleDetailModal,
+    openSaleReceiptModal,
+    applySalesQuickFilter,
     openSaleForContract,
     openSalesForClient,
     openSalesConfigModal,
