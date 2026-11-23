@@ -7,18 +7,26 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="NasRuas CRM">
-  <link rel="manifest" href="/manifest.json">
-  <link rel="icon" type="image/png" href="/logo-nasruas.png">
-  <link rel="apple-touch-icon" sizes="512x512" href="/app-icon-512.png">
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" type="image/png" href="./logo-nasruas.png">
+  <link rel="alternate icon" type="image/svg+xml" href="./icon.svg">
+  <link rel="apple-touch-icon" sizes="512x512" href="./app-icon-512.png">
   <title>NasRuas de ITZ — Gestão de Clientes & Social Media</title>
   <link rel="stylesheet" href="styles.css">
+  <script>
+    window.handleLogoError = function(img) {
+      if (!img) return;
+      img.onerror = null;
+      img.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512' width='512' height='512'%3E%3Crect width='512' height='512' rx='112' fill='%236d28d9'/%3E%3Crect x='116' y='116' width='280' height='280' rx='72' fill='none' stroke='%23ffffff' stroke-width='36' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='256' cy='256' r='64' fill='none' stroke='%23ffffff' stroke-width='36'/%3E%3Ccircle cx='332' cy='180' r='20' fill='%23ffffff'/%3E%3C/svg%3E";
+    };
+  </script>
 </head>
 <body>
   <!-- ==================== TELA DE LOGIN (SUPABASE AUTH) ==================== -->
   <div id="authScreen" class="auth-screen hidden">
     <div class="auth-card">
       <div class="auth-brand">
-        <img src="/logo-nasruas.png" alt="NasRuas de ITZ" class="brand-logo-img">
+        <img src="./logo-nasruas.png" alt="NasRuas de ITZ" class="brand-logo-img" onerror="handleLogoError(this)">
         <div>
           <h1 class="auth-title">NasRuas de ITZ</h1>
           <p class="auth-subtitle">Gestão de Clientes & Social Media</p>
@@ -48,7 +56,7 @@
     <aside class="desktop-sidebar">
       <div class="sidebar-top">
         <div class="brand" id="brandLogo" role="button" tabindex="0">
-          <img src="/logo-nasruas.png" alt="NasRuas de ITZ" class="brand-logo-img">
+          <img src="./logo-nasruas.png" alt="NasRuas de ITZ" class="brand-logo-img" onerror="handleLogoError(this)">
           <div>
             <span class="brand-name">NasRuas de ITZ</span>
             <span class="brand-tag">Social Media</span>
@@ -114,7 +122,7 @@
         <header class="app-hero-header">
           <div class="app-hero-top-row">
             <div class="app-hero-greeting">
-              <img src="/logo-nasruas.png" alt="NasRuas de ITZ" class="ios-header-logo">
+              <img src="./logo-nasruas.png" alt="NasRuas de ITZ" class="ios-header-logo" onerror="handleLogoError(this)">
               <div>
                 <span class="app-hero-kicker">PAINEL DE GESTÃO</span>
                 <h1 class="app-hero-title" id="dashboardTitle">
@@ -259,7 +267,7 @@
       <section id="globalPostsSubView" class="view-section hidden">
         <header class="ios-clients-header">
           <div class="ios-brand-header-left">
-            <img src="/logo-nasruas.png" alt="NasRuas de ITZ" class="ios-header-logo">
+            <img src="./logo-nasruas.png" alt="NasRuas de ITZ" class="ios-header-logo" onerror="handleLogoError(this)">
             <div class="screen-header-titles">
               <span class="app-hero-kicker">GERENCIAMENTO DE CONTEÚDO</span>
               <h1 class="ios-page-title">Postagens</h1>
@@ -483,7 +491,7 @@
       <section id="videosView" class="view-section hidden">
         <header class="ios-clients-header">
           <div class="ios-brand-header-left">
-            <img src="/logo-nasruas.png" alt="NasRuas de ITZ" class="ios-header-logo">
+            <img src="./logo-nasruas.png" alt="NasRuas de ITZ" class="ios-header-logo" onerror="handleLogoError(this)">
             <div class="screen-header-titles">
               <h1 class="ios-page-title">Vídeos</h1>
               <span class="screen-count-meta" id="videosCountLabel">0 vídeos</span>
@@ -530,7 +538,7 @@
       <section id="settingsView" class="view-section hidden">
         <header class="ios-clients-header">
           <div class="ios-brand-header-left">
-            <img src="/logo-nasruas.png" alt="NasRuas de ITZ" class="ios-header-logo">
+            <img src="./logo-nasruas.png" alt="NasRuas de ITZ" class="ios-header-logo" onerror="handleLogoError(this)">
             <h1 class="ios-page-title">Ajustes</h1>
           </div>
         </header>
@@ -1401,11 +1409,16 @@
               <label style="margin:0;">Checklist de etapas <span id="videoChecklistBadge" class="badge badge-concluido">0/4</span></label>
               <button type="button" class="btn btn-ghost btn-sm" id="btnCopyVideoChecklist" onclick="copyVideoChecklistFromModal()">Copiar checklist</button>
             </div>
-            <div class="video-checklist-items">
+            <div class="video-checklist-items" id="videoChecklistItemsContainer">
               <label class="checkbox-inline"><input type="checkbox" class="video-step-check" value="roteiro" onchange="updateVideoChecklistCount()"><span>Roteiro / pauta definida</span></label>
               <label class="checkbox-inline"><input type="checkbox" class="video-step-check" value="captacao" onchange="updateVideoChecklistCount()"><span>Captação / gravação realizada</span></label>
               <label class="checkbox-inline"><input type="checkbox" class="video-step-check" value="edicao" onchange="updateVideoChecklistCount()"><span>Edição e legendas prontas</span></label>
               <label class="checkbox-inline"><input type="checkbox" class="video-step-check" value="revisao" onchange="updateVideoChecklistCount()"><span>Revisado e pronto para envio</span></label>
+            </div>
+            <!-- Campo para adicionar novas etapas personalizadas -->
+            <div class="video-add-step-row" style="display: flex; gap: 8px; margin-top: 10px; align-items: center;">
+              <input type="text" id="newVideoCustomStepInput" placeholder="Adicionar nova etapa (ex: Locução, Aprovação do cliente...)" style="flex: 1; height: 38px; min-height: 38px; font-size: 13px;" autocomplete="off">
+              <button type="button" class="btn btn-secondary btn-sm" id="btnAddVideoCustomStep" style="white-space: nowrap; height: 38px; padding: 0 12px;">+ Adicionar etapa</button>
             </div>
           </div>
 

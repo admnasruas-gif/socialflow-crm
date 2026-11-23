@@ -28,6 +28,12 @@ const isSupabaseConfigured = Boolean(
   SUPABASE_URL.startsWith('http')
 );
 
+window.handleLogoError = window.handleLogoError || function(img) {
+  if (!img) return;
+  img.onerror = null;
+  img.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512' width='512' height='512'%3E%3Crect width='512' height='512' rx='112' fill='%236d28d9'/%3E%3Crect x='116' y='116' width='280' height='280' rx='72' fill='none' stroke='%23ffffff' stroke-width='36' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='256' cy='256' r='64' fill='none' stroke='%23ffffff' stroke-width='36'/%3E%3Ccircle cx='332' cy='180' r='20' fill='%23ffffff'/%3E%3C/svg%3E";
+};
+
 let supabaseInstance = null;
 
 async function getSupabaseClient() {
@@ -2387,7 +2393,7 @@ function renderClientProfile() {
         <span>Voltar</span>
       </button>
 
-      <img src="/logo-nasruas.png" alt="NasRuas de ITZ" class="profile-topbar-logo">
+      <img src="./logo-nasruas.png" alt="NasRuas de ITZ" class="profile-topbar-logo" onerror="handleLogoError(this)">
 
       <div class="kebab-wrap">
         <button type="button" class="btn-icon-only" onclick="toggleKebabMenu('${escapeHtml(profileMenuId)}', event)" aria-label="Opções do cliente">
@@ -3362,7 +3368,7 @@ function renderDeliveryReportContent() {
   area.innerHTML = `
     <div class="report-doc-header report-doc-header-branded">
       <div class="report-doc-brand-row">
-        <img src="/logo-nasruas.png" alt="NasRuas de ITZ" class="report-brand-logo">
+        <img src="./logo-nasruas.png" alt="NasRuas de ITZ" class="report-brand-logo" onerror="handleLogoError(this)">
         <div>
           <div class="report-brand-mark">NasRuas de ITZ • Relatório de Entregas</div>
           <div class="report-doc-title">${escapeHtml(client.name)}</div>
@@ -5785,18 +5791,53 @@ function renderVideosView() {
         ? `<button type="button" class="btn btn-secondary btn-sm" onclick="quickChangeVideoStatus('${escapeHtml(v.id)}', 'Concluído')">Concluir ✓</button>`
         : `<button type="button" class="btn btn-ghost btn-sm" onclick="quickChangeVideoStatus('${escapeHtml(v.id)}', 'Em produção')">Reabrir</button>`);
 
-    const stepsDone = getVideoChecklistArray(v).length;
+    const allSteps = getVideoAllSteps(v);
+    const activeChecklist = getVideoChecklistArray(v);
+    const totalSteps = allSteps.length;
+    const stepsDone = allSteps.filter(s => activeChecklist.includes(s.key)).length;
+    const pendingSteps = allSteps.filter(s => !activeChecklist.includes(s.key));
+    const doneSteps = allSteps.filter(s => activeChecklist.includes(s.key));
+
     return `
       <article class="kanban-card">
         <div class="kanban-card-top">
           ${v.dueDate ? `<span class="post-date tabular-nums">${escapeHtml(formatDateBR(v.dueDate))}</span>` : '<span class="post-date">Sem prazo</span>'}
           <div style="display:inline-flex; gap:6px; align-items:center;">
-            ${stepsDone > 0 ? `<span class="badge badge-concluido tabular-nums">${stepsDone}/4 etapas</span>` : ''}
+            <span class="badge ${stepsDone === totalSteps ? 'badge-concluido' : (stepsDone > 0 ? 'badge-andamento' : 'badge-neutral')} tabular-nums">${stepsDone}/${totalSteps} etapas</span>
             ${v.archived ? `<span class="badge badge-concluido">Arquivado</span>` : ''}
           </div>
         </div>
         <h3 class="post-title">${escapeHtml(v.title)}</h3>
         ${v.description ? `<p class="kanban-card-desc">${escapeHtml(v.description)}</p>` : ''}
+
+        <!-- Etapas concluídas e o que falta -->
+        <div class="kanban-card-checklist">
+          <div class="kanban-checklist-summary">
+            <span class="kanban-checklist-badge">
+              <strong>Etapas (${stepsDone}/${totalSteps})</strong>
+            </span>
+            ${pendingSteps.length > 0 ? `
+              <span class="kanban-pending-text">Falta: <strong>${pendingSteps.map(s => escapeHtml(s.label)).join(', ')}</strong></span>
+            ` : `
+              <span class="kanban-done-all-text">✓ Todas concluídas</span>
+            `}
+          </div>
+          <div class="kanban-step-chips">
+            ${allSteps.map(s => {
+              const isDone = activeChecklist.includes(s.key);
+              return `
+                <button type="button" 
+                  class="kanban-step-chip ${isDone ? 'is-done' : 'is-pending'}"
+                  onclick="quickToggleVideoStep('${escapeHtml(v.id)}', '${escapeHtml(s.key)}')"
+                  title="Etapa ${escapeHtml(s.label)}: ${isDone ? 'Concluída (toque para desmarcar)' : 'Pendente (toque para marcar)'}">
+                  <span class="step-icon">${isDone ? '✓' : '○'}</span>
+                  <span>${escapeHtml(s.label)}</span>
+                </button>
+              `;
+            }).join('')}
+          </div>
+        </div>
+
         ${(v.materialLink || v.finalLink) ? `
           <div class="kanban-card-links">
             ${v.materialLink ? `<a href="${escapeHtml(v.materialLink)}" target="_blank" rel="noopener noreferrer" class="post-external-link">Material</a>` : ''}
@@ -5837,6 +5878,13 @@ function renderVideosView() {
   `;
 }
 
+const VIDEO_STEPS = [
+  { key: 'roteiro', label: 'Roteiro' },
+  { key: 'captacao', label: 'Captação' },
+  { key: 'edicao', label: 'Edição' },
+  { key: 'revisao', label: 'Revisão' }
+];
+
 const VIDEO_CHECKLIST_LABELS = {
   roteiro: 'Roteiro / pauta definida',
   captacao: 'Captação / gravação realizada',
@@ -5846,11 +5894,40 @@ const VIDEO_CHECKLIST_LABELS = {
 
 function extractVideoChecklistFromNotes(notes = '') {
   const str = String(notes || '');
-  const match = str.match(/\[checklist:([a-z,]*)\]\s*$/i);
-  if (!match) return { cleanNotes: str, checklist: [] };
-  const checklist = match[1].split(',').map(s => s.trim()).filter(s => VIDEO_CHECKLIST_LABELS[s]);
-  const cleanNotes = str.replace(match[0], '').trim();
-  return { cleanNotes, checklist };
+
+  let customSteps = [];
+  const customMatch = str.match(/\[custom_steps:([^\]]*)\]/i);
+  if (customMatch) {
+    customSteps = customMatch[1].split(',').map(s => s.trim()).filter(Boolean);
+  }
+
+  let checklist = [];
+  const match = str.match(/\[checklist:([^\]]*)\]/i);
+  if (match) {
+    checklist = match[1].split(',').map(s => s.trim()).filter(Boolean);
+  }
+
+  const cleanNotes = str
+    .replace(/\[custom_steps:[^\]]*\]/gi, '')
+    .replace(/\[checklist:[^\]]*\]/gi, '')
+    .trim();
+
+  return { cleanNotes, checklist, customSteps };
+}
+
+function getVideoAllSteps(video) {
+  const { customSteps } = extractVideoChecklistFromNotes(video?.notes || '');
+  const allCustom = (Array.isArray(video?.customSteps) && video.customSteps.length > 0)
+    ? video.customSteps
+    : customSteps;
+
+  const base = [...VIDEO_STEPS];
+  allCustom.forEach(name => {
+    if (name && !base.some(s => s.key === name || s.label === name)) {
+      base.push({ key: name, label: name, isCustom: true });
+    }
+  });
+  return base;
 }
 
 function getVideoChecklistArray(video) {
@@ -5865,15 +5942,132 @@ function updateVideoChecklistCount() {
   if (badge) badge.textContent = `${done}/${checks.length || 4}`;
 }
 
+function renderVideoModalChecklistItems(activeChecklist = [], customSteps = []) {
+  const container = document.getElementById('videoChecklistItemsContainer');
+  if (!container) return;
+
+  const defaultHtml = VIDEO_STEPS.map(s => `
+    <label class="checkbox-inline">
+      <input type="checkbox" class="video-step-check" value="${escapeHtml(s.key)}" ${activeChecklist.includes(s.key) ? 'checked' : ''} onchange="updateVideoChecklistCount()">
+      <span>${escapeHtml(VIDEO_CHECKLIST_LABELS[s.key] || s.label)}</span>
+    </label>
+  `).join('');
+
+  const customHtml = customSteps.map(name => `
+    <div class="video-custom-step-row" style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+      <label class="checkbox-inline" style="flex: 1; margin: 0;">
+        <input type="checkbox" class="video-step-check" data-custom="true" value="${escapeHtml(name)}" ${activeChecklist.includes(name) ? 'checked' : ''} onchange="updateVideoChecklistCount()">
+        <span>${escapeHtml(name)}</span>
+      </label>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="removeVideoCustomStep(this)" title="Remover etapa" aria-label="Remover etapa" style="padding: 2px 8px; color: var(--text-secondary); font-size: 13px;">✕</button>
+    </div>
+  `).join('');
+
+  container.innerHTML = defaultHtml + customHtml;
+}
+
+function addVideoCustomStep() {
+  const input = document.getElementById('newVideoCustomStepInput');
+  const val = (input?.value || '').replace(/[,;\[\]]/g, ' ').trim();
+  if (!val) return;
+
+  const container = document.getElementById('videoChecklistItemsContainer');
+  if (!container) return;
+
+  const existingValues = Array.from(container.querySelectorAll('.video-step-check')).map(c => c.value.toLowerCase());
+  if (existingValues.includes(val.toLowerCase())) {
+    showToast('Esta etapa já está no checklist.');
+    input.focus();
+    return;
+  }
+
+  const row = document.createElement('div');
+  row.className = 'video-custom-step-row';
+  row.style.cssText = 'display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 4px;';
+  row.innerHTML = `
+    <label class="checkbox-inline" style="flex: 1; margin: 0;">
+      <input type="checkbox" class="video-step-check" data-custom="true" value="${escapeHtml(val)}" checked onchange="updateVideoChecklistCount()">
+      <span>${escapeHtml(val)}</span>
+    </label>
+    <button type="button" class="btn btn-ghost btn-sm" onclick="removeVideoCustomStep(this)" title="Remover etapa" aria-label="Remover etapa" style="padding: 2px 8px; color: var(--text-secondary); font-size: 13px;">✕</button>
+  `;
+  container.appendChild(row);
+
+  input.value = '';
+  input.focus();
+  updateVideoChecklistCount();
+  showToast(`Etapa "${val}" adicionada.`);
+}
+
+function removeVideoCustomStep(btn) {
+  const row = btn.closest('.video-custom-step-row');
+  if (row) {
+    row.remove();
+    updateVideoChecklistCount();
+  }
+}
+
 async function copyVideoChecklistFromModal() {
   const title = (document.getElementById('videoTitle')?.value || '').trim() || 'Projeto de vídeo';
   const status = document.getElementById('videoStatus')?.value || 'A fazer';
   const checks = Array.from(document.querySelectorAll('.video-step-check'));
   const lines = [
     `*${title}* (${status})`,
-    ...checks.map(c => `${c.checked ? '✅' : '⬜'} ${VIDEO_CHECKLIST_LABELS[c.value] || c.value}`)
+    ...checks.map(c => {
+      const label = VIDEO_CHECKLIST_LABELS[c.value] || c.closest('label')?.textContent?.trim() || c.value;
+      return `${c.checked ? '✅' : '⬜'} ${label}`;
+    })
   ];
   await copyTextToClipboard(lines.join('\n'), 'Checklist copiado!');
+}
+
+async function quickToggleVideoStep(videoId, stepKey) {
+  ensureRecoveryStructures();
+  const v = (appData.videos || []).find(item => item.id === videoId);
+  if (!v) return;
+
+  const currentList = getVideoChecklistArray(v);
+  let nextList;
+  if (currentList.includes(stepKey)) {
+    nextList = currentList.filter(k => k !== stepKey);
+  } else {
+    nextList = [...currentList, stepKey];
+  }
+
+  const { cleanNotes, customSteps } = extractVideoChecklistFromNotes(v.notes || '');
+  const allCustom = (Array.isArray(v.customSteps) && v.customSteps.length > 0)
+    ? v.customSteps
+    : customSteps;
+
+  const notesParts = [cleanNotes].filter(Boolean);
+  if (allCustom.length > 0) notesParts.push(`[custom_steps:${allCustom.join(',')}]`);
+  if (nextList.length > 0) notesParts.push(`[checklist:${nextList.join(',')}]`);
+  const updatedNotes = notesParts.join('\n');
+
+  v.notes = updatedNotes;
+  v.checklist = nextList;
+  v.customSteps = allCustom;
+  v.updatedAt = new Date().toISOString();
+  renderVideosView();
+
+  try {
+    if (supabase) {
+      const { error } = await supabase
+        .from('videos')
+        .update({ observacoes: updatedNotes, atualizado_em: v.updatedAt })
+        .eq('id', videoId);
+      if (error) throw error;
+    } else {
+      saveData();
+    }
+    const allSteps = getVideoAllSteps(v);
+    const label = allSteps.find(s => s.key === stepKey)?.label || stepKey;
+    const isNowDone = nextList.includes(stepKey);
+    showToast(`Etapa "${label}" ${isNowDone ? 'concluída ✓' : 'marcada como pendente'}.`);
+  } catch (err) {
+    console.error('Erro ao alternar etapa:', err);
+    showToast('Erro ao atualizar etapa do vídeo.', true);
+  }
 }
 
 function openVideoModal(videoId = null) {
@@ -5881,13 +6075,19 @@ function openVideoModal(videoId = null) {
   const form = document.getElementById('videoForm');
   if (form && typeof form.reset === 'function') form.reset();
   document.getElementById('videoFormError')?.classList.add('hidden');
+  const customStepInput = document.getElementById('newVideoCustomStepInput');
+  if (customStepInput) customStepInput.value = '';
+
   let activeChecklist = [];
+  let customSteps = [];
 
   if (videoId) {
     const v = (appData.videos || []).find(item => item.id === videoId);
     if (!v) return;
     const parsed = extractVideoChecklistFromNotes(v.notes || '');
     activeChecklist = Array.isArray(v.checklist) ? v.checklist : parsed.checklist;
+    customSteps = Array.isArray(v.customSteps) ? v.customSteps : parsed.customSteps;
+
     document.getElementById('videoModalTitle').textContent = 'Editar vídeo';
     document.getElementById('videoId').value = v.id;
     document.getElementById('videoTitle').value = v.title || '';
@@ -5902,9 +6102,8 @@ function openVideoModal(videoId = null) {
     document.getElementById('videoId').value = '';
     document.getElementById('videoStatus').value = 'A fazer';
   }
-  document.querySelectorAll('.video-step-check').forEach(cb => {
-    cb.checked = activeChecklist.includes(cb.value);
-  });
+
+  renderVideoModalChecklistItems(activeChecklist, customSteps);
   updateVideoChecklistCount();
   openModal('videoModal');
 }
@@ -5921,8 +6120,15 @@ async function handleVideoSubmit(e) {
   const materialLink = document.getElementById('videoMaterialLink').value.trim();
   const finalLink = document.getElementById('videoFinalLink').value.trim();
   const rawNotes = document.getElementById('videoNotes').value.trim();
-  const checklist = Array.from(document.querySelectorAll('.video-step-check')).filter(c => c.checked).map(c => c.value);
-  const notes = checklist.length > 0 ? `${rawNotes ? `${rawNotes}\n` : ''}[checklist:${checklist.join(',')}]` : rawNotes;
+
+  const allChecks = Array.from(document.querySelectorAll('.video-step-check'));
+  const checklist = allChecks.filter(c => c.checked).map(c => c.value);
+  const customSteps = allChecks.filter(c => c.dataset.custom === 'true').map(c => c.value);
+
+  const notesParts = [rawNotes].filter(Boolean);
+  if (customSteps.length > 0) notesParts.push(`[custom_steps:${customSteps.join(',')}]`);
+  if (checklist.length > 0) notesParts.push(`[checklist:${checklist.join(',')}]`);
+  const notes = notesParts.join('\n');
   const errEl = document.getElementById('videoFormError');
 
   errEl?.classList.add('hidden');
@@ -5973,6 +6179,8 @@ async function handleVideoSubmit(e) {
           v.materialLink = materialLink;
           v.finalLink = finalLink;
           v.notes = notes;
+          v.checklist = checklist;
+          v.customSteps = customSteps;
         }
       } else {
         appData.videos.unshift({
@@ -5984,6 +6192,8 @@ async function handleVideoSubmit(e) {
           materialLink,
           finalLink,
           notes,
+          checklist,
+          customSteps,
           archived: false,
           createdAt: new Date().toISOString()
         });
@@ -6367,6 +6577,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
   document.getElementById('videoForm')?.addEventListener('submit', handleVideoSubmit);
+  document.getElementById('btnAddVideoCustomStep')?.addEventListener('click', addVideoCustomStep);
+  document.getElementById('newVideoCustomStepInput')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addVideoCustomStep();
+    }
+  });
   document.getElementById('postForm')?.addEventListener('submit', handlePostSubmit);
   document.getElementById('btnSaveAndAddAnotherPost')?.addEventListener('click', () => {
     const postFormEl = document.getElementById('postForm');
@@ -6516,6 +6733,9 @@ document.addEventListener('DOMContentLoaded', () => {
 Object.assign(window, {
   copyTextToClipboard,
   quickChangeVideoStatus,
+  quickToggleVideoStep,
+  addVideoCustomStep,
+  removeVideoCustomStep,
   updateVideoChecklistCount,
   copyVideoChecklistFromModal
 });
