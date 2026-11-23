@@ -31,7 +31,7 @@ const isSupabaseConfigured = Boolean(
 window.handleLogoError = window.handleLogoError || function(img) {
   if (!img) return;
   img.onerror = null;
-  img.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512' width='512' height='512'%3E%3Crect width='512' height='512' rx='112' fill='%236d28d9'/%3E%3Crect x='116' y='116' width='280' height='280' rx='72' fill='none' stroke='%23ffffff' stroke-width='36' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='256' cy='256' r='64' fill='none' stroke='%23ffffff' stroke-width='36'/%3E%3Ccircle cx='332' cy='180' r='20' fill='%23ffffff'/%3E%3C/svg%3E";
+  img.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='%23FFE600'/%3E%3Ctext x='50' y='38' font-family='Inter,Arial,sans-serif' font-weight='900' font-size='18' fill='%2317171C' text-anchor='middle'%3ENAS%3C/text%3E%3Ctext x='50' y='60' font-family='Inter,Arial,sans-serif' font-weight='900' font-size='21' fill='%2317171C' text-anchor='middle'%3ERUAS%3C/text%3E%3Ctext x='50' y='77' font-family='Inter,Arial,sans-serif' font-weight='700' font-size='13' fill='%2317171C' opacity='0.75' text-anchor='middle'%3EITZ%3C/text%3E%3C/svg%3E";
 };
 
 let supabaseInstance = null;
@@ -3417,8 +3417,104 @@ function openDeliveryReportModal(clientId = null, preselectedContractId = '') {
     `).join('');
   }
 
+  reportDeliveriesDescending = true;
+  reportShowAllDeliveries = false;
   renderDeliveryReportContent();
   openModal('reportModal');
+}
+
+let reportDeliveriesDescending = true;
+let reportShowAllDeliveries = false;
+
+function toggleDeliveryReportOrder() {
+  reportDeliveriesDescending = !reportDeliveriesDescending;
+  renderDeliveryReportContent();
+}
+
+function toggleDeliveryReportShowAll() {
+  reportShowAllDeliveries = !reportShowAllDeliveries;
+  renderDeliveryReportContent();
+}
+
+function formatDisplayReportLink(rawUrl) {
+  return String(rawUrl || '')
+    .trim()
+    .replace(/^https?:\/\//i, '')
+    .replace(/^www\./i, '')
+    .replace(/\/+$/, '');
+}
+
+function getDeliveryFormatIconSvg(type) {
+  const norm = String(type || '').toLowerCase();
+  if (norm.includes('reel')) {
+    return `<svg width="12" height="12" viewBox="0 0 24 24" fill="#DB2777" aria-hidden="true"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>`;
+  }
+  if (norm.includes('carrossel')) {
+    return `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#F97316" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="13" height="13" rx="2"></rect><path d="M8 7V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"></path></svg>`;
+  }
+  if (norm.includes('story') || norm.includes('stories')) {
+    return `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9333EA" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><polygon points="10 8 16 12 10 16 10 8" fill="#9333EA" stroke="none"></polygon></svg>`;
+  }
+  return `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#656572" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>`;
+}
+
+function getReportStatusPillData(selectedContracts, cm) {
+  const activeContracts = (selectedContracts || []).filter(Boolean);
+  if (activeContracts.length > 0 && activeContracts.every(c => c.status === 'Cancelado')) {
+    return { label: 'Cancelado', cls: 'dr-status-danger', dot: false };
+  }
+  if (activeContracts.length > 0 && activeContracts.every(c => c.status === 'Pausado')) {
+    return { label: 'Pausado', cls: 'dr-status-warning', dot: false };
+  }
+  if (cm.hasDefinedQuantity && cm.totalContracted > 0 && cm.remaining === 0) {
+    return { label: 'Concluído', cls: 'dr-status-success', dot: true };
+  }
+  if (activeContracts.length > 0 && activeContracts.every(c => c.status === 'Concluído' || c.status === 'Encerrado')) {
+    return { label: activeContracts[0].status, cls: 'dr-status-success', dot: false };
+  }
+  return { label: 'Em andamento', cls: 'dr-status-success', dot: true };
+}
+
+function getReportPlanBadgeLabel(selectedContracts, cm) {
+  if (!selectedContracts || selectedContracts.length === 0) return 'Contrato';
+  if (selectedContracts.length === 1) {
+    const c = selectedContracts[0];
+    if (c.agreementType === 'Mensal') {
+      return cm.hasDefinedQuantity ? `Plano Mensal (${cm.totalContracted})` : 'Plano Mensal';
+    }
+    if (c.agreementType === 'Avulso') {
+      return cm.hasDefinedQuantity ? `Avulso (${cm.totalContracted})` : 'Avulso (Livre)';
+    }
+    if (c.agreementType === 'Parceria') {
+      return 'Parceria' +
+        (c.partnershipSubtype ? ` · ${c.partnershipSubtype}` : '') +
+        (cm.hasDefinedQuantity ? ` (${cm.totalContracted})` : '');
+    }
+    return cm.hasDefinedQuantity ? `Contrato (${cm.totalContracted})` : 'Contrato';
+  }
+  return `${selectedContracts.length} acordos consolidados`;
+}
+
+function getReportCycleMetaHtml(selectedContracts) {
+  if (!selectedContracts || selectedContracts.length === 0) return '';
+  if (selectedContracts.length > 1) {
+    return `Escopo: <strong>${selectedContracts.length} acordos</strong>`;
+  }
+  const c = selectedContracts[0];
+  const dur = Number(c.durationMonths) || 1;
+  if (dur > 1) {
+    const startMatch = String(c.startDate || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (startMatch) {
+      const y1 = Number(startMatch[1]);
+      const m1 = Number(startMatch[2]);
+      const now = new Date();
+      const diff = (now.getFullYear() - y1) * 12 + ((now.getMonth() + 1) - m1) + 1;
+      const cur = Math.min(dur, Math.max(1, diff));
+      return `Ciclo: <strong>Mês ${cur} de ${dur}</strong>`;
+    }
+    return `Duração: <strong>${dur} meses</strong>`;
+  }
+  return `Acordo: <strong>${escapeHtml(getAgreementTypeBadgeText(c))}</strong>`;
 }
 
 function renderDeliveryReportContent() {
@@ -3431,65 +3527,196 @@ function renderDeliveryReportContent() {
 
   const { cm, deliveredPosts, periodLabel, generatedLabel } = generateMultiContractReportData(client, selectedContracts);
   const insta = formatInstagram(client.instagram);
+  const emissionDateOnly = generatedLabel.split(' ')[0] || generatedLabel;
+  const statusPill = getReportStatusPillData(selectedContracts, cm);
+  const planBadgeLabel = getReportPlanBadgeLabel(selectedContracts, cm);
+  const cycleMetaHtml = getReportCycleMetaHtml(selectedContracts);
+
+  const numberedPosts = deliveredPosts.map((p, idx) => ({ ...p, chronNum: idx + 1 }));
+  const displayPosts = reportDeliveriesDescending ? [...numberedPosts].reverse() : numberedPosts;
+  const hiddenCount = displayPosts.length > 6 ? displayPosts.length - 6 : 0;
 
   area.innerHTML = `
-    <div class="report-doc-header report-doc-header-branded">
-      <div class="report-doc-brand-row">
-        <img src="./logo-nasruas.png" alt="NasRuas de ITZ" class="report-brand-logo" onerror="handleLogoError(this)">
-        <div>
-          <div class="report-brand-mark">NasRuas de ITZ • Relatório de Entregas</div>
-          <div class="report-doc-title">${escapeHtml(client.name)}</div>
-          ${insta ? `<div class="report-doc-handle">${escapeHtml(insta)}</div>` : ''}
+    <div class="dr-banner-card">
+      <div class="dr-gradient-bar" aria-hidden="true"></div>
+      <div class="dr-banner-inner">
+        <div class="dr-lockup-row">
+          <div class="dr-brand-left">
+            <div class="dr-logo-ring">
+              <img src="./logo-nasruas.png" alt="NasRuas de ITZ" class="dr-logo-img" onerror="handleLogoError(this)">
+            </div>
+            <div>
+              <div class="dr-brand-kicker">NasRuas de ITZ • Gestão</div>
+              <div class="dr-brand-doc">Documento de Entrega Oficial</div>
+            </div>
+          </div>
+          <div class="dr-emission-box">
+            <span class="dr-emission-label">Emissão</span>
+            <span class="dr-emission-date tabular-nums">${escapeHtml(emissionDateOnly)}</span>
+          </div>
+        </div>
+
+        <div class="dr-client-block">
+          <div class="dr-client-row">
+            <div class="dr-client-identity">
+              <h2 class="dr-client-name">${escapeHtml(client.name)}</h2>
+              ${insta ? `<p class="dr-client-handle">${escapeHtml(insta)}</p>` : ''}
+            </div>
+            <span class="dr-status-pill ${statusPill.cls}">
+              ${statusPill.dot ? '<span class="dr-status-dot" aria-hidden="true"></span>' : ''}
+              <span>${escapeHtml(statusPill.label)}</span>
+            </span>
+          </div>
+
+          <div class="dr-meta-chips">
+            <span class="dr-period-chip">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                <line x1="16" y1="2" x2="16" y2="6"></line>
+                <line x1="8" y1="2" x2="8" y2="6"></line>
+                <line x1="3" y1="10" x2="21" y2="10"></line>
+              </svg>
+              <span>${escapeHtml(periodLabel)}</span>
+            </span>
+            <span class="dr-plan-chip">${escapeHtml(planBadgeLabel)}</span>
+          </div>
         </div>
       </div>
-      <div class="report-doc-period-box">
-        <span class="report-stat-label">Período</span>
-        <div class="report-doc-period-val">${escapeHtml(periodLabel)}</div>
-        <div class="report-doc-generated">Gerado em ${escapeHtml(generatedLabel)}</div>
-      </div>
     </div>
 
-    <div class="report-summary-grid">
-      <div class="report-stat-box">
-        <span class="report-stat-label">Contratadas</span>
-        <strong class="report-stat-val tabular-nums">${cm.hasDefinedQuantity ? cm.totalContracted : 'Livre'}</strong>
+    <div class="dr-kpi-card">
+      <div class="dr-kpi-header">
+        <span class="dr-kpi-heading">Status do Contrato</span>
+        <span class="dr-kpi-cycle">${cycleMetaHtml}</span>
       </div>
-      <div class="report-stat-box">
-        <span class="report-stat-label">Publicadas</span>
-        <strong class="report-stat-val text-success tabular-nums">${cm.published}</strong>
+
+      <div class="dr-kpi-grid">
+        <div class="dr-kpi-box">
+          <span class="dr-kpi-label">Contratadas</span>
+          <div class="dr-kpi-value-row">
+            <strong class="dr-kpi-num tabular-nums">${cm.hasDefinedQuantity ? cm.totalContracted : 'Livre'}</strong>
+            <span class="dr-kpi-unit">${cm.hasDefinedQuantity ? 'posts' : 'sem teto'}</span>
+          </div>
+        </div>
+
+        <div class="dr-kpi-box">
+          <span class="dr-kpi-label">Publicadas</span>
+          <div class="dr-kpi-value-row">
+            <strong class="dr-kpi-num dr-kpi-val-green tabular-nums">${cm.published}</strong>
+            <span class="dr-kpi-unit dr-kpi-val-green">entregues</span>
+          </div>
+        </div>
+
+        <div class="dr-kpi-box">
+          <span class="dr-kpi-label">Restantes</span>
+          <div class="dr-kpi-value-row">
+            <strong class="dr-kpi-num dr-kpi-val-pink tabular-nums">${cm.hasDefinedQuantity ? cm.remaining : '—'}</strong>
+            <span class="dr-kpi-unit dr-kpi-val-pink">${cm.hasDefinedQuantity ? (cm.remaining === 0 ? 'meta batida' : 'a produzir') : 'contínua'}</span>
+          </div>
+        </div>
+
+        <div class="dr-kpi-box dr-kpi-box-yellow">
+          <div class="dr-kpi-corner-glow" aria-hidden="true"></div>
+          <span class="dr-kpi-label dr-kpi-label-dark">${cm.excess > 0 ? 'Excedente' : 'Progresso'}</span>
+          <div class="dr-kpi-value-row">
+            <strong class="dr-kpi-num tabular-nums">${cm.hasDefinedQuantity ? (cm.excess > 0 ? `+${cm.excess}` : `${cm.percentage}%`) : 'Contínua'}</strong>
+            <span class="dr-kpi-unit dr-kpi-unit-dark">${cm.hasDefinedQuantity ? (cm.excess > 0 ? 'além da meta' : 'concluído') : 'parceria'}</span>
+          </div>
+        </div>
       </div>
-      <div class="report-stat-box">
-        <span class="report-stat-label">Restantes</span>
-        <strong class="report-stat-val tabular-nums">${cm.hasDefinedQuantity ? cm.remaining : '—'}</strong>
-      </div>
-      <div class="report-stat-box report-stat-box-highlight">
-        <span class="report-stat-label">${cm.excess > 0 ? 'Excedente' : 'Progresso'}</span>
-        <strong class="report-stat-val ${cm.excess > 0 ? 'text-success' : ''} tabular-nums">${cm.hasDefinedQuantity ? (cm.excess > 0 ? `+${cm.excess}` : `${cm.percentage}%`) : 'Contínua'}</strong>
-      </div>
+
+      ${cm.hasDefinedQuantity && cm.totalContracted > 0 ? `
+        <div class="dr-progress-block">
+          <div class="dr-progress-labels">
+            <span>${cm.published} de ${cm.totalContracted} publicadas</span>
+            <strong>${cm.percentage}% concluído</strong>
+          </div>
+          <div class="dr-progress-track">
+            <div class="dr-progress-fill" style="width: ${cm.percentage}%"></div>
+          </div>
+        </div>
+      ` : ''}
     </div>
 
-    <h4 class="report-deliveries-heading">
-      Publicações Entregues (${deliveredPosts.length})
-    </h4>
+    <div class="dr-deliveries-section">
+      <div class="dr-section-header">
+        <h4 class="dr-section-title">
+          Publicações Entregues <span class="dr-section-count tabular-nums">(${deliveredPosts.length})</span>
+        </h4>
+        ${deliveredPosts.length > 1 ? `
+          <button type="button" class="dr-sort-btn no-print" onclick="toggleDeliveryReportOrder()">
+            ${reportDeliveriesDescending ? 'Ordem decrescente' : 'Ordem crescente'}
+          </button>
+          <span class="dr-print-only dr-sort-static">
+            ${reportDeliveriesDescending ? 'Ordem decrescente' : 'Ordem crescente'}
+          </span>
+        ` : ''}
+      </div>
 
-    ${deliveredPosts.length === 0
-      ? `<p style="font-size: 0.875rem; color: var(--text-muted); padding: 8px 0;">Nenhuma publicação concluída neste recorte até o momento.</p>`
-      : `<div class="report-deliveries-list">
-          ${deliveredPosts.map((p, idx) => `
-            <div class="report-delivery-item report-delivery-card">
-              <span class="report-delivery-num tabular-nums">${String(idx + 1).padStart(2, '0')}</span>
-              <div class="report-delivery-body">
-                <div class="report-delivery-meta">
-                  <span class="badge badge-concluido">${escapeHtml(p.type)}</span>
-                  <span class="tabular-nums">${escapeHtml(formatDateBR(p.date))}</span>
+      <div class="dr-deliveries-card">
+        ${displayPosts.length === 0
+          ? `<p class="dr-empty-note">Nenhuma publicação concluída neste recorte até o momento.</p>`
+          : displayPosts.map((p, displayIdx) => {
+              const isCollapsed = displayPosts.length > 6 && !reportShowAllDeliveries && displayIdx >= 6;
+              return `
+                <div class="dr-delivery-row report-delivery-item${isCollapsed ? ' dr-delivery-collapsed' : ''}">
+                  <div class="dr-delivery-top">
+                    <div class="dr-delivery-badges">
+                      <span class="dr-delivery-num tabular-nums">#${String(p.chronNum).padStart(2, '0')}</span>
+                      <span class="dr-format-chip">
+                        ${getDeliveryFormatIconSvg(p.type)}
+                        <span>${escapeHtml(p.type)}</span>
+                      </span>
+                    </div>
+                    <span class="dr-delivery-date tabular-nums">${escapeHtml(formatDateBR(p.date))}</span>
+                  </div>
+                  <p class="dr-delivery-title">${escapeHtml(p.title)}</p>
+                  ${p.link ? `
+                    <a href="${escapeHtml(p.link)}" target="_blank" rel="noopener noreferrer" class="dr-delivery-link report-delivery-link">
+                      <span>${escapeHtml(formatDisplayReportLink(p.link))}</span>
+                      <svg class="dr-ext-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                        <polyline points="15 3 21 3 21 9"></polyline>
+                        <line x1="10" y1="14" x2="21" y2="3"></line>
+                      </svg>
+                    </a>
+                  ` : ''}
                 </div>
-                <div class="report-delivery-main">${escapeHtml(p.title)}</div>
-                ${p.link ? `<a href="${escapeHtml(p.link)}" target="_blank" rel="noopener noreferrer" class="report-delivery-link">${escapeHtml(p.link)}</a>` : ''}
-              </div>
-            </div>
-          `).join('')}
-        </div>`
-    }
+              `;
+            }).join('')
+        }
+      </div>
+
+      ${hiddenCount > 0 ? `
+        <div class="dr-more-bar no-print">
+          <div class="dr-more-info">
+            <span class="dr-more-dot" aria-hidden="true"></span>
+            <span>${reportShowAllDeliveries
+              ? `Exibindo todas as ${displayPosts.length} entregas`
+              : (reportDeliveriesDescending
+                  ? `Entregas anteriores (#01 a #${String(hiddenCount).padStart(2, '0')}) arquivadas no relatório`
+                  : `Mais ${hiddenCount} entregas neste relatório`)
+            }</span>
+          </div>
+          <button type="button" class="dr-more-btn" onclick="toggleDeliveryReportShowAll()">
+            ${reportShowAllDeliveries ? 'Recolher' : 'Ver todas'}
+          </button>
+        </div>
+      ` : ''}
+    </div>
+
+    <div class="dr-auth-footer">
+      <div class="dr-auth-title">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+          <polyline points="9 12 11 14 15 10"></polyline>
+        </svg>
+        <span>Autenticado pela NasRuas de ITZ</span>
+      </div>
+      <p class="dr-auth-sub">
+        Dados sincronizados diretamente com as veiculações confirmadas do contrato. Emitido em ${escapeHtml(generatedLabel)}.
+      </p>
+    </div>
   `;
 }
 
@@ -6536,12 +6763,20 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Relatório de entregas & Relatório geral
-  document.getElementById('reportContractSelect')?.addEventListener('change', renderDeliveryReportContent);
+  document.getElementById('reportContractSelect')?.addEventListener('change', () => {
+    reportShowAllDeliveries = false;
+    renderDeliveryReportContent();
+  });
   document.getElementById('toggleReportMultiContracts')?.addEventListener('change', (e) => {
     const wrap = document.getElementById('reportMultiContractsWrap');
     const select = document.getElementById('reportContractSelect');
     if (wrap) wrap.classList.toggle('hidden', !e.target.checked);
     if (select) select.disabled = Boolean(e.target.checked);
+    reportShowAllDeliveries = false;
+    renderDeliveryReportContent();
+  });
+  document.getElementById('reportMultiContractsWrap')?.addEventListener('change', () => {
+    reportShowAllDeliveries = false;
     renderDeliveryReportContent();
   });
   document.getElementById('btnCopyReportText')?.addEventListener('click', copyDeliveryReportToClipboard);
@@ -6804,5 +7039,8 @@ Object.assign(window, {
   addVideoCustomStep,
   removeVideoCustomStep,
   updateVideoChecklistCount,
-  copyVideoChecklistFromModal
+  copyVideoChecklistFromModal,
+  renderDeliveryReportContent,
+  toggleDeliveryReportOrder,
+  toggleDeliveryReportShowAll
 });
