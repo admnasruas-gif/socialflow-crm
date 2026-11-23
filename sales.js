@@ -67,6 +67,7 @@ let isSubmittingCommission = false;
 let isSubmittingClosure = false;
 let isSubmittingPayout = false;
 let isSubmittingConfig = false;
+let isCreatingQuickAvulso = false;
 
 const salesFilterState = {
   competencia: getCurrentCompetenceISO(),
@@ -1295,6 +1296,139 @@ function checkDuplicateSaleWarningInForm() {
 
   box.classList.remove('hidden');
   box.innerHTML = `Atenção: já existe(m) <strong>${matches.length}</strong> venda(s) neste acordo e competência (${escapeStr(matches.map(m => `${m.titulo}: ${formatCentsBR(m.valorCentavos)}`).join('; '))}). Confirme que não é lançamento duplicado antes de salvar.`;
+}
+
+async function handleQuickAvulsoContract() {
+  if (isCreatingQuickAvulso) return;
+  const c = core();
+  const clientId = el('saleClientSelect')?.value || '';
+  if (!clientId) {
+    c?.showToast?.('Selecione o cliente antes de criar um acordo Avulso.');
+    el('saleClientSearchInput')?.focus();
+    return;
+  }
+
+  const client = (getAppDataSafe().clients || []).find(cl => cl.id === clientId);
+  if (!client) return;
+
+  const btn = el('btnSaleQuickAvulso');
+  const prevBtnText = btn ? btn.textContent : '+ Avulso em 1 clique';
+  isCreatingQuickAvulso = true;
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Criando Avulso...';
+  }
+
+  try {
+    const typedTitle = (el('saleTitleInput')?.value || '').trim();
+    const saleDate = el('saleDateInput')?.value || getTodayISODate();
+    const brDayMonth = formatDateOnlyBR(saleDate).slice(0, 5);
+    const existingContracts = client.contracts || [];
+
+    let title = typedTitle || 'Divulgação avulsa';
+    const hasTitle = (candidate) => existingContracts.some(cnt =>
+      String(cnt.agreementTitle || cnt.period || '').trim().toLowerCase() === candidate.toLowerCase()
+    );
+    if (hasTitle(title)) {
+      const datedTitle = `${title} (${brDayMonth})`;
+      title = hasTitle(datedTitle) ? `${datedTitle} #${existingContracts.length + 1}` : datedTitle;
+    }
+
+    const cents = parseMoneyToCents(el('saleValueInput')?.value);
+    const valNum = cents !== null && cents > 0 ? Number((cents / 100).toFixed(2)) : null;
+
+    const sb = c?.getSupabase?.();
+    let createdContractId = '';
+
+    if (sb) {
+      const fullPayload = {
+        cliente_id: client.id,
+        tipo_acordo: 'Avulso',
+        titulo_acordo: title,
+        subtipo_parceria: '',
+        quantidade_definida: false,
+        descricao_combinado: '',
+        duracao_meses: 1,
+        periodo: title,
+        total_postagens: 0,
+        tipos: '',
+        valor: valNum,
+        status: 'Ativo',
+        data_inicio: saleDate || null,
+        data_fim: null
+      };
+      const basePayload = {
+        cliente_id: client.id,
+        periodo: title,
+        total_postagens: 0,
+        tipos: '',
+        valor: valNum,
+        status: 'Ativo',
+        data_inicio: saleDate || null,
+        data_fim: null
+      };
+
+      const res = await sb.from('contratos').insert([fullPayload]).select('id').single();
+      if (res.error && /(tipo_acordo|titulo_acordo|subtipo_parceria|quantidade_definida|descricao_combinado|duracao_meses)/.test(String(res.error.message || ''))) {
+        const fallback = await sb.from('contratos').insert([basePayload]).select('id').single();
+        if (fallback.error) throw fallback.error;
+        createdContractId = fallback.data?.id || '';
+      } else {
+        if (res.error) throw res.error;
+        createdContractId = res.data?.id || '';
+      }
+      await c?.fetchFromSupabase?.();
+    } else {
+      createdContractId = c?.uid ? c.uid('cnt') : generateUid('cnt');
+      if (!client.contracts) client.contracts = [];
+      client.contracts.unshift({
+        id: createdContractId,
+        agreementType: 'Avulso',
+        agreementTitle: title,
+        partnershipSubtype: '',
+        hasDefinedQuantity: false,
+        partnershipNotes: '',
+        period: title,
+        durationMonths: 1,
+        totalPosts: 0,
+        startDate: saleDate,
+        endDate: '',
+        types: '',
+        value: valNum !== null ? valNum : '',
+        status: 'Ativo'
+      });
+      c?.saveData?.();
+    }
+
+    const updatedClient = (getAppDataSafe().clients || []).find(cl => cl.id === clientId);
+    const resolvedId = createdContractId || updatedClient?.contracts?.find(cnt => (cnt.agreementTitle || cnt.period) === title)?.id || '';
+
+    populateSaleModalContracts(clientId, resolvedId);
+    if (!typedTitle && el('saleTitleInput')) {
+      el('saleTitleInput').value = title;
+      checkDuplicateSaleWarningInForm();
+    }
+
+    await c?.recordAuditEvent?.('contrato', resolvedId || title, 'criacao_avulso_rapido', {
+      cliente: client.name,
+      periodo: title,
+      valor: valNum
+    });
+    c?.renderDashboard?.();
+
+    if (!el('saleValueInput')?.value?.trim()) {
+      el('saleValueInput')?.focus();
+    }
+    c?.showToast?.('Acordo Avulso criado e selecionado! Confira os dados e clique em Salvar venda.');
+  } catch (err) {
+    c?.showToast?.('Erro ao criar acordo Avulso: ' + (err?.message || ''));
+  } finally {
+    isCreatingQuickAvulso = false;
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = prevBtnText || '+ Avulso em 1 clique';
+    }
+  }
 }
 
 function populateSaleModalBeneficiaries(selectedBeneficiaryId = '', locked = false) {
@@ -3540,6 +3674,7 @@ function bindSalesDomEvents() {
     core()?.closeModal?.('saleModal');
     core()?.openContractModal?.(null, cid);
   });
+  el('btnSaleQuickAvulso')?.addEventListener('click', handleQuickAvulsoContract);
   el('btnSaleCreateNewPost')?.addEventListener('click', () => {
     const cid = el('saleClientSelect')?.value;
     if (!cid) return core()?.showToast?.('Selecione o cliente antes de registrar uma postagem.');
