@@ -1297,6 +1297,29 @@ function checkDuplicateSaleWarningInForm() {
   box.innerHTML = `Atenção: já existe(m) <strong>${matches.length}</strong> venda(s) neste acordo e competência (${escapeStr(matches.map(m => `${m.titulo}: ${formatCentsBR(m.valorCentavos)}`).join('; '))}). Confirme que não é lançamento duplicado antes de salvar.`;
 }
 
+function populateSaleModalBeneficiaries(selectedBeneficiaryId = '', locked = false) {
+  const select = el('saleBeneficiarySelect');
+  const btnNew = el('btnSaleCreateNewBeneficiary');
+  const hint = el('saleBeneficiaryHint');
+  if (!select) return;
+
+  const bens = (getSalesStateSafe().beneficiaries || [])
+    .filter(b => b.ativo || b.id === selectedBeneficiaryId)
+    .slice()
+    .sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
+
+  select.innerHTML = `<option value="">A definir</option>` +
+    bens.map(b => `<option value="${escapeStr(b.id)}">${escapeStr(b.nome)}${b.papel ? ` (${escapeStr(b.papel)})` : ''}${b.ativo ? '' : ' (Inativo)'}</option>`).join('');
+  select.value = selectedBeneficiaryId && bens.some(b => b.id === selectedBeneficiaryId) ? selectedBeneficiaryId : '';
+  select.disabled = Boolean(locked);
+  if (btnNew) btnNew.disabled = Boolean(locked);
+  if (hint) {
+    hint.textContent = locked
+      ? 'Comissão já fechada ou paga — beneficiário bloqueado para preservação histórica.'
+      : 'Opcional — não calcula comissão automaticamente sem regra confirmada.';
+  }
+}
+
 function captureSaleModalDraft(actionType) {
   pendingSaleDraft = {
     active: true,
@@ -1310,6 +1333,8 @@ function captureSaleModalDraft(actionType) {
     competencia: el('saleCompetenceInput')?.value || '',
     competenceTouchedManually,
     valorInput: el('saleValueInput')?.value || '',
+    beneficiarioId: el('saleBeneficiarySelect')?.value || '',
+    beneficiaryLocked: Boolean(el('saleBeneficiarySelect')?.disabled),
     modalidadeMaterial: el('saleModalitySelect')?.value || 'nao_informado',
     detalhePacoteComplementar: el('salePackageNoteInput')?.value || '',
     linkedPostIds: getSelectedLinkedPostIdsFromForm(),
@@ -1342,6 +1367,10 @@ export function handleExternalEntityCreated(entityType, savedId = '', ctx = {}) 
       draft.linkedPostIds.push(resolved.id);
       draft.optionalExpanded = true;
     }
+  } else if (entityType === 'beneficiary') {
+    const bens = getSalesStateSafe().beneficiaries || [];
+    const resolved = (savedId && bens.find(b => b.id === savedId)) || bens[bens.length - 1] || null;
+    if (resolved) draft.beneficiarioId = resolved.id;
   }
 
   restoreSaleModalFromDraft(draft);
@@ -1361,6 +1390,7 @@ function restoreSaleModalFromDraft(draft) {
   el('saleCompetenceInput').value = draft.competencia || competenceFromISODate(draft.dataVenda || getTodayISODate());
   competenceTouchedManually = Boolean(draft.competenceTouchedManually);
   el('saleValueInput').value = draft.valorInput || '';
+  populateSaleModalBeneficiaries(draft.beneficiarioId || '', Boolean(draft.beneficiaryLocked));
   el('saleModalitySelect').value = draft.modalidadeMaterial || 'nao_informado';
   el('salePackageNoteInput').value = draft.detalhePacoteComplementar || '';
   el('saleInternalNotesInput').value = draft.observacoesInternas || '';
@@ -1397,6 +1427,8 @@ export function openSaleModal(saleId = null, preselectedClientId = '', preselect
     el('saleCompetenceInput').value = sale.competencia || competenceFromISODate(sale.dataVenda);
     competenceTouchedManually = true;
     el('saleValueInput').value = centsToInputStr(sale.valorCentavos);
+    const existingCom = getSaleCommission(sale.id, state.commissions);
+    populateSaleModalBeneficiaries(existingCom?.beneficiarioId || '', isCommissionLocked(existingCom));
     el('saleModalitySelect').value = sale.modalidadeMaterial || 'nao_informado';
     el('salePackageNoteInput').value = sale.detalhePacoteComplementar || '';
     el('saleInternalNotesInput').value = sale.observacoesInternas || '';
@@ -1424,6 +1456,7 @@ export function openSaleModal(saleId = null, preselectedClientId = '', preselect
       : competenceFromISODate(today);
     el('saleCompetenceInput').value = defaultComp;
     competenceTouchedManually = false;
+    populateSaleModalBeneficiaries('', false);
     el('saleModalitySelect').value = 'nao_informado';
     setSaleOptionalExpanded(false);
   }
@@ -1449,6 +1482,7 @@ async function handleSaleFormSubmit(e) {
   const dataVenda = el('saleDateInput')?.value || '';
   const competencia = (el('saleCompetenceInput')?.value || competenceFromISODate(dataVenda)).trim();
   const valorCentavos = parseMoneyToCents(el('saleValueInput')?.value);
+  const beneficiarioId = el('saleBeneficiarySelect')?.value || null;
   const modalidadeMaterial = el('saleModalitySelect')?.value || 'nao_informado';
   const detalhePacoteComplementar = (el('salePackageNoteInput')?.value || '').trim();
   const observacoesInternas = (el('saleInternalNotesInput')?.value || '').trim();
@@ -1509,6 +1543,32 @@ async function handleSaleFormSubmit(e) {
           const { error: vpErr } = await sb.from('venda_postagens').insert(postRows);
           if (vpErr) throw vpErr;
         }
+
+        const existingCom = getSaleCommission(saleId, state.commissions);
+        if (!isCommissionLocked(existingCom)) {
+          const prevBenId = existingCom?.beneficiarioId || null;
+          if (existingCom && beneficiarioId !== prevBenId && (existingCom.status !== 'nao_se_aplica' || beneficiarioId)) {
+            const comUpdate = {
+              beneficiario_id: beneficiarioId || null,
+              atualizado_em: nowIso
+            };
+            if ((!beneficiarioId && existingCom.status === 'apurada') || existingCom.status === 'nao_se_aplica') {
+              comUpdate.status = 'a_definir';
+              comUpdate.base_calculo_centavos = null;
+              comUpdate.valor_apurado_centavos = null;
+            }
+            const { error: cuErr } = await sb.from('venda_comissoes').update(comUpdate).eq('id', existingCom.id);
+            if (cuErr) throw cuErr;
+          } else if (!existingCom && beneficiarioId) {
+            const { error: ciErr } = await sb.from('venda_comissoes').insert([{
+              ...(userId ? { user_id: userId } : {}),
+              venda_id: saleId,
+              beneficiario_id: beneficiarioId,
+              status: 'a_definir'
+            }]);
+            if (ciErr) throw ciErr;
+          }
+        }
       } else {
         const { data: insertedSale, error } = await sb.from('vendas').insert([{
           ...(userId ? { user_id: userId } : {}),
@@ -1539,6 +1599,7 @@ async function handleSaleFormSubmit(e) {
         const { error: comErr } = await sb.from('venda_comissoes').insert([{
           ...(userId ? { user_id: userId } : {}),
           venda_id: finalSaleId,
+          beneficiario_id: beneficiarioId || null,
           status: 'a_definir'
         }]);
         if (comErr) throw comErr;
@@ -1564,6 +1625,41 @@ async function handleSaleFormSubmit(e) {
         linkedPostIds.forEach(pid => {
           state.salePosts.push({ id: generateUid('vp'), vendaId: saleId, postagemId: pid, criadoEm: nowIso });
         });
+
+        const existingCom = getSaleCommission(saleId, state.commissions);
+        if (!isCommissionLocked(existingCom)) {
+          const prevBenId = existingCom?.beneficiarioId || null;
+          if (existingCom && beneficiarioId !== prevBenId && (existingCom.status !== 'nao_se_aplica' || beneficiarioId)) {
+            existingCom.beneficiarioId = beneficiarioId || null;
+            if ((!beneficiarioId && existingCom.status === 'apurada') || existingCom.status === 'nao_se_aplica') {
+              existingCom.status = 'a_definir';
+              existingCom.baseCalculoCentavos = null;
+              existingCom.valorApuradoCentavos = null;
+            }
+            existingCom.atualizadoEm = nowIso;
+          } else if (!existingCom && beneficiarioId) {
+            state.commissions.push({
+              id: generateUid('vcom'),
+              vendaId: saleId,
+              beneficiarioId,
+              regraId: null,
+              status: 'a_definir',
+              tipoCalculo: null,
+              percentualBps: null,
+              valorFixoCentavos: null,
+              basePercentual: null,
+              gatilhoApuracao: null,
+              baseCalculoCentavos: null,
+              valorApuradoCentavos: null,
+              fechamentoId: null,
+              pagoEm: null,
+              congeladaEm: null,
+              observacoes: '',
+              criadoEm: nowIso,
+              atualizadoEm: nowIso
+            });
+          }
+        }
       } else {
         finalSaleId = generateUid('vend');
         state.sales.unshift({
@@ -1595,7 +1691,7 @@ async function handleSaleFormSubmit(e) {
         state.commissions.push({
           id: generateUid('vcom'),
           vendaId: finalSaleId,
-          beneficiarioId: null,
+          beneficiarioId: beneficiarioId || null,
           regraId: null,
           status: 'a_definir',
           tipoCalculo: null,
@@ -2370,7 +2466,8 @@ async function saveDetailCommission(e) {
 }
 
 // ==================== BENEFICIÁRIOS & REGRAS OPCIONAIS (#salesConfigModal) ====================
-export function openSalesConfigModal() {
+export function openSalesConfigModal(preserveDraft = false) {
+  if (!preserveDraft) pendingSaleDraft = null;
   editingBeneficiaryId = null;
   editingRuleId = null;
   renderSalesConfigModal();
@@ -2567,13 +2664,15 @@ async function saveBeneficiaryFromConfig(e) {
     const sb = c?.getSupabase?.();
     const userId = c?.getCurrentUserId?.();
     const nowIso = new Date().toISOString();
+    let savedBenId = editingBeneficiaryId || '';
     if (sb) {
       if (editingBeneficiaryId) {
         const { error } = await sb.from('comissao_beneficiarios').update({ nome, papel, observacoes, ativo, atualizado_em: nowIso }).eq('id', editingBeneficiaryId);
         if (error) throw error;
       } else {
-        const { error } = await sb.from('comissao_beneficiarios').insert([{ ...(userId ? { user_id: userId } : {}), nome, papel, observacoes, ativo }]);
+        const { data: insertedBen, error } = await sb.from('comissao_beneficiarios').insert([{ ...(userId ? { user_id: userId } : {}), nome, papel, observacoes, ativo }]).select('id').single();
         if (error) throw error;
+        savedBenId = insertedBen?.id || '';
       }
       await fetchSalesFromSupabase();
     } else {
@@ -2581,7 +2680,8 @@ async function saveBeneficiaryFromConfig(e) {
         const b = state.beneficiaries.find(x => x.id === editingBeneficiaryId);
         if (b) Object.assign(b, { nome, papel, observacoes, ativo, atualizadoEm: nowIso });
       } else {
-        state.beneficiaries.push({ id: generateUid('ben'), nome, papel, userAuthId: null, observacoes, ativo, criadoEm: nowIso, atualizadoEm: nowIso });
+        savedBenId = generateUid('ben');
+        state.beneficiaries.push({ id: savedBenId, nome, papel, userAuthId: null, observacoes, ativo, criadoEm: nowIso, atualizadoEm: nowIso });
       }
       c?.saveData?.();
     }
@@ -2589,6 +2689,10 @@ async function saveBeneficiaryFromConfig(e) {
     c?.showToast?.('Beneficiário salvo!');
     renderSalesConfigModal();
     renderSalesView();
+    if (pendingSaleDraft?.active && pendingSaleDraft.actionType === 'beneficiary') {
+      c?.closeModal?.('salesConfigModal');
+      handleExternalEntityCreated('beneficiary', savedBenId);
+    }
   } catch (err) {
     c?.showToast?.('Erro ao salvar beneficiário: ' + (err?.message || ''));
   } finally {
@@ -3292,8 +3396,8 @@ function bindSalesDomEvents() {
   salesModuleInitialized = true;
 
   el('btnNewSale')?.addEventListener('click', () => openSaleModal());
-  el('btnOpenSalesConfig')?.addEventListener('click', openSalesConfigModal);
-  el('btnOpenSalesConfigMobile')?.addEventListener('click', openSalesConfigModal);
+  el('btnOpenSalesConfig')?.addEventListener('click', () => openSalesConfigModal(false));
+  el('btnOpenSalesConfigMobile')?.addEventListener('click', () => openSalesConfigModal(false));
   el('btnOpenSalesClosure')?.addEventListener('click', () => openSalesClosureModal());
   el('btnOpenSalesReports')?.addEventListener('click', () => openSalesReportModal());
   el('btnOpenSalesFiltersSheet')?.addEventListener('click', () => core()?.openModal?.('salesFiltersSheetModal'));
@@ -3430,6 +3534,11 @@ function bindSalesDomEvents() {
     captureSaleModalDraft('post');
     core()?.closeModal?.('saleModal');
     core()?.openPostModal?.(null, cid, false, cntId);
+  });
+  el('btnSaleCreateNewBeneficiary')?.addEventListener('click', () => {
+    captureSaleModalDraft('beneficiary');
+    core()?.closeModal?.('saleModal');
+    openSalesConfigModal(true);
   });
 
   // Relatórios internos
