@@ -60,6 +60,7 @@ let pendingSaleDraft = null;
 let lastRenderedSalesReportData = null;
 let editingBeneficiaryId = null;
 let editingRuleId = null;
+let saleTitleTouched = false;
 
 let isSubmittingSale = false;
 let isSubmittingReceipt = false;
@@ -1179,10 +1180,14 @@ function populateSaleModalContracts(clientId, selectedContractId = '') {
   if (!select) return;
 
   const client = (getAppDataSafe().clients || []).find(c => c.id === clientId);
-  const contracts = client?.contracts || [];
+  const searchText = el('saleContractSearchInput')?.value?.trim().toLowerCase() || '';
+  const contracts = (client?.contracts || []).filter(cnt => {
+    if (!searchText) return true;
+    return `${cnt.agreementTitle || ''} ${cnt.period || ''} ${cnt.agreementType || ''}`.toLowerCase().includes(searchText);
+  });
 
   if (!client || contracts.length === 0) {
-    select.innerHTML = '<option value="">Nenhum acordo cadastrado para este cliente</option>';
+    select.innerHTML = client ? '<option value="">Nenhum acordo encontrado</option>' : '<option value="">Nenhum acordo cadastrado para este cliente</option>';
     select.value = '';
     metaBox?.classList.add('hidden');
     partnerWarn?.classList.add('hidden');
@@ -1214,6 +1219,7 @@ function syncSelectedContractMetadataInSaleForm() {
   const clientId = el('saleClientSelect')?.value || '';
   const contractId = el('saleContractSelect')?.value || '';
   const { client, contract } = findClientAndContract(clientId, contractId);
+  const clientContext = el('saleClientContext');
   const metaBox = el('saleContractMetaBox');
   const partnerWarn = el('salePartnershipWarning');
   const btnUseVal = el('btnUseContractValue');
@@ -1221,6 +1227,7 @@ function syncSelectedContractMetadataInSaleForm() {
   const pkgBox = el('saleContractPackageSummary');
 
   if (!contract) {
+    if (clientContext) clientContext.textContent = client ? `${client.name || 'Cliente'}${client.company ? ` • ${client.company}` : ''}` : '';
     metaBox?.classList.add('hidden');
     partnerWarn?.classList.add('hidden');
     btnUseVal?.classList.add('hidden');
@@ -1232,6 +1239,9 @@ function syncSelectedContractMetadataInSaleForm() {
   }
 
   const agType = core()?.getAgreementTypeBadgeText?.(contract) || contract.agreementType || 'Mensal';
+  if (clientContext) {
+    clientContext.textContent = `${client?.name || 'Cliente'}${client?.company ? ` • ${client.company}` : ''}${client?.instagram ? ` • ${client.instagram}` : ''}`;
+  }
   const rawVal = contract.value !== '' && contract.value !== null && contract.value !== undefined ? Number(contract.value) : null;
   const contractCents = rawVal !== null && Number.isFinite(rawVal) ? Math.round(rawVal * 100) : null;
 
@@ -1260,6 +1270,14 @@ function syncSelectedContractMetadataInSaleForm() {
     const formatsText = contract.types ? ` • Formatos: ${contract.types}` : '';
     const extraText = contract.partnershipNotes ? ` • Combinado: ${contract.partnershipNotes}` : '';
     pkgBox.textContent = `${qtyText}${formatsText}${extraText}`;
+  }
+
+  if (!saleTitleTouched) {
+    const titleInput = el('saleTitleInput');
+    const suggestedTitle = `${client?.name || 'Cliente'} — ${contract.agreementTitle || contract.period || agType}`;
+    if (titleInput && !titleInput.value.trim()) titleInput.value = suggestedTitle;
+    const titleHint = el('saleTitleSuggestionHint');
+    if (titleHint) titleHint.textContent = 'Sugestão preenchida automaticamente; você pode editar antes de salvar.';
   }
 
   populateSaleModalPosts(client?.id || '', contract.id, getSelectedLinkedPostIdsFromForm());
@@ -1558,7 +1576,9 @@ function restoreSaleModalFromDraft(draft) {
   if (titleEl) titleEl.textContent = draft.saleId ? 'Editar venda' : 'Nova venda';
   el('saleFormError')?.classList.add('hidden');
   el('saleId').value = draft.saleId || '';
+  saleTitleTouched = Boolean(draft.saleId || draft.titulo);
   el('saleClientSearchInput').value = draft.clientSearch || '';
+  if (el('saleContractSearchInput')) el('saleContractSearchInput').value = '';
   populateSaleModalClients(draft.clientSearch || '', draft.clienteId || '');
   populateSaleModalContracts(draft.clienteId || '', draft.contratoId || '');
 
@@ -1587,6 +1607,7 @@ export function openSaleModal(saleId = null, preselectedClientId = '', preselect
   el('saleDuplicateWarning')?.classList.add('hidden');
 
   if (saleId) {
+    saleTitleTouched = true;
     const sale = state.sales.find(s => s.id === saleId);
     if (!sale) return;
     if (isSaleLockedByClosure(sale)) {
@@ -1596,6 +1617,7 @@ export function openSaleModal(saleId = null, preselectedClientId = '', preselect
     el('saleModalTitle').textContent = 'Editar venda';
     el('saleId').value = sale.id;
     el('saleClientSearchInput').value = '';
+    if (el('saleContractSearchInput')) el('saleContractSearchInput').value = '';
     populateSaleModalClients('', sale.clienteId);
     populateSaleModalContracts(sale.clienteId, sale.contratoId);
 
@@ -1619,10 +1641,12 @@ export function openSaleModal(saleId = null, preselectedClientId = '', preselect
     );
     setSaleOptionalExpanded(hasOpt);
   } else {
+    saleTitleTouched = false;
     const today = getTodayISODate();
     el('saleModalTitle').textContent = 'Nova venda';
     el('saleId').value = '';
     el('saleClientSearchInput').value = '';
+    if (el('saleContractSearchInput')) el('saleContractSearchInput').value = '';
     const clientTarget = preselectedClientId || (salesFilterState.clienteId !== 'ALL' ? salesFilterState.clienteId : '');
     populateSaleModalClients('', clientTarget);
     populateSaleModalContracts(el('saleClientSelect')?.value || '', preselectedContractId || '');
@@ -1919,6 +1943,11 @@ export function openSaleReceiptModal(saleId) {
   window.setTimeout(() => el('detailReceiptValue')?.focus(), 0);
 }
 
+export function focusSaleDetailPanel(panelId) {
+  const panel = el(panelId);
+  panel?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+}
+
 export function applySalesQuickFilter(key, value) {
   if (!Object.prototype.hasOwnProperty.call(salesFilterState, key)) return;
   activeSalesSubtab = 'lancamentos';
@@ -1946,6 +1975,13 @@ function renderSaleDetailModal() {
   const comStatus = commission?.status || 'a_definir';
   const lockedByClosure = isSaleLockedByClosure(sale);
   const comLocked = isCommissionLocked(commission);
+  const nextAction = sale.conferenciaStatus !== 'conferida'
+    ? { label: sale.conferenciaStatus === 'divergencia' ? 'Revisar divergência' : 'Conferir venda', panel: 'salesDetailConferencePanel', tone: 'warning' }
+    : (!lockedByClosure && receiptSummary.statusRecebimento !== 'recebido'
+      ? { label: 'Registrar recebimento', panel: 'salesDetailReceiptPanel', tone: 'info' }
+      : (!comLocked && comStatus === 'a_definir'
+        ? { label: 'Definir comissão', panel: 'salesDetailCommissionPanel', tone: 'purple' }
+        : { label: 'Venda em dia', panel: '', tone: 'success' }));
   const agType = contract ? (core()?.getAgreementTypeBadgeText?.(contract) || contract.agreementType || '') : '';
   const linkedIds = new Set(state.salePosts.filter(sp => sp.vendaId === sale.id).map(sp => sp.postagemId));
   const linkedPosts = (client?.posts || []).filter(p => linkedIds.has(p.id));
@@ -2014,13 +2050,20 @@ function renderSaleDetailModal() {
         <div><span>Saldo a receber</span><strong>${escapeStr(formatCentsBR(receiptSummary.saldoCentavos))}</strong></div>
         <div><span>Data da venda</span><strong>${escapeStr(formatDateOnlyBR(sale.dataVenda))}</strong></div>
       </div>
+      <div class="sales-next-action sales-next-action-${nextAction.tone}">
+        <div>
+          <span class="sales-next-action-kicker">PRÓXIMA AÇÃO</span>
+          <strong>${escapeStr(nextAction.label)}</strong>
+        </div>
+        ${nextAction.panel ? `<button type="button" class="btn btn-secondary btn-sm" onclick="focusSaleDetailPanel('${nextAction.panel}')">Ir para ação</button>` : '<span class="sales-badge sales-badge-success">Sem pendências</span>'}
+      </div>
       ${sale.detalhePacoteComplementar ? `<div class="sales-table-sub" style="margin-top:6px;">Pacote: ${escapeStr(sale.detalhePacoteComplementar)}</div>` : ''}
       ${sale.observacoesInternas ? `<div class="sales-table-sub" style="margin-top:4px;">Obs. interna (não enviada a clientes): ${escapeStr(sale.observacoesInternas)}</div>` : ''}
       <div class="sales-linked-posts-wrap">${postsHtml}</div>
     </div>
 
     <!-- PAINEL A: CONFERÊNCIA DA VENDA -->
-    <div class="sales-panel-card">
+    <div class="sales-panel-card" id="salesDetailConferencePanel">
       <div class="sales-panel-header">
         <h4>A. Conferência da venda</h4>
         <span class="sales-badge ${getBadgeClassForConference(sale.conferenciaStatus || 'pendente')}">${escapeStr(CONFERENCE_LABELS[sale.conferenciaStatus || 'pendente'])}</span>
@@ -2047,7 +2090,7 @@ function renderSaleDetailModal() {
     </div>
 
     <!-- PAINEL B: RECEBIMENTO DO CLIENTE -->
-    <div class="sales-panel-card">
+    <div class="sales-panel-card" id="salesDetailReceiptPanel">
       <div class="sales-panel-header">
         <h4>B. Recebimentos do cliente</h4>
         <span class="sales-badge ${getBadgeClassForReceipt(receiptSummary.statusRecebimento)}">${escapeStr(RECEIPT_LABELS[receiptSummary.statusRecebimento])}</span>
@@ -2100,7 +2143,7 @@ function renderSaleDetailModal() {
     </div>
 
     <!-- PAINEL C: COMISSÃO -->
-    <div class="sales-panel-card">
+    <div class="sales-panel-card" id="salesDetailCommissionPanel">
       <div class="sales-panel-header">
         <h4>C. Comissão da venda</h4>
         <span class="sales-badge ${getBadgeClassForCommission(comStatus)}">${escapeStr(COMMISSION_LABELS[comStatus] || comStatus)}</span>
@@ -3669,10 +3712,19 @@ function bindSalesDomEvents() {
     populateSaleModalClients(e.target.value, prevClientId);
     populateSaleModalContracts(el('saleClientSelect')?.value || '', '');
   });
+  el('saleContractSearchInput')?.addEventListener('input', () => {
+    populateSaleModalContracts(el('saleClientSelect')?.value || '', '');
+  });
   el('saleClientSelect')?.addEventListener('change', (e) => {
+    if (el('saleContractSearchInput')) el('saleContractSearchInput').value = '';
     populateSaleModalContracts(e.target.value, '');
   });
   el('saleContractSelect')?.addEventListener('change', syncSelectedContractMetadataInSaleForm);
+  el('saleTitleInput')?.addEventListener('input', () => {
+    saleTitleTouched = true;
+    const hint = el('saleTitleSuggestionHint');
+    if (hint) hint.textContent = 'Título personalizado para este lançamento.';
+  });
   el('saleDateInput')?.addEventListener('change', (e) => {
     if (!competenceTouchedManually) {
       const sugg = competenceFromISODate(e.target.value);
@@ -3761,6 +3813,7 @@ if (typeof window !== 'undefined') {
     openSaleModal,
     openSaleDetailModal,
     openSaleReceiptModal,
+    focusSaleDetailPanel,
     openSaleForContract,
     openSalesForClient,
     openSalesConfigModal,
@@ -3774,6 +3827,7 @@ if (typeof window !== 'undefined') {
     openSaleDetailModal,
     openSaleReceiptModal,
     applySalesQuickFilter,
+    focusSaleDetailPanel,
     openSaleForContract,
     openSalesForClient,
     openSalesConfigModal,

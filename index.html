@@ -1790,17 +1790,19 @@
 
             <div class="form-group">
               <label for="saleClientSearchInput">Cliente <span class="req">*</span></label>
-              <input type="search" id="saleClientSearchInput" placeholder="Buscar cliente por nome, empresa ou @instagram..." autocomplete="off">
-              <select id="saleClientSelect" required></select>
+               <input type="search" id="saleClientSearchInput" placeholder="Buscar cliente por nome, empresa ou @instagram..." autocomplete="off">
+               <select id="saleClientSelect" required></select>
+               <div id="saleClientContext" class="form-helper-text"></div>
               <div class="sales-inline-links-row">
                 <button type="button" class="btn btn-ghost btn-sm" id="btnSaleOpenClientProfile">Ver perfil</button>
                 <button type="button" class="btn btn-secondary btn-sm" id="btnSaleCreateNewClient">+ Novo cliente</button>
               </div>
             </div>
 
-            <div class="form-group">
-              <label for="saleContractSelect">Contrato / Acordo <span class="req">*</span></label>
-              <select id="saleContractSelect" required></select>
+             <div class="form-group">
+               <label for="saleContractSelect">Contrato / Acordo <span class="req">*</span></label>
+               <input type="search" id="saleContractSearchInput" placeholder="Filtrar acordos deste cliente..." autocomplete="off">
+               <select id="saleContractSelect" required></select>
               <div id="saleContractMetaBox" class="sales-contract-ref-box hidden"></div>
               <div id="salePartnershipWarning" class="warning-banner hidden">
                 Este acordo é uma <strong>Parceria</strong>. Parcerias não geram vendas pagas automaticamente — continue apenas se houver lançamento comercial específico.
@@ -1820,8 +1822,9 @@
             </div>
 
             <div class="form-group">
-              <label for="saleTitleInput">Identificação da venda <span class="req">*</span></label>
-              <input type="text" id="saleTitleInput" required placeholder="Ex: Pacote mensal de conteúdo ou ação contratada">
+               <label for="saleTitleInput">Identificação da venda <span class="req">*</span></label>
+               <input type="text" id="saleTitleInput" required placeholder="Ex: Pacote mensal de conteúdo ou ação contratada">
+               <div id="saleTitleSuggestionHint" class="form-helper-text">Selecione cliente e acordo para receber uma sugestão.</div>
             </div>
 
             <div class="sales-form-2col">
