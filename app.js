@@ -1809,14 +1809,15 @@ function renderSingleClientCardHtml(client, monthFilter, includeCancelled, categ
   let remainingLabel = '';
 
   if (m.contractBreakdowns.length === 0) {
-    periodLabel = 'Sem contrato ativo';
+    periodLabel = '<span class="badge-period-pill">Sem contrato ativo</span>';
     deliveredLabel = '0 de 0 entregues';
     remainingLabel = '0 restantes';
   } else if (m.contractBreakdowns.length === 1) {
     const { contract, metrics: cm } = m.contractBreakdowns[0];
     const dispLabel = getContractDisplayLabel(contract);
     const typeTag = getAgreementTypeBadgeText(contract);
-    periodLabel = `${escapeHtml(dispLabel)} <span class="badge badge-concluido" style="margin-left:4px;">${escapeHtml(typeTag)}</span>`;
+    const qtySuffix = cm.hasDefinedQuantity ? ` (${cm.totalContracted})` : '';
+    periodLabel = `<span class="badge-period-pill">${escapeHtml(dispLabel)}</span><span class="badge-agreement-pill">${escapeHtml(typeTag)}${qtySuffix}</span>`;
     if (!cm.hasDefinedQuantity) {
       deliveredLabel = `${cm.published} publicadas`;
       remainingLabel = 'Sem limite definido';
@@ -1826,7 +1827,7 @@ function renderSingleClientCardHtml(client, monthFilter, includeCancelled, categ
     }
   } else {
     const latestLabel = getContractDisplayLabel(m.contractBreakdowns[0].contract);
-    periodLabel = `${m.contractBreakdowns.length} contratos (atual: ${escapeHtml(latestLabel)})`;
+    periodLabel = `<span class="badge-period-pill">${m.contractBreakdowns.length} contratos (atual: ${escapeHtml(latestLabel)})</span>`;
     if (m.hasUndefinedPartnership && m.totalContracted === 0) {
       deliveredLabel = `${m.totalPublished} publicadas`;
       remainingLabel = 'Sem limite definido';
@@ -1855,7 +1856,7 @@ function renderSingleClientCardHtml(client, monthFilter, includeCancelled, categ
       </div>
 
       <div class="ios-client-contract-row">
-        <span class="ios-contract-period">${periodLabel}</span>
+        <div class="ios-contract-pills-left">${periodLabel}</div>
         <span class="badge ${m.overallBadgeClass}">${escapeHtml(m.overallDeliveryState)}</span>
       </div>
 
@@ -1928,7 +1929,7 @@ function renderClientsGrid(filteredClients, monthFilter, statusFilter, searchQue
     sections.push(`
       <div class="clients-group-header clients-group-highlight">
         <span>PACOTES MENSAIS ATIVOS</span>
-        <span class="clients-group-count">${mensalClients.length}</span>
+        <span class="clients-group-count">${mensalClients.length} ${mensalClients.length === 1 ? 'ativo' : 'ativos'}</span>
       </div>
       ${mensalClients.map(c => renderSingleClientCardHtml(c, monthFilter, includeCancelled, 'Mensal')).join('')}
     `);
@@ -1968,19 +1969,77 @@ function renderClientsGrid(filteredClients, monthFilter, statusFilter, searchQue
 /**
  * Componente padronizado de Card de Postagem usado tanto no Perfil quanto na Tela Global de Postagens
  */
+function buildPostLinkPreviewData(url = '', postType = '') {
+  const raw = String(url || '').trim();
+  if (!raw) return null;
+  const lower = raw.toLowerCase();
+  let platform = 'Link da publicação';
+  let kind = 'link';
+
+  if (lower.includes('instagram.com/reel')) {
+    platform = 'Instagram Reels';
+    kind = 'reel';
+  } else if (lower.includes('instagram.com')) {
+    platform = postType === 'Carrossel' ? 'Instagram Carrossel' : 'Instagram Post';
+    kind = 'ig';
+  } else if (lower.includes('tiktok.com')) {
+    platform = 'TikTok';
+    kind = 'reel';
+  } else if (lower.includes('youtube.com') || lower.includes('youtu.be')) {
+    platform = 'YouTube';
+    kind = 'reel';
+  }
+
+  let slug = raw.replace(/^https?:\/\/(www\.)?/i, '');
+  if (slug.length > 42) slug = `${slug.slice(0, 39)}...`;
+  return { platform, kind, slug, url: raw };
+}
+
+async function copyTextToClipboard(text = '', successMsg = 'Link copiado!') {
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+    }
+    showToast(successMsg);
+  } catch (e) {
+    showToast('Não foi possível copiar automaticamente.');
+  }
+}
+
 function renderPostCardHtml(client, post, postPeriod, isGlobalView = false) {
   const statusBadgeClass = getPostStatusBadgeClass(post.status);
   const menuId = `kebab_post_${isGlobalView ? 'g_' : 'p_'}${post.id}`;
+  const preview = buildPostLinkPreviewData(post.link, post.type);
+  const insta = formatInstagram(client.instagram);
+  const initials = getInitials(client.name);
 
-  const linkBtnHtml = post.link
-    ? `<a href="${escapeHtml(post.link)}" target="_blank" rel="noopener noreferrer" class="post-external-link">
-         <span>Ver publicação</span>
-         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-           <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-           <polyline points="15 3 21 3 21 9"></polyline>
-           <line x1="10" y1="14" x2="21" y2="3"></line>
-         </svg>
-       </a>`
+  const previewHtml = preview
+    ? `<div class="post-link-preview">
+         <div class="post-link-thumb post-link-thumb-${preview.kind}" aria-hidden="true">
+           ${preview.kind === 'reel'
+             ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><polygon points="6 4 20 12 6 20 6 4"></polygon></svg>'
+             : '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>'}
+         </div>
+         <div class="post-link-meta">
+           <span class="post-link-platform">${escapeHtml(preview.platform)}</span>
+           <span class="post-link-slug">${escapeHtml(preview.slug)}</span>
+           ${insta ? `<span class="post-link-handle">${escapeHtml(insta)}</span>` : ''}
+         </div>
+         <a href="${escapeHtml(preview.url)}" target="_blank" rel="noopener noreferrer" class="post-external-link">
+           <span>Abrir</span>
+           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+             <line x1="7" y1="17" x2="17" y2="7"></line>
+             <polyline points="7 7 17 7 17 17"></polyline>
+           </svg>
+         </a>
+       </div>`
     : '';
 
   return `
@@ -1995,41 +2054,47 @@ function renderPostCardHtml(client, post, postPeriod, isGlobalView = false) {
             <option value="Agendado" ${post.status === 'Agendado' ? 'selected' : ''}>Agendado</option>
             <option value="Publicado" ${post.status === 'Publicado' ? 'selected' : ''}>Publicado</option>
           </select>
-          <span class="post-date tabular-nums">${escapeHtml(formatDateBR(post.date))}</span>
-          <span class="post-type-meta">• ${escapeHtml(post.type)}</span>
+          <span class="post-format-pill">${escapeHtml(post.type)}</span>
         </div>
 
-        <div class="kebab-wrap">
-          <button type="button" class="btn-icon-only" onclick="toggleKebabMenu('${escapeHtml(menuId)}', event)" aria-label="Opções da postagem">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="5" r="1"></circle>
-              <circle cx="12" cy="12" r="1"></circle>
-              <circle cx="12" cy="19" r="1"></circle>
-            </svg>
-          </button>
-          <div id="${escapeHtml(menuId)}" class="dropdown-menu hidden">
-            <button type="button" class="dropdown-item" onclick="openPostModal('${escapeHtml(post.id)}', '${escapeHtml(client.id)}')">
-              Editar postagem
+        <div class="post-card-top-right">
+          <span class="post-date tabular-nums">${escapeHtml(formatDateBR(post.date))}</span>
+          <div class="kebab-wrap">
+            <button type="button" class="btn-icon-only" onclick="toggleKebabMenu('${escapeHtml(menuId)}', event)" aria-label="Opções da postagem">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="5" r="1"></circle>
+                <circle cx="12" cy="12" r="1"></circle>
+                <circle cx="12" cy="19" r="1"></circle>
+              </svg>
             </button>
-            <button type="button" class="dropdown-item danger" onclick="confirmDeletePost('${escapeHtml(post.id)}', '${escapeHtml(client.id)}')">
-              Excluir postagem
-            </button>
+            <div id="${escapeHtml(menuId)}" class="dropdown-menu hidden">
+              ${preview ? `<button type="button" class="dropdown-item" onclick="copyTextToClipboard('${escapeHtml(preview.url)}', 'Link copiado!'); closeAllKebabMenus();">Copiar link</button>` : ''}
+              <button type="button" class="dropdown-item" onclick="openPostModal('${escapeHtml(post.id)}', '${escapeHtml(client.id)}')">
+                Editar postagem
+              </button>
+              <button type="button" class="dropdown-item danger" onclick="confirmDeletePost('${escapeHtml(post.id)}', '${escapeHtml(client.id)}')">
+                Excluir postagem
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
-      <h3 class="post-title">${escapeHtml(post.title)}</h3>
-
-      ${(isGlobalView || postPeriod || linkBtnHtml) ? `
-        <div class="post-card-bottom">
-          <div class="post-context-row">
-            ${isGlobalView ? `<button type="button" class="post-client-link" onclick="openClientProfile('${escapeHtml(client.id)}')">${escapeHtml(client.name)}</button>` : ''}
-            ${(isGlobalView && postPeriod) ? `<span>•</span>` : ''}
-            ${postPeriod ? `<span>${escapeHtml(postPeriod)}</span>` : ''}
-          </div>
-          ${linkBtnHtml}
+      ${(isGlobalView || postPeriod) ? `
+        <div class="post-client-context-row">
+          ${isGlobalView ? `
+            <button type="button" class="post-client-link" onclick="openClientProfile('${escapeHtml(client.id)}')">
+              <span class="post-client-mini-avatar">${client.avatar ? `<img src="${escapeHtml(client.avatar)}" alt="">` : escapeHtml(initials)}</span>
+              <span>${escapeHtml(client.name)}</span>
+            </button>
+          ` : ''}
+          ${postPeriod ? `<span class="post-period-pill">${escapeHtml(postPeriod)}</span>` : ''}
         </div>
       ` : ''}
+
+      <h3 class="post-title">${escapeHtml(post.title)}</h3>
+
+      ${previewHtml}
     </article>
   `;
 }
@@ -2305,64 +2370,90 @@ function renderClientProfile() {
   const includeCancelled = Boolean(document.getElementById('toggleProfileShowCancelled')?.checked);
   const m = getClientMetrics(client, selectedProfileMonth, includeCancelled);
 
-  const avatarHtml = renderAvatarHtml(client, 'avatar-sm');
+  const avatarHtml = renderAvatarHtml(client, 'avatar-lg');
   const instaFormatted = formatInstagram(client.instagram);
   const instaUrl = getInstagramUrl(client.instagram);
   const waUrl = getWhatsAppUrl(client.phone);
   const profileMenuId = `kebab_profile_${client.id}`;
 
-  // A. Cabeçalho Compacto do Perfil (Voltar, Avatar, Nome, Instagram clicável e Menu de 3 pontos)
+  // A. Topo do Perfil (Voltar, Logo NasRuas e Menu) + Card de Identidade (estilo Stitch)
   document.getElementById('profileHeaderCard').innerHTML = `
-    <div class="profile-topbar-left">
-      <button type="button" class="btn-icon-only" onclick="backToDashboard()" aria-label="Voltar para Clientes">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+    <div class="profile-topbar-nav-row">
+      <button type="button" class="profile-back-btn" onclick="backToDashboard()" aria-label="Voltar para Clientes">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
           <line x1="19" y1="12" x2="5" y2="12"></line>
           <polyline points="12 19 5 12 12 5"></polyline>
         </svg>
+        <span>Voltar</span>
       </button>
-      ${avatarHtml}
-      <div class="profile-topbar-titles">
-        <h1 class="profile-topbar-name">${escapeHtml(client.name)}</h1>
-        ${instaFormatted
-          ? `<a href="${escapeHtml(instaUrl)}" target="_blank" rel="noopener noreferrer" class="client-handle">${escapeHtml(instaFormatted)}</a>`
-          : (client.company ? `<span class="client-handle">${escapeHtml(client.company)}</span>` : '')
-        }
+
+      <img src="/logo-nasruas.png" alt="NasRuas de ITZ" class="profile-topbar-logo">
+
+      <div class="kebab-wrap">
+        <button type="button" class="btn-icon-only" onclick="toggleKebabMenu('${escapeHtml(profileMenuId)}', event)" aria-label="Opções do cliente">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="5" r="1"></circle>
+            <circle cx="12" cy="12" r="1"></circle>
+            <circle cx="12" cy="19" r="1"></circle>
+          </svg>
+        </button>
+        <div id="${escapeHtml(profileMenuId)}" class="dropdown-menu hidden">
+          <button type="button" class="dropdown-item" onclick="openClientModal('${escapeHtml(client.id)}')">
+            Editar cliente
+          </button>
+          <button type="button" class="dropdown-item" onclick="openContractModal()">
+            + Novo contrato
+          </button>
+          <button type="button" class="dropdown-item" onclick="openManageContractsSection()">
+            Gerenciar contratos
+          </button>
+          <button type="button" class="dropdown-item" onclick="toggleArchiveClient('${escapeHtml(client.id)}')">
+            ${isClientArchived(client) ? 'Restaurar cliente' : 'Arquivar cliente'}
+          </button>
+          <button type="button" class="dropdown-item danger" onclick="confirmDeleteClient('${escapeHtml(client.id)}')">
+            Excluir cliente
+          </button>
+        </div>
       </div>
     </div>
 
-    <div class="kebab-wrap">
-      <button type="button" class="btn-icon-only" onclick="toggleKebabMenu('${escapeHtml(profileMenuId)}', event)" aria-label="Opções do cliente">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="5" r="1"></circle>
-          <circle cx="12" cy="12" r="1"></circle>
-          <circle cx="12" cy="19" r="1"></circle>
-        </svg>
-      </button>
-      <div id="${escapeHtml(profileMenuId)}" class="dropdown-menu hidden">
-        <button type="button" class="dropdown-item" onclick="openClientModal('${escapeHtml(client.id)}')">
+    <div class="ios-client-card profile-identity-card">
+      <div class="profile-identity-top">
+        ${avatarHtml}
+        <div class="profile-topbar-titles">
+          <h1 class="profile-topbar-name">${escapeHtml(client.name)}</h1>
+          ${instaFormatted
+            ? `<a href="${escapeHtml(instaUrl)}" target="_blank" rel="noopener noreferrer" class="client-handle">${escapeHtml(instaFormatted)}</a>`
+            : ''}
+          ${client.company ? `<span class="badge-period-pill">${escapeHtml(client.company)}</span>` : ''}
+        </div>
+      </div>
+      <div class="profile-identity-actions">
+        ${waUrl
+          ? `<a href="${escapeHtml(waUrl)}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm">WhatsApp</a>`
+          : `<button type="button" class="btn btn-secondary btn-sm" disabled>Sem WhatsApp</button>`}
+        <button type="button" class="btn btn-secondary btn-sm" onclick="openClientModal('${escapeHtml(client.id)}')">
           Editar cliente
-        </button>
-        <button type="button" class="dropdown-item" onclick="openContractModal()">
-          + Novo contrato
-        </button>
-        <button type="button" class="dropdown-item" onclick="openManageContractsSection()">
-          Gerenciar contratos
-        </button>
-        <button type="button" class="dropdown-item" onclick="toggleArchiveClient('${escapeHtml(client.id)}')">
-          ${isClientArchived(client) ? 'Restaurar cliente' : 'Arquivar cliente'}
-        </button>
-        <button type="button" class="dropdown-item danger" onclick="confirmDeleteClient('${escapeHtml(client.id)}')">
-          Excluir cliente
         </button>
       </div>
     </div>
   `;
 
-  // Badge de status de entrega do contrato selecionado
+  // Badge de status e pílula de tipo do acordo
   const deliveryBadge = document.getElementById('profileDeliveryBadge');
   if (deliveryBadge) {
     deliveryBadge.className = `badge ${m.overallBadgeClass}`;
     deliveryBadge.textContent = m.overallDeliveryState;
+  }
+  const typePill = document.getElementById('profileAgreementTypePill');
+  if (typePill) {
+    const firstContract = m.contractBreakdowns[0]?.contract;
+    if (firstContract) {
+      typePill.textContent = getAgreementTypeBadgeText(firstContract);
+      typePill.classList.remove('hidden');
+    } else {
+      typePill.classList.add('hidden');
+    }
   }
 
   renderProfileMonthlyHistory(client, includeCancelled);
@@ -2393,12 +2484,12 @@ function renderClientProfile() {
   const progressBlock = document.getElementById('profileProgressBlock');
   if (progressBlock) {
     progressBlock.innerHTML = `
-      <div class="ios-client-stats-row tabular-nums">
-        <span class="ios-stats-delivered">${m.totalPublished} de ${m.totalContracted} entregues${m.totalExcess > 0 ? ` (+${m.totalExcess} extra)` : ''}</span>
-        <span class="ios-stats-remaining">${m.remaining} ${m.remaining === 1 ? 'restante' : 'restantes'}</span>
-      </div>
       <div class="ios-progress-track">
         <div class="ios-progress-fill ${m.overallFillClass}" style="width: ${m.percentage}%"></div>
+      </div>
+      <div class="ios-client-stats-row tabular-nums">
+        <span class="ios-stats-delivered">${m.totalPublished} de ${m.totalContracted} entregues${m.totalExcess > 0 ? ` (+${m.totalExcess} extra)` : ''}</span>
+        <span class="ios-stats-remaining">${m.percentage}% concluído</span>
       </div>
     `;
   }
@@ -2673,6 +2764,92 @@ function checkDuplicatePostLink() {
   return isDuplicate;
 }
 
+/**
+ * Suggests post type, date (today if empty), and title from a pasted URL
+ * when creating a new post, without overwriting manual user input.
+ */
+function autofillPostFieldsFromLink() {
+  const postId = document.getElementById('postId')?.value || '';
+  if (postId) return;
+
+  const linkVal = (document.getElementById('postLink')?.value || '').trim();
+  if (!/^https?:\/\//i.test(linkVal)) return;
+
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(linkVal);
+  } catch {
+    return;
+  }
+
+  const host = parsedUrl.hostname.toLowerCase();
+  const path = parsedUrl.pathname.toLowerCase();
+  const typeEl = document.getElementById('postType');
+  const dateEl = document.getElementById('postDate');
+  const titleEl = document.getElementById('postTitle');
+
+  let detectedType = '';
+  if (host.includes('instagram.com')) {
+    if (path.includes('/reel/') || path.includes('/reels/')) {
+      detectedType = 'Reels';
+    } else if (path.includes('/stories/')) {
+      detectedType = 'Story';
+    } else if (path.includes('/p/')) {
+      detectedType = (typeEl && typeEl.value === 'Carrossel') ? 'Carrossel' : 'Foto';
+    }
+  } else if (host.includes('tiktok.com')) {
+    detectedType = 'Reels';
+  } else if (host.includes('youtube.com') || host.includes('youtu.be')) {
+    detectedType = path.includes('/shorts/') ? 'Reels' : 'Vídeo';
+  } else if (host.includes('vimeo.com')) {
+    detectedType = 'Vídeo';
+  }
+
+  if (detectedType && typeEl) {
+    typeEl.value = detectedType;
+  }
+
+  if (dateEl && !dateEl.value) {
+    dateEl.value = getLocalTodayISO();
+  }
+
+  if (titleEl && (!titleEl.value.trim() || titleEl.dataset.autoSuggested === 'true')) {
+    const isoDate = dateEl?.value || getLocalTodayISO();
+    const parts = isoDate.split('-');
+    const shortDate = parts.length === 3 ? `${parts[2]}/${parts[1]}` : formatDateBR(isoDate);
+
+    const isSocialIdHost =
+      host.includes('instagram.com') ||
+      host.includes('tiktok.com') ||
+      host.includes('youtube.com') ||
+      host.includes('youtu.be');
+
+    let slugTitle = '';
+    if (!isSocialIdHost) {
+      const segments = parsedUrl.pathname.split('/').filter(Boolean);
+      const lastSeg = segments[segments.length - 1] || '';
+      if (/^[a-z0-9]+(?:[-_][a-z0-9]+)+$/i.test(lastSeg) && !/^[a-f0-9-]{20,}$/i.test(lastSeg)) {
+        const words = lastSeg.replace(/[-_]+/g, ' ').trim();
+        slugTitle = words.charAt(0).toUpperCase() + words.slice(1);
+      }
+    }
+
+    if (slugTitle) {
+      titleEl.value = slugTitle;
+    } else {
+      const targetClientId =
+        document.getElementById('postTargetClientId')?.value ||
+        document.getElementById('postClientSelect')?.value ||
+        currentClientId;
+      const client = appData.clients.find(c => c.id === targetClientId);
+      const clientLabel = client ? (formatInstagram(client.instagram) || client.name) : '';
+      const labelType = detectedType || typeEl?.value || 'Postagem';
+      titleEl.value = clientLabel ? `${labelType} — ${clientLabel} (${shortDate})` : `${labelType} (${shortDate})`;
+    }
+    titleEl.dataset.autoSuggested = 'true';
+  }
+}
+
 function populateContractSelectForPostModal(client, postId = null, preselectedContractId = '') {
   const contractSelect = document.getElementById('postContractId');
   const noContractBox = document.getElementById('postNoContractWarning');
@@ -2800,6 +2977,7 @@ function openPostModal(postId = null, targetClientId = null, isQuickFlow = false
     const linked = getLinkedContractForPost(client, post);
     document.getElementById('postContractId').value = linked ? linked.id : (post.contractId || '');
     document.getElementById('postTitle').value = post.title || '';
+    document.getElementById('postTitle').dataset.autoSuggested = 'false';
     document.getElementById('postLink').value = post.link || '';
     document.getElementById('postNotes').value = post.notes || '';
     setPostMoreOptionsExpanded(true);
@@ -2810,6 +2988,7 @@ function openPostModal(postId = null, targetClientId = null, isQuickFlow = false
     document.getElementById('postType').value = 'Reels';
     document.getElementById('postStatus').value = 'Publicado';
     document.getElementById('postTitle').value = '';
+    document.getElementById('postTitle').dataset.autoSuggested = '';
     document.getElementById('postLink').value = '';
     document.getElementById('postNotes').value = '';
     setPostMoreOptionsExpanded(!isQuickFlow);
@@ -3181,51 +3360,59 @@ function renderDeliveryReportContent() {
   const insta = formatInstagram(client.instagram);
 
   area.innerHTML = `
-    <div class="report-doc-header">
-      <div>
-        <div class="report-brand-mark">NasRuas de ITZ • Relatório de Entregas</div>
-        <div class="report-doc-title">${escapeHtml(client.name)}</div>
-        ${insta ? `<div class="report-doc-handle">${escapeHtml(insta)}</div>` : ''}
+    <div class="report-doc-header report-doc-header-branded">
+      <div class="report-doc-brand-row">
+        <img src="/logo-nasruas.png" alt="NasRuas de ITZ" class="report-brand-logo">
+        <div>
+          <div class="report-brand-mark">NasRuas de ITZ • Relatório de Entregas</div>
+          <div class="report-doc-title">${escapeHtml(client.name)}</div>
+          ${insta ? `<div class="report-doc-handle">${escapeHtml(insta)}</div>` : ''}
+        </div>
       </div>
-      <div style="text-align: right;">
+      <div class="report-doc-period-box">
         <span class="report-stat-label">Período</span>
-        <div style="font-weight: 600; font-size: 0.95rem;">${escapeHtml(periodLabel)}</div>
-        <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">Gerado em ${escapeHtml(generatedLabel)}</div>
+        <div class="report-doc-period-val">${escapeHtml(periodLabel)}</div>
+        <div class="report-doc-generated">Gerado em ${escapeHtml(generatedLabel)}</div>
       </div>
     </div>
 
     <div class="report-summary-grid">
       <div class="report-stat-box">
         <span class="report-stat-label">Contratadas</span>
-        <strong class="report-stat-val">${cm.hasDefinedQuantity ? cm.totalContracted : 'Livre'}</strong>
+        <strong class="report-stat-val tabular-nums">${cm.hasDefinedQuantity ? cm.totalContracted : 'Livre'}</strong>
       </div>
       <div class="report-stat-box">
         <span class="report-stat-label">Publicadas</span>
-        <strong class="report-stat-val text-success">${cm.published}</strong>
+        <strong class="report-stat-val text-success tabular-nums">${cm.published}</strong>
       </div>
       <div class="report-stat-box">
         <span class="report-stat-label">Restantes</span>
-        <strong class="report-stat-val">${cm.hasDefinedQuantity ? cm.remaining : '—'}</strong>
+        <strong class="report-stat-val tabular-nums">${cm.hasDefinedQuantity ? cm.remaining : '—'}</strong>
       </div>
-      <div class="report-stat-box">
+      <div class="report-stat-box report-stat-box-highlight">
         <span class="report-stat-label">${cm.excess > 0 ? 'Excedente' : 'Progresso'}</span>
-        <strong class="report-stat-val ${cm.excess > 0 ? 'text-success' : ''}">${cm.hasDefinedQuantity ? (cm.excess > 0 ? `+${cm.excess}` : `${cm.percentage}%`) : 'Contínua'}</strong>
+        <strong class="report-stat-val ${cm.excess > 0 ? 'text-success' : ''} tabular-nums">${cm.hasDefinedQuantity ? (cm.excess > 0 ? `+${cm.excess}` : `${cm.percentage}%`) : 'Contínua'}</strong>
       </div>
     </div>
 
-    <h4 style="font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.5rem; color: var(--text-muted);">
+    <h4 class="report-deliveries-heading">
       Publicações Entregues (${deliveredPosts.length})
     </h4>
 
     ${deliveredPosts.length === 0
       ? `<p style="font-size: 0.875rem; color: var(--text-muted); padding: 8px 0;">Nenhuma publicação concluída neste recorte até o momento.</p>`
       : `<div class="report-deliveries-list">
-          ${deliveredPosts.map(p => `
-            <div class="report-delivery-item">
-              <div class="report-delivery-main">
-                <span class="tabular-nums" style="color: var(--text-muted); font-weight: 400;">${escapeHtml(formatDateBR(p.date))}</span> — <span style="color: var(--text-secondary); font-weight: 400;">[${escapeHtml(p.type)}]</span> ${escapeHtml(p.title)}
+          ${deliveredPosts.map((p, idx) => `
+            <div class="report-delivery-item report-delivery-card">
+              <span class="report-delivery-num tabular-nums">${String(idx + 1).padStart(2, '0')}</span>
+              <div class="report-delivery-body">
+                <div class="report-delivery-meta">
+                  <span class="badge badge-concluido">${escapeHtml(p.type)}</span>
+                  <span class="tabular-nums">${escapeHtml(formatDateBR(p.date))}</span>
+                </div>
+                <div class="report-delivery-main">${escapeHtml(p.title)}</div>
+                ${p.link ? `<a href="${escapeHtml(p.link)}" target="_blank" rel="noopener noreferrer" class="report-delivery-link">${escapeHtml(p.link)}</a>` : ''}
               </div>
-              ${p.link ? `<a href="${escapeHtml(p.link)}" target="_blank" rel="noopener noreferrer" class="report-delivery-link">${escapeHtml(p.link)}</a>` : ''}
             </div>
           `).join('')}
         </div>`
@@ -5007,7 +5194,36 @@ async function applyLegacyClassifications() {
   }
 }
 
-// ==================== ABA INDEPENDENTE: VÍDEOS ====================
+// ==================== ABA INDEPENDENTE: VÍDEOS (KANBAN) ====================
+async function quickChangeVideoStatus(videoId, newStatus) {
+  const valid = ['A fazer', 'Em produção', 'Concluído'];
+  if (!valid.includes(newStatus)) return;
+  const video = (appData.videos || []).find(v => v.id === videoId);
+  if (!video || video.status === newStatus) return;
+
+  const prevStatus = video.status;
+  video.status = newStatus;
+  video.updatedAt = new Date().toISOString();
+  renderVideosView();
+
+  try {
+    if (supabase) {
+      const { error } = await supabase
+        .from('videos')
+        .update({ status: newStatus, atualizado_em: video.updatedAt })
+        .eq('id', videoId);
+      if (error) throw error;
+    } else {
+      saveData();
+    }
+    showToast(`Vídeo movido para "${newStatus}".`);
+  } catch (err) {
+    video.status = prevStatus;
+    renderVideosView();
+    showToast('Erro ao atualizar status do vídeo.', true);
+  }
+}
+
 function renderVideosView() {
   ensureRecoveryStructures();
   const listEl = document.getElementById('videosList');
@@ -5038,33 +5254,111 @@ function renderVideosView() {
     return;
   }
 
-  listEl.innerHTML = filtered.map(v => {
-    const badgeCls = v.status === 'Concluído' ? 'badge-entregue' : (v.status === 'Em produção' ? 'badge-producao' : 'badge-pendente');
+  const columns = [
+    { status: 'A fazer', title: 'A fazer', accentClass: 'kanban-col-todo' },
+    { status: 'Em produção', title: 'Em produção', accentClass: 'kanban-col-doing' },
+    { status: 'Concluído', title: 'Concluído', accentClass: 'kanban-col-done' }
+  ];
+  const visibleColumns = videoStatusFilter === 'ALL'
+    ? columns
+    : columns.filter(col => col.status === videoStatusFilter);
+
+  const renderVideoCard = (v) => {
+    const moveAction = v.status === 'A fazer'
+      ? `<button type="button" class="btn btn-secondary btn-sm" onclick="quickChangeVideoStatus('${escapeHtml(v.id)}', 'Em produção')">Mover → Em produção</button>`
+      : (v.status === 'Em produção'
+        ? `<button type="button" class="btn btn-secondary btn-sm" onclick="quickChangeVideoStatus('${escapeHtml(v.id)}', 'Concluído')">Concluir ✓</button>`
+        : `<button type="button" class="btn btn-ghost btn-sm" onclick="quickChangeVideoStatus('${escapeHtml(v.id)}', 'Em produção')">Reabrir</button>`);
+
+    const stepsDone = getVideoChecklistArray(v).length;
     return `
-      <article class="post-card">
-        <div class="post-card-top">
-          <div class="post-meta-left">
-            <span class="badge ${badgeCls}">${escapeHtml(v.status)}</span>
-            ${v.dueDate ? `<span class="post-date tabular-nums">${escapeHtml(formatDateBR(v.dueDate))}</span>` : ''}
+      <article class="kanban-card">
+        <div class="kanban-card-top">
+          ${v.dueDate ? `<span class="post-date tabular-nums">${escapeHtml(formatDateBR(v.dueDate))}</span>` : '<span class="post-date">Sem prazo</span>'}
+          <div style="display:inline-flex; gap:6px; align-items:center;">
+            ${stepsDone > 0 ? `<span class="badge badge-concluido tabular-nums">${stepsDone}/4 etapas</span>` : ''}
             ${v.archived ? `<span class="badge badge-concluido">Arquivado</span>` : ''}
-          </div>
-          <div style="display:flex; gap:6px;">
-            <button type="button" class="btn btn-secondary btn-sm" onclick="openVideoModal('${escapeHtml(v.id)}')">Editar</button>
-            <button type="button" class="btn btn-ghost btn-sm" onclick="toggleArchiveVideo('${escapeHtml(v.id)}')">${v.archived ? 'Restaurar' : 'Arquivar'}</button>
-            <button type="button" class="btn btn-ghost btn-sm text-danger" onclick="confirmDeleteVideo('${escapeHtml(v.id)}')">Excluir</button>
           </div>
         </div>
         <h3 class="post-title">${escapeHtml(v.title)}</h3>
-        ${v.description ? `<p style="font-size:13px; color:var(--text-secondary); margin: 4px 0 0;">${escapeHtml(v.description)}</p>` : ''}
+        ${v.description ? `<p class="kanban-card-desc">${escapeHtml(v.description)}</p>` : ''}
         ${(v.materialLink || v.finalLink) ? `
-          <div class="post-card-bottom" style="gap: 12px; flex-wrap: wrap;">
+          <div class="kanban-card-links">
             ${v.materialLink ? `<a href="${escapeHtml(v.materialLink)}" target="_blank" rel="noopener noreferrer" class="post-external-link">Material</a>` : ''}
             ${v.finalLink ? `<a href="${escapeHtml(v.finalLink)}" target="_blank" rel="noopener noreferrer" class="post-external-link">Vídeo final</a>` : ''}
           </div>
         ` : ''}
+        <div class="kanban-card-actions">
+          ${moveAction}
+          <div class="kanban-card-subactions">
+            <button type="button" class="btn btn-ghost btn-sm" onclick="openVideoModal('${escapeHtml(v.id)}')">Editar</button>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="toggleArchiveVideo('${escapeHtml(v.id)}')">${v.archived ? 'Restaurar' : 'Arquivar'}</button>
+            <button type="button" class="btn btn-ghost btn-sm text-danger" onclick="confirmDeleteVideo('${escapeHtml(v.id)}')">Excluir</button>
+          </div>
+        </div>
       </article>
     `;
-  }).join('');
+  };
+
+  listEl.innerHTML = `
+    <div class="videos-kanban-board" style="grid-column: 1 / -1;">
+      ${visibleColumns.map(col => {
+        const items = filtered.filter(v => v.status === col.status);
+        return `
+          <section class="kanban-column ${col.accentClass}" aria-label="${escapeHtml(col.title)}">
+            <header class="kanban-column-header">
+              <h3 class="kanban-column-title">${escapeHtml(col.title)}</h3>
+              <span class="kanban-column-count tabular-nums">${items.length}</span>
+            </header>
+            <div class="kanban-column-body">
+              ${items.length === 0
+                ? `<p class="kanban-empty-note">Nenhum vídeo em "${escapeHtml(col.title)}".</p>`
+                : items.map(renderVideoCard).join('')}
+            </div>
+          </section>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+const VIDEO_CHECKLIST_LABELS = {
+  roteiro: 'Roteiro / pauta definida',
+  captacao: 'Captação / gravação realizada',
+  edicao: 'Edição e legendas prontas',
+  revisao: 'Revisado e pronto para envio'
+};
+
+function extractVideoChecklistFromNotes(notes = '') {
+  const str = String(notes || '');
+  const match = str.match(/\[checklist:([a-z,]*)\]\s*$/i);
+  if (!match) return { cleanNotes: str, checklist: [] };
+  const checklist = match[1].split(',').map(s => s.trim()).filter(s => VIDEO_CHECKLIST_LABELS[s]);
+  const cleanNotes = str.replace(match[0], '').trim();
+  return { cleanNotes, checklist };
+}
+
+function getVideoChecklistArray(video) {
+  if (Array.isArray(video?.checklist) && video.checklist.length > 0) return video.checklist;
+  return extractVideoChecklistFromNotes(video?.notes || '').checklist;
+}
+
+function updateVideoChecklistCount() {
+  const checks = Array.from(document.querySelectorAll('.video-step-check'));
+  const done = checks.filter(c => c.checked).length;
+  const badge = document.getElementById('videoChecklistBadge');
+  if (badge) badge.textContent = `${done}/${checks.length || 4}`;
+}
+
+async function copyVideoChecklistFromModal() {
+  const title = (document.getElementById('videoTitle')?.value || '').trim() || 'Projeto de vídeo';
+  const status = document.getElementById('videoStatus')?.value || 'A fazer';
+  const checks = Array.from(document.querySelectorAll('.video-step-check'));
+  const lines = [
+    `*${title}* (${status})`,
+    ...checks.map(c => `${c.checked ? '✅' : '⬜'} ${VIDEO_CHECKLIST_LABELS[c.value] || c.value}`)
+  ];
+  await copyTextToClipboard(lines.join('\n'), 'Checklist copiado!');
 }
 
 function openVideoModal(videoId = null) {
@@ -5072,10 +5366,13 @@ function openVideoModal(videoId = null) {
   const form = document.getElementById('videoForm');
   if (form && typeof form.reset === 'function') form.reset();
   document.getElementById('videoFormError')?.classList.add('hidden');
+  let activeChecklist = [];
 
   if (videoId) {
     const v = (appData.videos || []).find(item => item.id === videoId);
     if (!v) return;
+    const parsed = extractVideoChecklistFromNotes(v.notes || '');
+    activeChecklist = Array.isArray(v.checklist) ? v.checklist : parsed.checklist;
     document.getElementById('videoModalTitle').textContent = 'Editar vídeo';
     document.getElementById('videoId').value = v.id;
     document.getElementById('videoTitle').value = v.title || '';
@@ -5084,12 +5381,16 @@ function openVideoModal(videoId = null) {
     document.getElementById('videoDueDate').value = v.dueDate || '';
     document.getElementById('videoMaterialLink').value = v.materialLink || '';
     document.getElementById('videoFinalLink').value = v.finalLink || '';
-    document.getElementById('videoNotes').value = v.notes || '';
+    document.getElementById('videoNotes').value = parsed.cleanNotes;
   } else {
     document.getElementById('videoModalTitle').textContent = 'Novo vídeo';
     document.getElementById('videoId').value = '';
     document.getElementById('videoStatus').value = 'A fazer';
   }
+  document.querySelectorAll('.video-step-check').forEach(cb => {
+    cb.checked = activeChecklist.includes(cb.value);
+  });
+  updateVideoChecklistCount();
   openModal('videoModal');
 }
 
@@ -5104,7 +5405,9 @@ async function handleVideoSubmit(e) {
   const dueDate = document.getElementById('videoDueDate').value || '';
   const materialLink = document.getElementById('videoMaterialLink').value.trim();
   const finalLink = document.getElementById('videoFinalLink').value.trim();
-  const notes = document.getElementById('videoNotes').value.trim();
+  const rawNotes = document.getElementById('videoNotes').value.trim();
+  const checklist = Array.from(document.querySelectorAll('.video-step-check')).filter(c => c.checked).map(c => c.value);
+  const notes = checklist.length > 0 ? `${rawNotes ? `${rawNotes}\n` : ''}[checklist:${checklist.join(',')}]` : rawNotes;
   const errEl = document.getElementById('videoFormError');
 
   errEl?.classList.add('hidden');
@@ -5430,7 +5733,13 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.getElementById('postStatus')?.addEventListener('change', updatePostSaveButtonText);
-  document.getElementById('postLink')?.addEventListener('input', checkDuplicatePostLink);
+  document.getElementById('postTitle')?.addEventListener('input', (e) => {
+    e.target.dataset.autoSuggested = 'false';
+  });
+  document.getElementById('postLink')?.addEventListener('input', () => {
+    checkDuplicatePostLink();
+    autofillPostFieldsFromLink();
+  });
 
   // Relatório de entregas & Relatório geral
   document.getElementById('reportContractSelect')?.addEventListener('change', renderDeliveryReportContent);
@@ -5644,4 +5953,11 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   });
+});
+
+Object.assign(window, {
+  copyTextToClipboard,
+  quickChangeVideoStatus,
+  updateVideoChecklistCount,
+  copyVideoChecklistFromModal
 });

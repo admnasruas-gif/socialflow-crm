@@ -115,105 +115,52 @@
           <div class="app-hero-top-row">
             <div class="app-hero-greeting">
               <img src="/logo-nasruas.png" alt="NasRuas de ITZ" class="ios-header-logo">
-              <h1 class="app-hero-title" id="dashboardTitle">
-                <span class="app-hero-brand">NasRuas</span> hoje?
-              </h1>
+              <div>
+                <span class="app-hero-kicker">PAINEL DE GESTÃO</span>
+                <h1 class="app-hero-title" id="dashboardTitle">
+                  <span class="app-hero-brand">NasRuas</span> hoje?
+                </h1>
+              </div>
             </div>
-            <div class="app-mini-calendar" aria-label="Data de hoje">
-              <span class="mini-cal-month" id="miniCalMonth">NOV</span>
-              <strong class="mini-cal-day" id="miniCalDay">21</strong>
-            </div>
+            <button type="button" class="btn btn-primary btn-sm" onclick="openClientModal()" aria-label="Novo cliente">
+              + Novo
+            </button>
           </div>
 
-          <!-- Busca Pill Branca dentro do Hero Header -->
+          <!-- Busca Pill Branca dentro do Hero Header com botão Filtros integrado -->
           <div class="app-hero-search-wrap">
             <label for="searchInput" class="visually-hidden">Buscar cliente</label>
             <svg class="ios-search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <circle cx="11" cy="11" r="8"></circle>
               <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
             </svg>
-            <input type="search" id="searchInput" class="app-hero-search-input" placeholder="Buscar cliente, @instagram..." aria-label="Buscar cliente" autocomplete="off">
+            <input type="search" id="searchInput" class="app-hero-search-input" placeholder="Buscar cliente ou @instagram..." aria-label="Buscar cliente" autocomplete="off">
+            <button type="button" class="app-search-filter-btn" id="btnOpenFiltersSheet" aria-label="Abrir filtros">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="4" y1="21" x2="4" y2="14"></line>
+                <line x1="4" y1="10" x2="4" y2="3"></line>
+                <line x1="12" y1="21" x2="12" y2="12"></line>
+                <line x1="12" y1="8" x2="12" y2="3"></line>
+                <line x1="20" y1="21" x2="20" y2="16"></line>
+                <line x1="20" y1="12" x2="20" y2="3"></line>
+              </svg>
+              <span id="activeFiltersBadge" class="app-tile-badge hidden">0</span>
+            </button>
           </div>
         </header>
 
         <div class="ios-screen-body">
-          <!-- Grade 3x2 de Atalhos Rápidos estilo App (Toolisan) -->
-          <div class="app-quick-grid" aria-label="Atalhos rápidos">
-            <button type="button" class="app-quick-tile" id="btnNewClientHeader">
-              <span class="app-tile-icon tile-icon-yellow">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                  <circle cx="8.5" cy="7" r="4"></circle>
-                  <line x1="20" y1="8" x2="20" y2="14"></line>
-                  <line x1="23" y1="11" x2="17" y2="11"></line>
-                </svg>
-              </span>
-              <span class="app-tile-label">+ Cliente</span>
-            </button>
-
-            <button type="button" class="app-quick-tile" id="btnQuickNewPostTile">
-              <span class="app-tile-icon tile-icon-pink">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <rect x="3" y="3" width="18" height="18" rx="4"></rect>
-                  <line x1="12" y1="8" x2="12" y2="16"></line>
-                  <line x1="8" y1="12" x2="16" y2="12"></line>
-                </svg>
-              </span>
-              <span class="app-tile-label">+ Postagem</span>
-            </button>
-
-            <button type="button" class="app-quick-tile" id="btnOpenFiltersSheet">
-              <span class="app-tile-icon tile-icon-blue">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <line x1="4" y1="21" x2="4" y2="14"></line>
-                  <line x1="4" y1="10" x2="4" y2="3"></line>
-                  <line x1="12" y1="21" x2="12" y2="12"></line>
-                  <line x1="12" y1="8" x2="12" y2="3"></line>
-                  <line x1="20" y1="21" x2="20" y2="16"></line>
-                  <line x1="20" y1="12" x2="20" y2="3"></line>
-                </svg>
-              </span>
-              <span class="app-tile-label">Filtros <span id="activeFiltersBadge" class="app-tile-badge hidden">0</span></span>
-            </button>
-
-            <button type="button" class="app-quick-tile" onclick="goToPostsWithStatus('Pendente')">
-              <span class="app-tile-icon tile-icon-amber">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <circle cx="12" cy="12" r="10"></circle>
-                  <polyline points="12 6 12 12 16 14"></polyline>
-                </svg>
-              </span>
-              <span class="app-tile-label">Pendentes</span>
-            </button>
-
-            <button type="button" class="app-quick-tile" onclick="goToPostsWithStatus('Agendado')">
-              <span class="app-tile-icon tile-icon-purple">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <!-- Linha de Período + Relatório Geral lado a lado -->
+          <div class="ios-period-filter-row">
+            <div class="ios-period-control ios-period-card-btn">
+              <label for="globalContractMonthFilter" class="visually-hidden">Período do contrato</label>
+              <button type="button" class="ios-period-display-btn" aria-hidden="true" tabindex="-1">
+                <svg class="ios-period-cal-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
                   <line x1="16" y1="2" x2="16" y2="6"></line>
                   <line x1="8" y1="2" x2="8" y2="6"></line>
                   <line x1="3" y1="10" x2="21" y2="10"></line>
                 </svg>
-              </span>
-              <span class="app-tile-label">Agendadas</span>
-            </button>
-
-            <button type="button" class="app-quick-tile" onclick="goToPostsWithStatus('Publicado')">
-              <span class="app-tile-icon tile-icon-green">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                </svg>
-              </span>
-              <span class="app-tile-label">Publicadas</span>
-            </button>
-          </div>
-
-          <!-- Linha de Período + Limpar -->
-          <div class="ios-period-filter-row">
-            <div class="ios-period-control">
-              <label for="globalContractMonthFilter" class="visually-hidden">Período do contrato</label>
-              <button type="button" class="ios-period-display-btn" aria-hidden="true" tabindex="-1">
                 <span id="globalPeriodDisplayLabel">Todos os períodos</span>
                 <svg class="ios-period-chevron" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <polyline points="6 9 12 15 18 9"></polyline>
@@ -225,8 +172,13 @@
             </div>
 
             <div class="ios-filter-actions">
-              <button type="button" class="ios-filter-btn" id="btnOpenGeneralReport">
-                Relatório geral
+              <button type="button" class="ios-filter-btn ios-report-card-btn" id="btnOpenGeneralReport">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <line x1="18" y1="20" x2="18" y2="10"></line>
+                  <line x1="12" y1="20" x2="12" y2="4"></line>
+                  <line x1="6" y1="20" x2="6" y2="14"></line>
+                </svg>
+                <span>Relatório geral</span>
               </button>
               <button type="button" class="ios-clear-filter-btn hidden" id="btnClearGlobalFilters">
                 Limpar filtros
@@ -286,7 +238,7 @@
 
           <!-- Cabeçalho da Seção: SEUS CLIENTES + contagem à direita -->
           <div class="ios-section-header">
-            <span class="ios-section-title">SEUS CLIENTES</span>
+            <h2 class="ios-section-title">SEUS CLIENTES</h2>
             <div class="ios-section-right">
               <div class="desktop-view-toggle" id="clientsViewToggle" role="group" aria-label="Modo de visualização">
                 <button type="button" class="view-toggle-btn active" data-clients-view="cards" id="btnClientsViewCards">Cards</button>
@@ -309,62 +261,39 @@
           <div class="ios-brand-header-left">
             <img src="/logo-nasruas.png" alt="NasRuas de ITZ" class="ios-header-logo">
             <div class="screen-header-titles">
+              <span class="app-hero-kicker">GERENCIAMENTO DE CONTEÚDO</span>
               <h1 class="ios-page-title">Postagens</h1>
-              <span class="screen-count-meta" id="globalPostsCountLabel">0 postagens</span>
+              <span class="screen-count-meta hidden" id="globalPostsCountLabel">0 postagens</span>
             </div>
           </div>
-          <button type="button" class="ios-add-btn" id="btnNewPostGlobalHeader" aria-label="Adicionar postagem" title="Adicionar postagem">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <line x1="12" y1="5" x2="12" y2="19"></line>
-              <line x1="5" y1="12" x2="19" y2="12"></line>
-            </svg>
+          <button type="button" class="btn btn-primary btn-sm" id="btnNewPostGlobalHeader" aria-label="Adicionar postagem" title="Adicionar postagem">
+            + Postagem
           </button>
         </header>
 
         <div class="ios-screen-body">
-          <!-- Busca com fundo cinza suave iOS -->
+          <!-- Busca Pill Branca -->
           <div class="ios-search-wrap">
             <label for="postsSearchInput" class="visually-hidden">Buscar postagem ou cliente</label>
             <svg class="ios-search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <circle cx="11" cy="11" r="8"></circle>
               <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
             </svg>
-            <input type="search" id="postsSearchInput" class="ios-search-input" placeholder="Buscar título ou cliente" aria-label="Buscar título ou cliente" autocomplete="off">
+            <input type="search" id="postsSearchInput" class="app-hero-search-input posts-search-input-clean" placeholder="Buscar título, cliente ou @..." aria-label="Buscar título ou cliente" autocomplete="off">
           </div>
 
-          <div class="ios-period-filter-row">
-            <!-- Faixa de chips contida com indicação de continuidade -->
-            <div class="status-chips-container">
-              <div class="status-chips-scroll" id="dashboardStatusPills" role="tablist" aria-label="Filtrar por status">
-                <button type="button" class="status-chip active" data-status-pill="ALL">
-                  <span>Todas</span>
-                  <span class="chip-num tabular-nums" id="pillCountAll">0</span>
-                </button>
-                <button type="button" class="status-chip" data-status-pill="Publicado">
-                  <span class="pill-dot dot-publicado"></span>
-                  <span>Publicadas</span>
-                  <span class="chip-num tabular-nums" id="pillCountPublicado">0</span>
-                </button>
-                <button type="button" class="status-chip" data-status-pill="Agendado">
-                  <span class="pill-dot dot-agendado"></span>
-                  <span>Agendadas</span>
-                  <span class="chip-num tabular-nums" id="pillCountAgendado">0</span>
-                </button>
-                <button type="button" class="status-chip" data-status-pill="Em produção">
-                  <span class="pill-dot dot-producao"></span>
-                  <span>Produção</span>
-                  <span class="chip-num tabular-nums" id="pillCountProducao">0</span>
-                </button>
-                <button type="button" class="status-chip" data-status-pill="Pendente">
-                  <span class="pill-dot dot-pendente"></span>
-                  <span>Pendentes</span>
-                  <span class="chip-num tabular-nums" id="pillCountPendente">0</span>
-                </button>
-              </div>
+          <!-- Recorte + Filtros lado a lado -->
+          <div class="posts-toolbar-row">
+            <div class="posts-period-mode-row">
+              <label for="globalPostsPeriodMode" class="visually-hidden">Modo de recorte do período</label>
+              <select id="globalPostsPeriodMode" class="select-filter w-full" aria-label="Modo de recorte do período">
+                <option value="contract">Recorte: Período do contrato</option>
+                <option value="date">Recorte: Data da publicação</option>
+              </select>
             </div>
 
-            <div class="ios-filter-actions">
-              <button type="button" class="ios-filter-btn" id="btnOpenPostsFiltersSheet">
+            <div class="ios-filter-actions posts-filter-actions-compact">
+              <button type="button" class="ios-filter-btn ios-report-card-btn" id="btnOpenPostsFiltersSheet">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <line x1="4" y1="21" x2="4" y2="14"></line>
                   <line x1="4" y1="10" x2="4" y2="3"></line>
@@ -382,12 +311,34 @@
             </div>
           </div>
 
-          <div class="posts-period-mode-row">
-            <label for="globalPostsPeriodMode" class="posts-period-mode-label">Recorte do mês:</label>
-            <select id="globalPostsPeriodMode" class="select-filter" aria-label="Modo de recorte do período">
-              <option value="contract">Por período do contrato</option>
-              <option value="date">Por data da publicação</option>
-            </select>
+          <!-- Faixa horizontal de chips de status -->
+          <div class="status-chips-container">
+            <div class="status-chips-scroll" id="dashboardStatusPills" role="tablist" aria-label="Filtrar por status">
+              <button type="button" class="status-chip active" data-status-pill="ALL">
+                <span>Todas</span>
+                <span class="chip-num tabular-nums" id="pillCountAll">0</span>
+              </button>
+              <button type="button" class="status-chip" data-status-pill="Publicado">
+                <span class="pill-dot dot-publicado"></span>
+                <span>Publicadas</span>
+                <span class="chip-num tabular-nums" id="pillCountPublicado">0</span>
+              </button>
+              <button type="button" class="status-chip" data-status-pill="Agendado">
+                <span class="pill-dot dot-agendado"></span>
+                <span>Agendadas</span>
+                <span class="chip-num tabular-nums" id="pillCountAgendado">0</span>
+              </button>
+              <button type="button" class="status-chip" data-status-pill="Em produção">
+                <span class="pill-dot dot-producao"></span>
+                <span>Produção</span>
+                <span class="chip-num tabular-nums" id="pillCountProducao">0</span>
+              </button>
+              <button type="button" class="status-chip" data-status-pill="Pendente">
+                <span class="pill-dot dot-pendente"></span>
+                <span>Pendentes</span>
+                <span class="chip-num tabular-nums" id="pillCountPendente">0</span>
+              </button>
+            </div>
           </div>
 
           <div id="postsPeriodModeNotice" class="filter-info-banner hidden">
@@ -407,19 +358,22 @@
           <div class="profile-desktop-layout">
             <div class="profile-desktop-left">
           <!-- Resumo do Contrato Selecionado & Ações Hierarquizadas -->
-          <div class="ios-client-card">
+          <div class="ios-client-card profile-contract-summary-card">
             <div class="profile-contract-selector-row">
-              <div class="ios-period-control" style="max-width: 70%;">
-                <label for="filterProfileContractMonth" class="visually-hidden">Selecionar contrato do cliente</label>
-                <button type="button" class="ios-period-display-btn" aria-hidden="true" tabindex="-1">
-                  <span id="profileContractDisplayLabel">Todos os contratos</span>
-                  <svg class="ios-period-chevron" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <polyline points="6 9 12 15 18 9"></polyline>
-                  </svg>
-                </button>
-                <select id="filterProfileContractMonth" class="ios-period-select-overlay" aria-label="Selecionar contrato do cliente">
-                  <option value="ALL">Todos os contratos</option>
-                </select>
+              <div class="profile-contract-selector-left">
+                <div class="ios-period-control profile-contract-pill-select">
+                  <label for="filterProfileContractMonth" class="visually-hidden">Selecionar contrato do cliente</label>
+                  <button type="button" class="ios-period-display-btn" aria-hidden="true" tabindex="-1">
+                    <span id="profileContractDisplayLabel">Todos os contratos</span>
+                    <svg class="ios-period-chevron" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                  </button>
+                  <select id="filterProfileContractMonth" class="ios-period-select-overlay" aria-label="Selecionar contrato do cliente">
+                    <option value="ALL">Todos os contratos</option>
+                  </select>
+                </div>
+                <span id="profileAgreementTypePill" class="badge-agreement-pill hidden">Mensal</span>
               </div>
               <span id="profileDeliveryBadge" class="badge badge-andamento">Em andamento</span>
             </div>
@@ -886,11 +840,11 @@
             <span>Incluir contratos cancelados</span>
           </label>
         </div>
+      </div>
 
-        <div class="modal-footer">
-          <button type="button" class="btn btn-ghost" id="btnSheetResetFilters">Limpar</button>
-          <button type="button" class="btn btn-primary" data-close-modal="filtersSheetModal">Aplicar</button>
-        </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" id="btnSheetResetFilters">Limpar</button>
+        <button type="button" class="btn btn-primary" data-close-modal="filtersSheetModal">Aplicar</button>
       </div>
     </div>
   </div>
@@ -1408,6 +1362,19 @@
           <div class="form-group">
             <label for="videoFinalLink">Link do vídeo final (opcional)</label>
             <input type="url" id="videoFinalLink" placeholder="https://...">
+          </div>
+
+          <div class="form-group video-checklist-box">
+            <div class="video-checklist-header">
+              <label style="margin:0;">Checklist de etapas <span id="videoChecklistBadge" class="badge badge-concluido">0/4</span></label>
+              <button type="button" class="btn btn-ghost btn-sm" id="btnCopyVideoChecklist" onclick="copyVideoChecklistFromModal()">Copiar checklist</button>
+            </div>
+            <div class="video-checklist-items">
+              <label class="checkbox-inline"><input type="checkbox" class="video-step-check" value="roteiro" onchange="updateVideoChecklistCount()"><span>Roteiro / pauta definida</span></label>
+              <label class="checkbox-inline"><input type="checkbox" class="video-step-check" value="captacao" onchange="updateVideoChecklistCount()"><span>Captação / gravação realizada</span></label>
+              <label class="checkbox-inline"><input type="checkbox" class="video-step-check" value="edicao" onchange="updateVideoChecklistCount()"><span>Edição e legendas prontas</span></label>
+              <label class="checkbox-inline"><input type="checkbox" class="video-step-check" value="revisao" onchange="updateVideoChecklistCount()"><span>Revisado e pronto para envio</span></label>
+            </div>
           </div>
 
           <div class="form-group">
