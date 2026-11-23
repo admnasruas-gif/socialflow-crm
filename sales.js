@@ -813,46 +813,62 @@ function renderSalesLancamentosList(filteredSales) {
   const desktopRows = rowsData.map(r => {
     const comValText = (r.comStatus === 'apurada' || r.comStatus === 'paga')
       ? formatCentsBR(r.com?.valorApuradoCentavos || 0)
-      : (r.comStatus === 'nao_se_aplica' ? 'R$ 0,00 (N/A)' : 'A definir');
+      : '';
+    const postsText = r.linkedPostsCount === 1
+      ? '1 postagem'
+      : (r.linkedPostsCount > 1 ? `${r.linkedPostsCount} postagens` : '');
+    const benefText = r.benef?.nome || (r.comStatus === 'nao_se_aplica' ? 'Sem comissão' : 'Beneficiário a definir');
 
     return `
       <tr>
-        <td style="width:36px;">
+        <td style="width:40px;">
           <input type="checkbox" ${r.canSelectForPayout ? '' : 'disabled'} ${r.isChecked ? 'checked' : ''} aria-label="Selecionar comissão de ${escapeStr(r.sale.titulo)}" onchange="toggleSaleBulkSelection('${escapeStr(r.com?.id || '')}', this.checked)">
         </td>
         <td>
-          <div style="font-weight:700;">
+          <div class="sales-cell-main">
             <button type="button" class="sales-link-btn" onclick="openSaleDetailModal('${escapeStr(r.sale.id)}')">${escapeStr(r.sale.titulo)}</button>
             ${r.locked ? '<span class="sales-badge sales-badge-neutral" title="Competência fechada">Fechada</span>' : ''}
           </div>
-          <div class="sales-table-sub">
+          <div class="sales-cell-stack">
             <button type="button" class="sales-link-subtle" onclick="openClientFromSales('${escapeStr(r.sale.clienteId)}')">${escapeStr(r.client?.name || 'Cliente')}</button>
-            • <span class="sales-badge sales-badge-neutral">${escapeStr(r.agType)}</span> ${escapeStr(r.contractLabel)}
-            ${r.linkedPostsCount > 0 ? ` • ${r.linkedPostsCount} postagem(ns)` : ''}
+            <div class="sales-cell-meta">
+              <span class="sales-badge sales-badge-neutral">${escapeStr(r.agType)}</span>
+              <span>${escapeStr(r.contractLabel)}</span>
+              ${postsText ? `<span>• ${escapeStr(postsText)}</span>` : ''}
+            </div>
+          </div>
+        </td>
+        <td class="tabular-nums" style="white-space:nowrap;">
+          <div class="sales-cell-stack">
+            <strong>${escapeStr(formatCompetenceLabel(r.sale.competencia))}</strong>
+            <span class="sales-table-sub">Venda: ${escapeStr(formatDateOnlyBR(r.sale.dataVenda))}</span>
           </div>
         </td>
         <td class="tabular-nums">
-          <div><strong>${escapeStr(formatCompetenceLabel(r.sale.competencia))}</strong></div>
-          <div class="sales-table-sub">Venda: ${escapeStr(formatDateOnlyBR(r.sale.dataVenda))}</div>
-        </td>
-        <td class="tabular-nums">
-          <div><strong>${escapeStr(formatCentsBR(r.sale.valorCentavos))}</strong></div>
-          <div class="sales-table-sub">Rec: ${escapeStr(formatCentsBR(r.receipt.totalRecebidoCentavos))} • Saldo: ${escapeStr(formatCentsBR(r.receipt.saldoCentavos))}</div>
+          <div class="sales-cell-amounts">
+            <strong class="sales-amount-main">${escapeStr(formatCentsBR(r.sale.valorCentavos))}</strong>
+            <span class="sales-table-sub">Rec: ${escapeStr(formatCentsBR(r.receipt.totalRecebidoCentavos))}</span>
+            <span class="sales-table-sub">Saldo: ${escapeStr(formatCentsBR(r.receipt.saldoCentavos))}</span>
+          </div>
         </td>
         <td>
-          <div class="sales-badges-stack">
+          <div class="sales-badges-col">
             <span class="sales-badge ${getBadgeClassForConference(r.sale.conferenciaStatus || 'pendente')}">${escapeStr(CONFERENCE_LABELS[r.sale.conferenciaStatus || 'pendente'])}</span>
             <span class="sales-badge ${getBadgeClassForReceipt(r.receipt.statusRecebimento)}">${escapeStr(RECEIPT_LABELS[r.receipt.statusRecebimento])}</span>
             ${r.receipt.hasDivergenciaExcedente ? '<span class="sales-badge sales-badge-danger">Excedente</span>' : ''}
           </div>
         </td>
         <td>
-          <div><span class="sales-badge ${getBadgeClassForCommission(r.comStatus)}">${escapeStr(COMMISSION_LABELS[r.comStatus] || r.comStatus)}</span></div>
-          <div class="sales-table-sub tabular-nums">${escapeStr(r.benef?.nome || (r.comStatus === 'nao_se_aplica' ? 'Sem comissão' : 'Beneficiário a definir'))} • ${escapeStr(comValText)}</div>
+          <div class="sales-cell-stack">
+            <div><span class="sales-badge ${getBadgeClassForCommission(r.comStatus)}">${escapeStr(COMMISSION_LABELS[r.comStatus] || r.comStatus)}</span></div>
+            <div class="sales-table-sub tabular-nums">${escapeStr(benefText)}${comValText ? ` • ${escapeStr(comValText)}` : ''}</div>
+          </div>
         </td>
-        <td style="white-space:nowrap; text-align:right;">
-          <button type="button" class="btn btn-secondary btn-sm" onclick="openSaleDetailModal('${escapeStr(r.sale.id)}')">Conferir / Pagar</button>
-          ${!r.locked ? `<button type="button" class="btn btn-ghost btn-sm" onclick="openSaleModal('${escapeStr(r.sale.id)}')">Editar</button>` : ''}
+        <td style="text-align:right;">
+          <div class="sales-actions-cell">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="openSaleDetailModal('${escapeStr(r.sale.id)}')">Conferir</button>
+            ${!r.locked ? `<button type="button" class="btn btn-ghost btn-sm" onclick="openSaleModal('${escapeStr(r.sale.id)}')">Editar</button>` : ''}
+          </div>
         </td>
       </tr>
     `;
@@ -902,6 +918,10 @@ function renderSalesLancamentosList(filteredSales) {
   }).join('');
 
   container.innerHTML = `
+    <div class="ios-section-header">
+      <span class="ios-section-title">LANÇAMENTOS</span>
+      <span class="ios-section-count tabular-nums">${filteredSales.length} ${filteredSales.length === 1 ? 'venda' : 'vendas'}</span>
+    </div>
     <div class="sales-table-wrap">
       <table class="sales-table">
         <thead>

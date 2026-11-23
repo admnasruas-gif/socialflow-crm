@@ -3760,8 +3760,25 @@ select.post-status-quick-select {
 }
 
 #salesView .ios-search-input {
-  background: var(--surface);
+  background: var(--bg);
   border: 1px solid var(--border);
+}
+
+#salesView .ios-search-input:focus {
+  background: var(--surface);
+  border-color: var(--primary);
+}
+
+#salesTabLancamentos:not(.hidden) {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+#salesListContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .sales-subtabs {
@@ -3838,14 +3855,18 @@ select.post-status-quick-select {
 }
 
 .sales-filters-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  padding: 14px 16px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 .sales-desktop-filters-grid {
   display: none;
-  gap: 8px;
+  gap: 10px;
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
@@ -4287,7 +4308,7 @@ select.post-status-quick-select {
 
 .sales-table th {
   text-align: left;
-  padding: 12px 12px;
+  padding: 13px 16px;
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
@@ -4299,7 +4320,7 @@ select.post-status-quick-select {
 }
 
 .sales-table td {
-  padding: 12px 12px;
+  padding: 16px 16px;
   border-bottom: 1px solid var(--border);
   vertical-align: middle;
 }
@@ -4309,13 +4330,64 @@ select.post-status-quick-select {
 }
 
 .sales-table tbody tr:hover {
-  background: var(--surface-secondary);
+  background: rgba(242, 242, 247, 0.55);
 }
 
 .sales-table-sub {
   font-size: 12px;
   color: var(--text-secondary);
-  line-height: 1.4;
+  line-height: 1.45;
+}
+
+.sales-cell-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 3px;
+}
+
+.sales-cell-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sales-cell-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.sales-cell-amounts {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  white-space: nowrap;
+}
+
+.sales-amount-main {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.sales-badges-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.sales-actions-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  white-space: nowrap;
 }
 
 .sales-mobile-cards {
@@ -4328,10 +4400,10 @@ select.post-status-quick-select {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
-  padding: 14px 16px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   min-width: 0;
 }
 
@@ -4345,10 +4417,10 @@ select.post-status-quick-select {
 .sales-mobile-amounts {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  gap: 10px;
   background: var(--bg);
   border-radius: 12px;
-  padding: 10px 12px;
+  padding: 12px;
 }
 
 .sales-mobile-amounts > div {
@@ -4404,16 +4476,18 @@ select.post-status-quick-select {
   padding: 0;
   margin: 0;
   font-family: inherit;
-  font-size: inherit;
+  font-size: 13px;
   font-weight: 600;
-  color: var(--text-secondary);
+  color: var(--text);
   cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 2px;
+  text-align: left;
+  width: fit-content;
 }
 
 .sales-link-subtle:hover {
-  color: var(--text);
+  color: var(--brand-magenta);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .sales-badges-stack {
