@@ -1348,7 +1348,8 @@ body.fullscreen-modal-open .mobile-bottom-nav {
 .progress-meta { display: flex; justify-content: space-between; font-size: 13px; color: var(--text-secondary); flex-wrap: wrap; }
 .profile-actions-hierarchy { display: flex; flex-direction: column; gap: 8px; }
 .profile-secondary-actions-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.expandable-details-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); overflow: hidden; }
+.expandable-details-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); overflow: visible; }
+.expandable-trigger { border-radius: var(--radius-card); }
 .expandable-trigger { width: 100%; min-height: 48px; padding: 0 16px; background: transparent; border: none; display: flex; align-items: center; justify-content: space-between; font-size: 14px; font-weight: 500; cursor: pointer; }
 .expandable-body { padding: 0 16px 16px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 16px; }
 .detail-lines-list { display: flex; flex-direction: column; }

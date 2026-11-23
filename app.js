@@ -440,6 +440,7 @@ function mapSupabaseRowsToAppData(clientesRows = [], contratosRows = [], postage
         clientName: cli.nome || '',
         period: cnt.periodo || '',
         totalPosts: Number(cnt.total_postagens) || 0,
+        durationMonths: Number(cnt.duracao_meses) || inferContractDurationMonths({ startDate: cnt.data_inicio, endDate: cnt.data_fim }),
         types: cnt.tipos || '',
         value: cnt.valor !== null && cnt.valor !== undefined ? Number(cnt.valor) : '',
         status: cnt.status || 'Ativo',
@@ -2118,6 +2119,7 @@ function renderContractsList(client, selectedProfileMonth = 'ALL', includeCancel
     const cm = getContractMetrics(client, contract);
     const adminBadgeClass = getContractStatusBadgeClass(contract.status);
     const formattedVal = formatCurrency(contract.value);
+    const durationMonths = inferContractDurationMonths(contract);
     const menuId = `kebab_cnt_${contract.id}`;
 
     return `
@@ -2125,6 +2127,7 @@ function renderContractsList(client, selectedProfileMonth = 'ALL', includeCancel
         <div class="contract-mini-info">
           <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
             <span class="contract-mini-period">${escapeHtml(contract.period)}</span>
+            ${durationMonths > 1 ? `<span class="badge badge-concluido">${durationMonths} meses</span>` : ''}
             <span class="badge ${adminBadgeClass}">${escapeHtml(contract.status)}</span>
             <span class="badge ${cm.deliveryBadgeClass}">${escapeHtml(cm.deliveryState)}</span>
           </div>
@@ -2134,30 +2137,35 @@ function renderContractsList(client, selectedProfileMonth = 'ALL', includeCancel
           </div>
         </div>
 
-        <div class="kebab-wrap">
-          <button type="button" class="btn-icon-only" onclick="toggleKebabMenu('${escapeHtml(menuId)}', event)" aria-label="Opções do contrato">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="5" r="1"></circle>
-              <circle cx="12" cy="12" r="1"></circle>
-              <circle cx="12" cy="19" r="1"></circle>
-            </svg>
+        <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="openContractModal('${escapeHtml(contract.id)}')">
+            Editar
           </button>
-          <div id="${escapeHtml(menuId)}" class="dropdown-menu hidden">
-            <button type="button" class="dropdown-item" onclick="filterProfileByContractMonth('${escapeHtml(normalizePeriod(contract.period))}')">
-              Selecionar contrato
+          <div class="kebab-wrap">
+            <button type="button" class="btn-icon-only" onclick="toggleKebabMenu('${escapeHtml(menuId)}', event)" aria-label="Opções do contrato">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="5" r="1"></circle>
+                <circle cx="12" cy="12" r="1"></circle>
+                <circle cx="12" cy="19" r="1"></circle>
+              </svg>
             </button>
-            <button type="button" class="dropdown-item" onclick="renewContractInOneClick('${escapeHtml(contract.id)}')">
-              ↻ Renovar para o próximo mês
-            </button>
-            <button type="button" class="dropdown-item" onclick="openContractModal('${escapeHtml(contract.id)}')">
-              Editar contrato
-            </button>
-            <button type="button" class="dropdown-item" onclick="openDeliveryReportModal('${escapeHtml(client.id)}', '${escapeHtml(contract.id)}')">
-              Relatório deste contrato
-            </button>
-            <button type="button" class="dropdown-item danger" onclick="confirmDeleteContract('${escapeHtml(contract.id)}')">
-              Excluir contrato
-            </button>
+            <div id="${escapeHtml(menuId)}" class="dropdown-menu hidden">
+              <button type="button" class="dropdown-item" onclick="filterProfileByContractMonth('${escapeHtml(normalizePeriod(contract.period))}')">
+                Selecionar contrato
+              </button>
+              <button type="button" class="dropdown-item" onclick="renewContractInOneClick('${escapeHtml(contract.id)}')">
+                ↻ Renovar para o próximo mês
+              </button>
+              <button type="button" class="dropdown-item" onclick="openContractModal('${escapeHtml(contract.id)}')">
+                Editar contrato
+              </button>
+              <button type="button" class="dropdown-item" onclick="openDeliveryReportModal('${escapeHtml(client.id)}', '${escapeHtml(contract.id)}')">
+                Relatório deste contrato
+              </button>
+              <button type="button" class="dropdown-item danger" onclick="confirmDeleteContract('${escapeHtml(contract.id)}')">
+                Excluir contrato
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -2186,6 +2194,7 @@ function renderProfileMonthlyHistory(client, includeCancelled = false) {
           <span class="monthly-history-metrics">${cm.totalContracted} contratadas | ${cm.published} publicadas | ${cm.remaining} restantes${cm.excess > 0 ? ` | +${cm.excess} excedente(s)` : ''}</span>
         </div>
         <div class="monthly-history-actions">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="openContractModal('${escapeHtml(c.id)}')">Editar</button>
           <button type="button" class="btn btn-secondary btn-sm" onclick="filterProfileByContractMonth('${escapeHtml(c.period)}')">Publicações</button>
           <button type="button" class="btn btn-secondary btn-sm" onclick="openDeliveryReportModal('${escapeHtml(client.id)}', '${escapeHtml(c.id)}')">Relatório</button>
         </div>
@@ -3514,6 +3523,41 @@ function confirmDeleteClient(clientId) {
   );
 }
 
+function inferContractDurationMonths(contract) {
+  if (Number(contract?.durationMonths) > 0) return Number(contract.durationMonths);
+  const start = String(contract?.startDate || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const end = String(contract?.endDate || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!start || !end) return 1;
+  const sY = Number(start[1]);
+  const sM = Number(start[2]);
+  const eY = Number(end[1]);
+  const eM = Number(end[2]);
+  const diff = (eY - sY) * 12 + (eM - sM) + 1;
+  if ([1, 2, 3, 6, 12].includes(diff)) return diff;
+  return diff > 1 ? diff : 1;
+}
+
+function applyContractDurationDates() {
+  const durationEl = document.getElementById('contractDurationMonths');
+  const startEl = document.getElementById('contractStartDate');
+  const endEl = document.getElementById('contractEndDate');
+  if (!durationEl || !startEl || !endEl) return;
+
+  const months = Math.max(1, Number(durationEl.value) || 1);
+  if (!startEl.value) {
+    startEl.value = getLocalTodayISO();
+  }
+  const m = startEl.value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return;
+
+  const startDateObj = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  const endDateObj = new Date(startDateObj.getFullYear(), startDateObj.getMonth() + months, startDateObj.getDate() - 1);
+  const yyyy = endDateObj.getFullYear();
+  const mm = String(endDateObj.getMonth() + 1).padStart(2, '0');
+  const dd = String(endDateObj.getDate()).padStart(2, '0');
+  endEl.value = `${yyyy}-${mm}-${dd}`;
+}
+
 // --- Modal Contrato ---
 function openContractModal(contractId = null) {
   closeAllKebabMenus();
@@ -3523,6 +3567,7 @@ function openContractModal(contractId = null) {
   const form = document.getElementById('contractForm');
   if (form && typeof form.reset === 'function') form.reset();
   document.getElementById('contractFormError')?.classList.add('hidden');
+  const durationEl = document.getElementById('contractDurationMonths');
 
   if (contractId) {
     const contract = (client.contracts || []).find(c => c.id === contractId);
@@ -3531,6 +3576,11 @@ function openContractModal(contractId = null) {
     document.getElementById('contractId').value = contract.id;
     document.getElementById('contractPeriod').value = contract.period || '';
     document.getElementById('contractTotalPosts').value = contract.totalPosts || '';
+    if (durationEl) {
+      const inferred = inferContractDurationMonths(contract);
+      const hasOpt = Array.from(durationEl.options || []).some(o => Number(o.value) === inferred);
+      durationEl.value = hasOpt ? String(inferred) : '1';
+    }
     document.getElementById('contractStartDate').value = contract.startDate || '';
     document.getElementById('contractEndDate').value = contract.endDate || '';
     document.getElementById('contractTypes').value = contract.types || '';
@@ -3539,6 +3589,7 @@ function openContractModal(contractId = null) {
   } else {
     document.getElementById('contractModalTitle').textContent = 'Novo Contrato';
     document.getElementById('contractId').value = '';
+    if (durationEl) durationEl.value = '1';
     document.getElementById('contractStartDate').value = '';
     document.getElementById('contractEndDate').value = '';
     document.getElementById('contractStatus').value = 'Ativo';
@@ -3556,6 +3607,7 @@ async function handleContractSubmit(e) {
 
   const id = document.getElementById('contractId').value;
   const period = document.getElementById('contractPeriod').value.trim();
+  const durationMonths = Math.max(1, Number(document.getElementById('contractDurationMonths')?.value) || 1);
   const totalPosts = Number(document.getElementById('contractTotalPosts').value) || 0;
   const startDate = document.getElementById('contractStartDate')?.value || '';
   const endDate = document.getElementById('contractEndDate')?.value || '';
@@ -3662,6 +3714,7 @@ async function handleContractSubmit(e) {
         const contract = client.contracts.find(c => c.id === id);
         if (contract) {
           contract.period = period;
+          contract.durationMonths = durationMonths;
           contract.totalPosts = totalPosts;
           contract.startDate = startDate;
           contract.endDate = endDate;
@@ -3674,6 +3727,7 @@ async function handleContractSubmit(e) {
         client.contracts.push({
           id: uid('cnt'),
           period,
+          durationMonths,
           totalPosts,
           startDate,
           endDate,
@@ -4638,6 +4692,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (client) checkRenewExistingContractWarning(client, e.target.value);
   });
   document.getElementById('contractForm')?.addEventListener('submit', handleContractSubmit);
+  document.getElementById('contractDurationMonths')?.addEventListener('change', applyContractDurationDates);
+  document.getElementById('contractStartDate')?.addEventListener('change', applyContractDurationDates);
   document.getElementById('postForm')?.addEventListener('submit', handlePostSubmit);
   document.getElementById('btnSaveAndAddAnotherPost')?.addEventListener('click', () => {
     const postFormEl = document.getElementById('postForm');

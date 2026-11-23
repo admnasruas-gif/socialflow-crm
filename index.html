@@ -907,7 +907,18 @@
 
           <div class="form-group">
             <label for="contractPeriod">Período (Mês/Ano) <span class="req">*</span></label>
-            <input type="text" id="contractPeriod" required placeholder="Ex: Novembro/2026">
+            <input type="text" id="contractPeriod" required placeholder="Ex: Novembro/2026 ou Nov/Dez/Jan">
+          </div>
+
+          <div class="form-group">
+            <label for="contractDurationMonths">Duração do contrato</label>
+            <select id="contractDurationMonths">
+              <option value="1">1 mês (Mensal)</option>
+              <option value="2">2 meses (Bimestral)</option>
+              <option value="3">3 meses (Trimestral)</option>
+              <option value="6">6 meses (Semestral)</option>
+              <option value="12">12 meses (Anual)</option>
+            </select>
           </div>
 
           <div class="form-group">

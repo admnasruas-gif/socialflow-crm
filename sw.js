@@ -4,7 +4,7 @@
  * Usa estratégia Network-First para sempre buscar dados e código atualizados quando online.
  */
 
-const CACHE_NAME = 'socialflow-pwa-v8';
+const CACHE_NAME = 'socialflow-pwa-v9';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
