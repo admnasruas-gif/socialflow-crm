@@ -5099,6 +5099,521 @@ async function handleImportBackupFile(file) {
   }
 }
 
+// ==================== IMPORTAÇÃO DE POSTAGENS VIA CSV ====================
+let currentImportParsedRows = [];
+
+function parseCSVLine(line, delimiter) {
+  const result = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (c === delimiter && !inQuotes) {
+      result.push(current.trim());
+      current = '';
+    } else {
+      current += c;
+    }
+  }
+  result.push(current.trim());
+  return result;
+}
+
+function detectCSVDelimiter(headerLine) {
+  const counts = {
+    ';': (headerLine.match(/;/g) || []).length,
+    ',': (headerLine.match(/,/g) || []).length,
+    '\t': (headerLine.match(/\t/g) || []).length
+  };
+  let best = ';';
+  let max = -1;
+  for (const [delim, count] of Object.entries(counts)) {
+    if (count > max) {
+      max = count;
+      best = delim;
+    }
+  }
+  return best;
+}
+
+function normalizeCSVHeaderName(name) {
+  return String(name || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+}
+
+function parseBrazilianOrIsoDate(raw) {
+  const str = String(raw || '').trim();
+  const dmyMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (dmyMatch) {
+    const day = dmyMatch[1].padStart(2, '0');
+    const month = dmyMatch[2].padStart(2, '0');
+    const year = dmyMatch[3];
+    return `${year}-${month}-${day}`;
+  }
+  const isoMatch = str.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+  if (isoMatch) {
+    const year = isoMatch[1];
+    const month = isoMatch[2].padStart(2, '0');
+    const day = isoMatch[3].padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+  return '';
+}
+
+function normalizePostTypeFromCsv(typeRaw, link = '') {
+  const norm = String(typeRaw || '').toLowerCase();
+  if (norm.includes('carrossel')) return 'Carrossel';
+  if (norm.includes('reel')) return 'Reels';
+  if (norm.includes('story') || norm.includes('stories')) return 'Story';
+  if (norm.includes('foto') || norm.includes('imagem') || norm.includes('card')) return 'Foto';
+  if (norm.includes('vídeo') || norm.includes('video')) return 'Vídeo';
+
+  const linkLower = String(link || '').toLowerCase();
+  if (linkLower.includes('/reel/') || linkLower.includes('/shorts/')) return 'Reels';
+  if (linkLower.includes('/p/')) return 'Foto';
+  if (linkLower.includes('/stories/')) return 'Story';
+  return 'Outro';
+}
+
+function parsePostsCSV(csvContent) {
+  const lines = String(csvContent || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  if (lines.length < 2) return { success: false, error: 'O CSV precisa ter pelo menos o cabeçalho e uma linha de dados.' };
+
+  const delimiter = detectCSVDelimiter(lines[0]);
+  const headerCols = parseCSVLine(lines[0], delimiter).map(normalizeCSVHeaderName);
+
+  const colMap = {
+    index: headerCols.findIndex(c => /^(n|no|num|numero|item)$/.test(c) || c.startsWith('n')),
+    link: headerCols.findIndex(c => c.includes('link') || c.includes('url') || c.includes('publica')),
+    title: headerCols.findIndex(c => c.includes('titul') || c.includes('ttulo') || c.includes('title') || c.includes('nome')),
+    summary: headerCols.findIndex(c => c.includes('resum') || c.includes('descri')),
+    date: headerCols.findIndex(c => c.includes('data') || c.includes('date')),
+    type: headerCols.findIndex(c => c.includes('tipo') || c.includes('type') || c.includes('formato')),
+    topic: headerCols.findIndex(c => c.includes('tema') || c.includes('topic') || c.includes('assunto')),
+    notes: headerCols.findIndex(c => c.includes('observ') || c.includes('nota') || c.includes('obs'))
+  };
+
+  const parsedRows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const rawCols = parseCSVLine(lines[i], delimiter);
+    if (!rawCols || rawCols.every(c => !c)) continue;
+
+    const link = colMap.link !== -1 ? rawCols[colMap.link] || '' : '';
+    const rawDate = colMap.date !== -1 ? rawCols[colMap.date] || '' : '';
+    const isoDate = parseBrazilianOrIsoDate(rawDate);
+    const rawType = colMap.type !== -1 ? rawCols[colMap.type] || '' : '';
+    const type = normalizePostTypeFromCsv(rawType, link);
+    let title = colMap.title !== -1 ? rawCols[colMap.title] || '' : '';
+
+    const summary = colMap.summary !== -1 ? rawCols[colMap.summary] || '' : '';
+    const topic = colMap.topic !== -1 ? rawCols[colMap.topic] || '' : '';
+    const obs = colMap.notes !== -1 ? rawCols[colMap.notes] || '' : '';
+
+    const notesParts = [];
+    if (summary) notesParts.push(summary);
+    if (topic) notesParts.push(`Tema: ${topic}`);
+    if (obs) notesParts.push(`Obs: ${obs}`);
+    const notes = notesParts.join('\n');
+
+    if (!title) {
+      title = topic ? `${type} — ${topic}` : `${type} (${isoDate || 'Importado'})`;
+    }
+
+    parsedRows.push({
+      rowNumber: i,
+      link,
+      title,
+      date: isoDate,
+      rawDate,
+      type,
+      notes,
+      summary,
+      topic,
+      obs
+    });
+  }
+
+  return { success: true, delimiter, headerCols, parsedRows };
+}
+
+function openImportPostsModal(preselectedClientId = null) {
+  if (appData.clients.length === 0) {
+    showToast('Cadastre um cliente primeiro.');
+    openClientModal();
+    return;
+  }
+
+  const clientSelect = document.getElementById('importPostsClientSelect');
+  if (clientSelect) {
+    clientSelect.innerHTML = appData.clients
+      .map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)}${c.instagram ? ` (${escapeHtml(c.instagram)})` : ''}</option>`)
+      .join('');
+    const targetId = preselectedClientId || currentClientId || appData.clients[0].id;
+    clientSelect.value = targetId;
+  }
+
+  updateImportPostsContractsDropdown(clientSelect?.value || appData.clients[0].id);
+
+  const rawText = document.getElementById('importPostsRawText');
+  if (rawText) rawText.value = '';
+
+  const fileInput = document.getElementById('importPostsFileInput');
+  if (fileInput) fileInput.value = '';
+
+  const modeAuto = document.getElementById('importContractModeAuto');
+  if (modeAuto) modeAuto.checked = true;
+
+  const specificGroup = document.getElementById('importPostsSpecificContractGroup');
+  if (specificGroup) specificGroup.classList.add('hidden');
+
+  const skipDup = document.getElementById('importPostsSkipDuplicates');
+  if (skipDup) skipDup.checked = true;
+
+  const previewSec = document.getElementById('importPostsPreviewSection');
+  if (previewSec) previewSec.classList.add('hidden');
+
+  const errEl = document.getElementById('importPostsError');
+  if (errEl) {
+    errEl.textContent = '';
+    errEl.classList.add('hidden');
+  }
+
+  const btnConfirm = document.getElementById('btnConfirmImportPosts');
+  if (btnConfirm) {
+    btnConfirm.disabled = true;
+    btnConfirm.textContent = 'Importar postagens';
+  }
+
+  currentImportParsedRows = [];
+  openModal('importPostsModal');
+}
+
+function updateImportPostsContractsDropdown(clientId) {
+  const contractSelect = document.getElementById('importPostsContractSelect');
+  if (!contractSelect) return;
+
+  const client = appData.clients.find(c => c.id === clientId);
+  const contracts = client?.contracts || [];
+
+  if (contracts.length === 0) {
+    contractSelect.innerHTML = `<option value="">Nenhum contrato cadastrado</option>`;
+  } else {
+    contractSelect.innerHTML = contracts.map(c => `
+      <option value="${escapeHtml(c.id)}">
+        ${escapeHtml(c.period || 'Sem período')} (${escapeHtml(c.agreementType || 'Mensal')}) — ${Number(c.totalPosts) || 0} contratadas
+      </option>
+    `).join('');
+  }
+}
+
+function processPostsCsvPreview() {
+  const errEl = document.getElementById('importPostsError');
+  const previewSec = document.getElementById('importPostsPreviewSection');
+  const tbody = document.getElementById('importPostsPreviewTableBody');
+  const summaryText = document.getElementById('importPostsSummaryText');
+  const btnConfirm = document.getElementById('btnConfirmImportPosts');
+
+  errEl?.classList.add('hidden');
+
+  const rawContent = document.getElementById('importPostsRawText')?.value || '';
+  if (!rawContent.trim()) {
+    if (errEl) {
+      errEl.textContent = 'Cole o conteúdo do CSV ou escolha um arquivo para importar.';
+      errEl.classList.remove('hidden');
+    }
+    previewSec?.classList.add('hidden');
+    if (btnConfirm) btnConfirm.disabled = true;
+    return;
+  }
+
+  const parseResult = parsePostsCSV(rawContent);
+  if (!parseResult.success || !parseResult.parsedRows || parseResult.parsedRows.length === 0) {
+    if (errEl) {
+      errEl.textContent = parseResult.error || 'Nenhuma postagem válida foi encontrada no CSV informado.';
+      errEl.classList.remove('hidden');
+    }
+    previewSec?.classList.add('hidden');
+    if (btnConfirm) btnConfirm.disabled = true;
+    return;
+  }
+
+  const clientId = document.getElementById('importPostsClientSelect')?.value;
+  const client = appData.clients.find(c => c.id === clientId);
+  if (!client) {
+    if (errEl) {
+      errEl.textContent = 'Cliente selecionado não encontrado.';
+      errEl.classList.remove('hidden');
+    }
+    return;
+  }
+
+  const skipDuplicates = document.getElementById('importPostsSkipDuplicates')?.checked !== false;
+  const existingLinks = new Set((client.posts || []).map(p => (p.link || '').trim().toLowerCase()).filter(Boolean));
+
+  let duplicatesCount = 0;
+  const periodCounts = {};
+
+  currentImportParsedRows = parseResult.parsedRows.map(row => {
+    const isDup = row.link && existingLinks.has(row.link.trim().toLowerCase());
+    if (isDup) duplicatesCount++;
+
+    const period = row.date ? (getPeriodFromISODate(row.date) || 'Sem período') : 'Sem data';
+    periodCounts[period] = (periodCounts[period] || 0) + 1;
+
+    return {
+      ...row,
+      isDuplicate: isDup,
+      period
+    };
+  });
+
+  const validToImportCount = skipDuplicates
+    ? currentImportParsedRows.filter(r => !r.isDuplicate).length
+    : currentImportParsedRows.length;
+
+  if (summaryText) {
+    const periodList = Object.entries(periodCounts).map(([p, cnt]) => `<strong>${escapeHtml(p)}</strong>: ${cnt}`).join(' · ');
+    summaryText.innerHTML = `
+      <div style="font-size: 13px; line-height: 1.5;">
+        <strong>${currentImportParsedRows.length} postagem(ns) lida(s) no CSV.</strong>
+        ${validToImportCount} serão importadas para <strong>${escapeHtml(client.name)}</strong>
+        ${duplicatesCount > 0 ? ` (${duplicatesCount} já existente(s) ${skipDuplicates ? 'e ignorada(s)' : ''})` : ''}.
+        <div style="margin-top: 4px; font-size: 12px; opacity: 0.85;">Períodos identificados: ${periodList}</div>
+      </div>
+    `;
+  }
+
+  if (tbody) {
+    tbody.innerHTML = currentImportParsedRows.slice(0, 15).map((row, idx) => `
+      <tr style="${row.isDuplicate && skipDuplicates ? 'opacity: 0.5; text-decoration: line-through;' : ''}">
+        <td style="padding: 6px 8px; font-weight: 600;">${idx + 1}</td>
+        <td style="padding: 6px 8px;"><span class="badge badge-neutral" style="font-size: 11px;">${escapeHtml(row.type)}</span></td>
+        <td style="padding: 6px 8px; font-size: 11px; white-space: nowrap;">${escapeHtml(row.rawDate || row.date)}</td>
+        <td style="padding: 6px 8px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(row.title)}">${escapeHtml(row.title)}</td>
+        <td style="padding: 6px 8px; font-size: 11px; white-space: nowrap;">${escapeHtml(row.period)}</td>
+        <td style="padding: 6px 8px; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+          ${row.link ? `<a href="${escapeHtml(row.link)}" target="_blank" rel="noopener" style="color:var(--brand-primary); font-size: 11px;">Abrir</a>` : '—'}
+          ${row.isDuplicate ? `<span class="badge badge-warning" style="font-size: 10px; margin-left: 4px;">Já existe</span>` : ''}
+        </td>
+      </tr>
+    `).join('');
+
+    if (currentImportParsedRows.length > 15) {
+      tbody.innerHTML += `
+        <tr>
+          <td colspan="6" style="padding: 8px; text-align: center; color: var(--text-secondary); font-size: 11px;">
+            ... e mais ${currentImportParsedRows.length - 15} postagem(ns).
+          </td>
+        </tr>
+      `;
+    }
+  }
+
+  previewSec?.classList.remove('hidden');
+
+  if (btnConfirm) {
+    btnConfirm.disabled = validToImportCount === 0;
+    btnConfirm.textContent = `Importar ${validToImportCount} postagens`;
+  }
+}
+
+async function handleConfirmImportPosts() {
+  const btn = document.getElementById('btnConfirmImportPosts');
+  const errEl = document.getElementById('importPostsError');
+  errEl?.classList.add('hidden');
+
+  if (!currentImportParsedRows || currentImportParsedRows.length === 0) {
+    if (errEl) {
+      errEl.textContent = 'Processe a prévia do CSV antes de confirmar a importação.';
+      errEl.classList.remove('hidden');
+    }
+    return;
+  }
+
+  const clientId = document.getElementById('importPostsClientSelect')?.value;
+  const client = appData.clients.find(c => c.id === clientId);
+  if (!client) {
+    if (errEl) {
+      errEl.textContent = 'Cliente selecionado não encontrado.';
+      errEl.classList.remove('hidden');
+    }
+    return;
+  }
+
+  const skipDuplicates = document.getElementById('importPostsSkipDuplicates')?.checked !== false;
+  const rowsToImport = skipDuplicates
+    ? currentImportParsedRows.filter(r => !r.isDuplicate)
+    : currentImportParsedRows;
+
+  if (rowsToImport.length === 0) {
+    if (errEl) {
+      errEl.textContent = 'Todas as postagens da lista já foram cadastradas anteriormente para este cliente.';
+      errEl.classList.remove('hidden');
+    }
+    return;
+  }
+
+  const contractMode = document.querySelector('input[name="importPostsContractMode"]:checked')?.value || 'auto_date';
+  const specificContractId = document.getElementById('importPostsContractSelect')?.value;
+
+  if (contractMode === 'specific' && !specificContractId) {
+    if (errEl) {
+      errEl.textContent = 'Selecione um contrato para vincular as postagens.';
+      errEl.classList.remove('hidden');
+    }
+    return;
+  }
+
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Importando...';
+  }
+
+  try {
+    const contractMapByPeriod = {};
+    (client.contracts || []).forEach(c => {
+      const norm = normalizePeriod(c.period);
+      if (norm) contractMapByPeriod[norm] = c.id;
+    });
+
+    const rowsGroupedByPeriod = {};
+    rowsToImport.forEach(r => {
+      const p = r.period && r.period !== 'Sem período' ? r.period : 'Geral';
+      if (!rowsGroupedByPeriod[p]) rowsGroupedByPeriod[p] = [];
+      rowsGroupedByPeriod[p].push(r);
+    });
+
+    // Resolve or create contracts
+    for (const [periodName, groupRows] of Object.entries(rowsGroupedByPeriod)) {
+      if (contractMode === 'specific') {
+        groupRows.forEach(r => { r.assignedContractId = specificContractId; });
+        continue;
+      }
+
+      const normP = normalizePeriod(periodName);
+      let targetContractId = contractMapByPeriod[normP];
+
+      if (!targetContractId) {
+        const postsCount = Math.max(1, groupRows.length);
+        if (supabase) {
+          const fullCntPayload = {
+            cliente_id: client.id,
+            periodo: periodName,
+            total_postagens: postsCount,
+            tipos: 'Reels, Carrossel, Foto',
+            status: 'Ativo',
+            tipo_acordo: 'Mensal'
+          };
+          const baseCntPayload = {
+            cliente_id: client.id,
+            periodo: periodName,
+            total_postagens: postsCount,
+            tipos: 'Reels, Carrossel, Foto',
+            status: 'Ativo'
+          };
+          const res = await supabase.from('contratos').insert([fullCntPayload]).select('id').single();
+          if (res.error && /(tipo_acordo)/.test(String(res.error.message || ''))) {
+            const fallback = await supabase.from('contratos').insert([baseCntPayload]).select('id').single();
+            if (fallback.error) throw fallback.error;
+            targetContractId = fallback.data.id;
+          } else {
+            if (res.error) throw res.error;
+            targetContractId = res.data.id;
+          }
+        } else {
+          targetContractId = uid('cnt');
+          if (!client.contracts) client.contracts = [];
+          client.contracts.push({
+            id: targetContractId,
+            period: periodName,
+            totalPosts: postsCount,
+            types: 'Reels, Carrossel, Foto',
+            status: 'Ativo',
+            agreementType: 'Mensal',
+            createdAt: new Date().toISOString()
+          });
+        }
+        contractMapByPeriod[normP] = targetContractId;
+      }
+
+      groupRows.forEach(r => { r.assignedContractId = targetContractId; });
+    }
+
+    // Insert posts
+    if (supabase) {
+      const payloads = rowsToImport.map(r => ({
+        cliente_id: client.id,
+        contrato_id: r.assignedContractId,
+        data: r.date || getLocalTodayISO(),
+        tipo: r.type || 'Reels',
+        titulo: r.title || 'Publicação',
+        link: r.link || '',
+        status: 'Publicado',
+        observacoes: r.notes || ''
+      }));
+
+      // Inserção em lotes de até 50
+      for (let i = 0; i < payloads.length; i += 50) {
+        const chunk = payloads.slice(i, i + 50);
+        const { error } = await supabase.from('postagens').insert(chunk);
+        if (error) throw error;
+      }
+
+      await fetchFromSupabase();
+      updateDbStatusUI(true);
+    } else {
+      if (!client.posts) client.posts = [];
+      rowsToImport.forEach(r => {
+        client.posts.unshift({
+          id: uid('pst'),
+          contractId: r.assignedContractId,
+          date: r.date || getLocalTodayISO(),
+          type: r.type || 'Reels',
+          status: 'Publicado',
+          title: r.title || 'Publicação',
+          link: r.link || '',
+          notes: r.notes || ''
+        });
+      });
+      saveData();
+    }
+
+    recordAuditEvent('postagens', 'importacao_csv', 'importacao_em_massa', {
+      cliente: client.name,
+      totalImportadas: rowsToImport.length
+    });
+
+    closeModal('importPostsModal');
+    showToast(`${rowsToImport.length} postagens importadas com sucesso para ${client.name}!`);
+
+    if (currentClientId === client.id) {
+      renderClientProfile();
+    } else {
+      renderDashboard();
+    }
+  } catch (err) {
+    console.error('Erro na importação CSV:', err);
+    if (errEl) {
+      errEl.textContent = 'Erro ao salvar importação: ' + (err.message || 'Tente novamente.');
+      errEl.classList.remove('hidden');
+    }
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Tentar novamente';
+    }
+  }
+}
+
 // ==================== CLASSIFICAÇÃO DE ACORDOS LEGADOS ====================
 function suggestLegacyAgreementType(contract) {
   if (contract?.agreementType === 'Mensal' || contract?.agreementType === 'Avulso' || contract?.agreementType === 'Parceria') {
@@ -5641,8 +6156,10 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btnQuickNewPostTile')?.addEventListener('click', () => openPostModal(null, null, true));
   document.getElementById('btnNewClientSidebar')?.addEventListener('click', () => openClientModal());
   document.getElementById('btnNewPostGlobalHeader')?.addEventListener('click', () => openPostModal(null, null, true));
+  document.getElementById('btnImportPostsCsvGlobal')?.addEventListener('click', () => openImportPostsModal());
   document.getElementById('btnNewContract')?.addEventListener('click', () => openContractModal());
   document.getElementById('btnNewPost')?.addEventListener('click', () => openPostModal(null, currentClientId, false));
+  document.getElementById('btnImportPostsCsvProfile')?.addEventListener('click', () => openImportPostsModal(currentClientId));
   document.getElementById('btnQuickPostProfile')?.addEventListener('click', () => openQuickPostFromCard(currentClientId));
   document.getElementById('btnOpenDeliveryReport')?.addEventListener('click', () => openDeliveryReportModal(currentClientId));
 
@@ -5894,6 +6411,47 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btnOpenAuditLogModal')?.addEventListener('click', openAuditLogModal);
   document.getElementById('btnClearPwaCache')?.addEventListener('click', clearAppPwaCache);
   document.getElementById('btnNewPostSidebar')?.addEventListener('click', () => openGlobalNewPost());
+  document.getElementById('btnOpenImportPostsCsvSettings')?.addEventListener('click', () => openImportPostsModal());
+
+  // Modal de importação de postagens via CSV
+  document.getElementById('importPostsClientSelect')?.addEventListener('change', (e) => {
+    updateImportPostsContractsDropdown(e.target.value);
+    if (currentImportParsedRows.length > 0) {
+      processPostsCsvPreview();
+    }
+  });
+
+  document.querySelectorAll('input[name="importPostsContractMode"]').forEach(radio => {
+    radio.addEventListener('change', (e) => {
+      const specificGroup = document.getElementById('importPostsSpecificContractGroup');
+      if (specificGroup) {
+        specificGroup.classList.toggle('hidden', e.target.value !== 'specific');
+      }
+    });
+  });
+
+  document.getElementById('importPostsFileInput')?.addEventListener('change', (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const rawTextEl = document.getElementById('importPostsRawText');
+      if (rawTextEl) {
+        rawTextEl.value = evt.target?.result || '';
+        processPostsCsvPreview();
+      }
+    };
+    reader.readAsText(file, 'UTF-8');
+    e.target.value = '';
+  });
+
+  document.getElementById('btnPreviewImportPosts')?.addEventListener('click', processPostsCsvPreview);
+  document.getElementById('importPostsSkipDuplicates')?.addEventListener('change', () => {
+    if (currentImportParsedRows.length > 0) {
+      processPostsCsvPreview();
+    }
+  });
+  document.getElementById('btnConfirmImportPosts')?.addEventListener('click', handleConfirmImportPosts);
 
   document.getElementById('btnClearData')?.addEventListener('click', () => {
     openConfirmModal(

@@ -266,9 +266,19 @@
               <span class="screen-count-meta hidden" id="globalPostsCountLabel">0 postagens</span>
             </div>
           </div>
-          <button type="button" class="btn btn-primary btn-sm" id="btnNewPostGlobalHeader" aria-label="Adicionar postagem" title="Adicionar postagem">
-            + Postagem
-          </button>
+          <div class="ios-header-actions-group" style="display: flex; gap: 8px; align-items: center;">
+            <button type="button" class="btn btn-secondary btn-sm" id="btnImportPostsCsvGlobal" title="Importar postagens via CSV">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-right: 4px;">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+              </svg>
+              <span>Importar CSV</span>
+            </button>
+            <button type="button" class="btn btn-primary btn-sm" id="btnNewPostGlobalHeader" aria-label="Adicionar postagem" title="Adicionar postagem">
+              + Postagem
+            </button>
+          </div>
         </header>
 
         <div class="ios-screen-body">
@@ -449,6 +459,9 @@
                   <option value="Em produção">Em produção</option>
                   <option value="Pendente">Pendentes</option>
                 </select>
+                <button type="button" class="btn btn-secondary btn-sm" id="btnImportPostsCsvProfile" title="Importar postagens via CSV para este cliente">
+                  Importar CSV
+                </button>
                 <button type="button" class="btn btn-ghost btn-sm" id="btnNewPost">
                   Cadastro completo
                 </button>
@@ -643,6 +656,25 @@
                   <input type="file" id="importBackupFile" accept=".json,application/json" class="sr-only-file-input">
                   <button type="button" class="btn btn-secondary btn-sm" id="btnImportDataJson">
                     Importar
+                  </button>
+                </div>
+
+                <div class="settings-row">
+                  <div class="settings-row-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                      <polyline points="14 2 14 8 20 8"></polyline>
+                      <line x1="16" y1="13" x2="8" y2="13"></line>
+                      <line x1="16" y1="17" x2="8" y2="17"></line>
+                      <polyline points="10 9 9 9 8 9"></polyline>
+                    </svg>
+                  </div>
+                  <div class="settings-row-info">
+                    <div class="settings-row-label">Importar postagens (.csv)</div>
+                    <div class="settings-row-sub">Planilhas com link, título, data e tipo</div>
+                  </div>
+                  <button type="button" class="btn btn-secondary btn-sm" id="btnOpenImportPostsCsvSettings">
+                    Importar CSV
                   </button>
                 </div>
 
@@ -1389,6 +1421,111 @@
           <button type="submit" class="btn btn-primary" id="btnSaveVideo">Salvar vídeo</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: IMPORTAR POSTAGENS VIA CSV ==================== -->
+  <div class="modal-backdrop fullscreen-mobile-backdrop hidden no-print" id="importPostsModal" role="dialog" aria-modal="true" aria-labelledby="importPostsModalTitle">
+    <div class="modal-card modal-lg fullscreen-mobile-card">
+      <div class="modal-header">
+        <div>
+          <h3 class="modal-title" id="importPostsModalTitle">Importar postagens via CSV</h3>
+          <p class="modal-subtitle">Carregue ou cole postagens em massa com link, título, data e tipo</p>
+        </div>
+        <button type="button" class="btn-icon-close" data-close-modal="importPostsModal" aria-label="Fechar">&times;</button>
+      </div>
+      <div class="modal-body">
+        <!-- 1. Cliente de Destino -->
+        <div class="form-group">
+          <label for="importPostsClientSelect">Cliente de destino <span class="req">*</span></label>
+          <select id="importPostsClientSelect" required>
+            <!-- Preenchido dinamicamente -->
+          </select>
+        </div>
+
+        <!-- 2. Como vincular aos contratos -->
+        <div class="form-group">
+          <label class="form-label-bold">Vínculo com contratos / pacotes</label>
+          <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 6px;">
+            <label style="display: flex; align-items: flex-start; gap: 8px; cursor: pointer; font-size: 14px;">
+              <input type="radio" name="importPostsContractMode" id="importContractModeAuto" value="auto_date" checked style="margin-top: 3px;">
+              <div>
+                <strong>Vincular automaticamente pelo mês da publicação</strong>
+                <div class="form-helper-text" style="margin-top: 2px;">Identifica o mês da data (ex.: Novembro/2024). Se o cliente ainda não tiver esse contrato mensal, cria automaticamente.</div>
+              </div>
+            </label>
+            <label style="display: flex; align-items: flex-start; gap: 8px; cursor: pointer; font-size: 14px;">
+              <input type="radio" name="importPostsContractMode" id="importContractModeSpecific" value="specific" style="margin-top: 3px;">
+              <div>
+                <strong>Vincular todas as postagens a um contrato específico</strong>
+              </div>
+            </label>
+          </div>
+          <div id="importPostsSpecificContractGroup" class="hidden" style="margin-top: 10px;">
+            <label for="importPostsContractSelect">Selecione o contrato</label>
+            <select id="importPostsContractSelect">
+              <!-- Preenchido dinamicamente com base no cliente -->
+            </select>
+          </div>
+        </div>
+
+        <!-- 3. Entrada: Arquivo ou Colar CSV -->
+        <div class="form-group" style="margin-top: 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 6px;">
+            <label class="form-label-bold" for="importPostsRawText">Conteúdo CSV (ou cole do Excel / Planilhas)</label>
+            <label class="btn btn-secondary btn-sm" style="cursor: pointer; margin: 0; display: inline-flex; align-items: center;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-right: 4px;">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+              </svg>
+              <span>Escolher arquivo .csv</span>
+              <input type="file" id="importPostsFileInput" accept=".csv, .txt, text/csv" style="display: none;">
+            </label>
+          </div>
+          <textarea id="importPostsRawText" rows="6" placeholder="Cole aqui o texto CSV com cabeçalhos (separado por ponto e vírgula, vírgula ou tabulação)...&#10;Exemplo:&#10;Nº;Link da publicação;Título;Resumo;Data de postagem;Tipo de publicação;Tema principal;Observações&#10;1;https://www.instagram.com/reel/DCpn0Y7ScWN/;Vestibular FEST 2025;Resumo;21/11/2024;Reel;Vestibular;Cursos" style="font-family: monospace; font-size: 12px; line-height: 1.4; width: 100%; border-radius: 8px;"></textarea>
+        </div>
+
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-top: 8px;">
+          <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer;">
+            <input type="checkbox" id="importPostsSkipDuplicates" checked>
+            <span>Ignorar postagens cujo link já esteja cadastrado para este cliente</span>
+          </label>
+          <button type="button" class="btn btn-secondary btn-sm" id="btnPreviewImportPosts">
+            Processar prévia
+          </button>
+        </div>
+
+        <!-- 4. Resumo e Prévia dos dados identificados -->
+        <div id="importPostsPreviewSection" class="hidden" style="margin-top: 14px;">
+          <div id="importPostsSummaryBanner" class="filter-info-banner" style="display: block; margin-bottom: 10px;">
+            <div id="importPostsSummaryText"></div>
+          </div>
+          <div style="max-height: 220px; overflow-y: auto; border: 1px solid var(--border-color, #E5E7EB); border-radius: 8px;">
+            <table class="ios-table w-full" style="font-size: 12px; margin: 0;">
+              <thead>
+                <tr>
+                  <th style="padding: 6px 8px;">#</th>
+                  <th style="padding: 6px 8px;">Tipo</th>
+                  <th style="padding: 6px 8px;">Data</th>
+                  <th style="padding: 6px 8px;">Título</th>
+                  <th style="padding: 6px 8px;">Período / Contrato</th>
+                  <th style="padding: 6px 8px;">Link</th>
+                </tr>
+              </thead>
+              <tbody id="importPostsPreviewTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <p id="importPostsError" class="auth-error hidden" style="margin-top: 10px;"></p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" data-close-modal="importPostsModal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="btnConfirmImportPosts" disabled>
+          Importar postagens
+        </button>
+      </div>
     </div>
   </div>
 
