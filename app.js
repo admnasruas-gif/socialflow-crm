@@ -1625,6 +1625,88 @@ function renderClientsTable(filteredClients, monthFilter, statusFilter, searchQu
   `;
 }
 
+function renderSingleClientCardHtml(client, monthFilter, includeCancelled, categoryScope = 'ALL') {
+  const m = getClientMetrics(client, monthFilter, includeCancelled, getLocalTodayISO(), categoryScope);
+  const avatarHtml = renderAvatarHtml(client);
+
+  const cardStateClass = m.hasOverdueContract
+    ? 'card-overdue'
+    : (m.hasDueSoonContract ? 'card-due-soon' : '');
+
+  const instaFormatted = formatInstagram(client.instagram);
+
+  let periodLabel = '';
+  let deliveredLabel = '';
+  let remainingLabel = '';
+
+  if (m.contractBreakdowns.length === 0) {
+    periodLabel = 'Sem contrato ativo';
+    deliveredLabel = '0 de 0 entregues';
+    remainingLabel = '0 restantes';
+  } else if (m.contractBreakdowns.length === 1) {
+    const { contract, metrics: cm } = m.contractBreakdowns[0];
+    const dispLabel = getContractDisplayLabel(contract);
+    const typeTag = getAgreementTypeBadgeText(contract);
+    periodLabel = `${escapeHtml(dispLabel)} <span class="badge badge-concluido" style="margin-left:4px;">${escapeHtml(typeTag)}</span>`;
+    if (!cm.hasDefinedQuantity) {
+      deliveredLabel = `${cm.published} publicadas`;
+      remainingLabel = 'Sem limite definido';
+    } else {
+      deliveredLabel = `${cm.published} de ${cm.totalContracted} entregues`;
+      remainingLabel = `${cm.remaining} ${cm.remaining === 1 ? 'restante' : 'restantes'}${cm.excess > 0 ? ` (+${cm.excess} extra)` : ''}`;
+    }
+  } else {
+    const latestLabel = getContractDisplayLabel(m.contractBreakdowns[0].contract);
+    periodLabel = `${m.contractBreakdowns.length} contratos (atual: ${escapeHtml(latestLabel)})`;
+    if (m.hasUndefinedPartnership && m.totalContracted === 0) {
+      deliveredLabel = `${m.totalPublished} publicadas`;
+      remainingLabel = 'Sem limite definido';
+    } else {
+      deliveredLabel = `${m.totalPublished} de ${m.totalContracted} entregues`;
+      remainingLabel = `${m.remaining} ${m.remaining === 1 ? 'restante' : 'restantes'}${m.totalExcess > 0 ? ` (+${m.totalExcess} extra)` : ''}`;
+    }
+  }
+
+  const subtitleText = instaFormatted || client.company || '';
+  const targetContractId = m.contractBreakdowns.length === 1 ? m.contractBreakdowns[0].contract.id : '';
+
+  return `
+    <article class="ios-client-card ${cardStateClass}" data-client-id="${escapeHtml(client.id)}">
+      <div class="ios-client-header" role="button" tabindex="0" onclick="openClientProfile('${escapeHtml(client.id)}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openClientProfile('${escapeHtml(client.id)}');}" aria-label="Abrir perfil de ${escapeHtml(client.name)}">
+        <div class="ios-client-identity">
+          ${avatarHtml}
+          <div class="ios-client-titles">
+            <h3 class="ios-client-name">${escapeHtml(client.name)}</h3>
+            ${subtitleText ? `<span class="ios-client-handle">${escapeHtml(subtitleText)}</span>` : ''}
+          </div>
+        </div>
+        <svg class="ios-client-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="9 18 15 12 9 6"></polyline>
+        </svg>
+      </div>
+
+      <div class="ios-client-contract-row">
+        <span class="ios-contract-period">${periodLabel}</span>
+        <span class="badge ${m.overallBadgeClass}">${escapeHtml(m.overallDeliveryState)}</span>
+      </div>
+
+      <div class="ios-client-progress-block">
+        <div class="ios-client-stats-row tabular-nums">
+          <span class="ios-stats-delivered">${deliveredLabel}</span>
+          <span class="ios-stats-remaining">${remainingLabel}</span>
+        </div>
+        <div class="ios-progress-track">
+          <div class="ios-progress-fill ${m.overallFillClass}" style="width: ${m.percentage}%"></div>
+        </div>
+      </div>
+
+      <button type="button" class="ios-register-post-btn" onclick="openQuickPostFromCard('${escapeHtml(client.id)}', '${escapeHtml(targetContractId)}')">
+        + Registrar postagem
+      </button>
+    </article>
+  `;
+}
+
 function renderClientsGrid(filteredClients, monthFilter, statusFilter, searchQuery, includeCancelled) {
   const grid = document.getElementById('clientsGrid');
   if (!grid) return;
@@ -1655,88 +1737,62 @@ function renderClientsGrid(filteredClients, monthFilter, statusFilter, searchQue
     return;
   }
 
-  grid.innerHTML = filteredClients.map(client => {
-    const m = getClientMetrics(client, monthFilter, includeCancelled, getLocalTodayISO(), activeClientCategory);
-    const avatarHtml = renderAvatarHtml(client);
+  if (activeClientCategory !== 'ALL') {
+    grid.innerHTML = filteredClients
+      .map(client => renderSingleClientCardHtml(client, monthFilter, includeCancelled, activeClientCategory))
+      .join('');
+    return;
+  }
 
-    const cardStateClass = m.hasOverdueContract
-      ? 'card-overdue'
-      : (m.hasDueSoonContract ? 'card-due-soon' : '');
+  // Na visão "Todos", separa sempre por categoria com destaque inicial para Pacotes Mensais Ativos
+  const mensalClients = filteredClients.filter(c => getClientMetrics(c, monthFilter, includeCancelled, getLocalTodayISO(), 'Mensal').contractBreakdowns.length > 0);
+  const avulsoClients = filteredClients.filter(c => getClientMetrics(c, monthFilter, includeCancelled, getLocalTodayISO(), 'Avulso').contractBreakdowns.length > 0);
+  const parceriaClients = filteredClients.filter(c => getClientMetrics(c, monthFilter, includeCancelled, getLocalTodayISO(), 'Parceria').contractBreakdowns.length > 0);
+  const otherClients = filteredClients.filter(c => {
+    const mAll = getClientMetrics(c, monthFilter, includeCancelled, getLocalTodayISO(), 'ALL');
+    const hasClassified = mAll.contractBreakdowns.some(b => ['Mensal', 'Avulso', 'Parceria'].includes(b.contract.agreementType));
+    return !hasClassified;
+  });
 
-    const instaFormatted = formatInstagram(client.instagram);
-    const instaUrl = getInstagramUrl(client.instagram);
+  const sections = [];
+  if (mensalClients.length > 0) {
+    sections.push(`
+      <div class="clients-group-header clients-group-highlight">
+        <span>PACOTES MENSAIS ATIVOS</span>
+        <span class="clients-group-count">${mensalClients.length}</span>
+      </div>
+      ${mensalClients.map(c => renderSingleClientCardHtml(c, monthFilter, includeCancelled, 'Mensal')).join('')}
+    `);
+  }
+  if (avulsoClients.length > 0) {
+    sections.push(`
+      <div class="clients-group-header">
+        <span>CLIENTES AVULSOS</span>
+        <span class="clients-group-count">${avulsoClients.length}</span>
+      </div>
+      ${avulsoClients.map(c => renderSingleClientCardHtml(c, monthFilter, includeCancelled, 'Avulso')).join('')}
+    `);
+  }
+  if (parceriaClients.length > 0) {
+    sections.push(`
+      <div class="clients-group-header">
+        <span>PARCEIROS</span>
+        <span class="clients-group-count">${parceriaClients.length}</span>
+      </div>
+      ${parceriaClients.map(c => renderSingleClientCardHtml(c, monthFilter, includeCancelled, 'Parceria')).join('')}
+    `);
+  }
+  if (otherClients.length > 0) {
+    sections.push(`
+      <div class="clients-group-header">
+        <span>OUTROS / SEM ACORDO NO PERÍODO</span>
+        <span class="clients-group-count">${otherClients.length}</span>
+      </div>
+      ${otherClients.map(c => renderSingleClientCardHtml(c, monthFilter, includeCancelled, 'ALL')).join('')}
+    `);
+  }
 
-    // Resumo limpo do contrato: Período + "2 de 8 entregues" e "6 restantes"
-    let periodLabel = '';
-    let deliveredLabel = '';
-    let remainingLabel = '';
-
-    if (m.contractBreakdowns.length === 0) {
-      periodLabel = 'Sem contrato ativo';
-      deliveredLabel = '0 de 0 entregues';
-      remainingLabel = '0 restantes';
-    } else if (m.contractBreakdowns.length === 1) {
-      const { contract, metrics: cm } = m.contractBreakdowns[0];
-      const dispLabel = getContractDisplayLabel(contract);
-      const typeTag = getAgreementTypeBadgeText(contract);
-      periodLabel = `${escapeHtml(dispLabel)} <span class="badge badge-concluido" style="margin-left:4px;">${escapeHtml(typeTag)}</span>`;
-      if (!cm.hasDefinedQuantity) {
-        deliveredLabel = `${cm.published} publicadas`;
-        remainingLabel = 'Sem limite definido';
-      } else {
-        deliveredLabel = `${cm.published} de ${cm.totalContracted} entregues`;
-        remainingLabel = `${cm.remaining} ${cm.remaining === 1 ? 'restante' : 'restantes'}${cm.excess > 0 ? ` (+${cm.excess} extra)` : ''}`;
-      }
-    } else {
-      const latestLabel = getContractDisplayLabel(m.contractBreakdowns[0].contract);
-      periodLabel = `${m.contractBreakdowns.length} contratos (atual: ${escapeHtml(latestLabel)})`;
-      if (m.hasUndefinedPartnership && m.totalContracted === 0) {
-        deliveredLabel = `${m.totalPublished} publicadas`;
-        remainingLabel = 'Sem limite definido';
-      } else {
-        deliveredLabel = `${m.totalPublished} de ${m.totalContracted} entregues`;
-        remainingLabel = `${m.remaining} ${m.remaining === 1 ? 'restante' : 'restantes'}${m.totalExcess > 0 ? ` (+${m.totalExcess} extra)` : ''}`;
-      }
-    }
-
-    const subtitleText = instaFormatted || client.company || '';
-
-    return `
-      <article class="ios-client-card ${cardStateClass}" data-client-id="${escapeHtml(client.id)}">
-        <div class="ios-client-header" role="button" tabindex="0" onclick="openClientProfile('${escapeHtml(client.id)}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openClientProfile('${escapeHtml(client.id)}');}" aria-label="Abrir perfil de ${escapeHtml(client.name)}">
-          <div class="ios-client-identity">
-            ${avatarHtml}
-            <div class="ios-client-titles">
-              <h3 class="ios-client-name">${escapeHtml(client.name)}</h3>
-              ${subtitleText ? `<span class="ios-client-handle">${escapeHtml(subtitleText)}</span>` : ''}
-            </div>
-          </div>
-          <svg class="ios-client-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <polyline points="9 18 15 12 9 6"></polyline>
-          </svg>
-        </div>
-
-        <div class="ios-client-contract-row">
-          <span class="ios-contract-period">${periodLabel}</span>
-          <span class="badge ${m.overallBadgeClass}">${escapeHtml(m.overallDeliveryState)}</span>
-        </div>
-
-        <div class="ios-client-progress-block">
-          <div class="ios-client-stats-row tabular-nums">
-            <span class="ios-stats-delivered">${deliveredLabel}</span>
-            <span class="ios-stats-remaining">${remainingLabel}</span>
-          </div>
-          <div class="ios-progress-track">
-            <div class="ios-progress-fill ${m.overallFillClass}" style="width: ${m.percentage}%"></div>
-          </div>
-        </div>
-
-        <button type="button" class="ios-register-post-btn" onclick="openQuickPostFromCard('${escapeHtml(client.id)}')">
-          + Registrar postagem
-        </button>
-      </article>
-    `;
-  }).join('');
+  grid.innerHTML = sections.join('');
 }
 
 // ==================== RENDERIZAÇÃO DE CARDS DE POSTAGEM (MOBILE-FIRST) ====================
