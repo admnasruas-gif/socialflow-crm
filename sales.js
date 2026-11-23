@@ -1298,20 +1298,33 @@ function checkDuplicateSaleWarningInForm() {
 }
 
 function populateSaleModalBeneficiaries(selectedBeneficiaryId = '', locked = false) {
-  const select = el('saleBeneficiarySelect');
+  const input = el('saleBeneficiarySelect');
+  const group = el('saleBeneficiaryButtons');
   const btnNew = el('btnSaleCreateNewBeneficiary');
   const hint = el('saleBeneficiaryHint');
-  if (!select) return;
+  if (!input) return;
 
   const bens = (getSalesStateSafe().beneficiaries || [])
     .filter(b => b.ativo || b.id === selectedBeneficiaryId)
     .slice()
     .sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
 
-  select.innerHTML = `<option value="">A definir</option>` +
-    bens.map(b => `<option value="${escapeStr(b.id)}">${escapeStr(b.nome)}${b.papel ? ` (${escapeStr(b.papel)})` : ''}${b.ativo ? '' : ' (Inativo)'}</option>`).join('');
-  select.value = selectedBeneficiaryId && bens.some(b => b.id === selectedBeneficiaryId) ? selectedBeneficiaryId : '';
-  select.disabled = Boolean(locked);
+  const resolvedVal = selectedBeneficiaryId && bens.some(b => b.id === selectedBeneficiaryId) ? selectedBeneficiaryId : '';
+  input.value = resolvedVal;
+  input.disabled = Boolean(locked);
+
+  if (group) {
+    const disabledAttr = locked ? 'disabled' : '';
+    const options = [{ id: '', nome: 'A definir', papel: '', ativo: true }, ...bens];
+    group.innerHTML = options.map(opt => {
+      const isSelected = opt.id === resolvedVal;
+      const label = opt.id
+        ? `${opt.nome}${opt.papel ? ` (${opt.papel})` : ''}${opt.ativo ? '' : ' (Inativo)'}`
+        : opt.nome;
+      return `<button type="button" class="sales-choice-btn${isSelected ? ' active' : ''}" data-beneficiary-id="${escapeStr(opt.id)}" aria-pressed="${isSelected ? 'true' : 'false'}" ${disabledAttr}>${escapeStr(label)}</button>`;
+    }).join('');
+  }
+
   if (btnNew) btnNew.disabled = Boolean(locked);
   if (hint) {
     hint.textContent = locked
@@ -3539,6 +3552,18 @@ function bindSalesDomEvents() {
     captureSaleModalDraft('beneficiary');
     core()?.closeModal?.('saleModal');
     openSalesConfigModal(true);
+  });
+  el('saleBeneficiaryButtons')?.addEventListener('click', (e) => {
+    const btn = e.target?.closest?.('.sales-choice-btn');
+    const hiddenInput = el('saleBeneficiarySelect');
+    if (!btn || btn.disabled || !hiddenInput || hiddenInput.disabled) return;
+    const chosenId = btn.getAttribute('data-beneficiary-id') || '';
+    hiddenInput.value = chosenId;
+    el('saleBeneficiaryButtons')?.querySelectorAll('.sales-choice-btn').forEach(b => {
+      const active = b === btn;
+      b.classList.toggle('active', active);
+      b.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
   });
 
   // Relatórios internos
