@@ -812,6 +812,36 @@ function extractSingleMonthYear(periodStr = '') {
   return { month, year };
 }
 
+function getPeriodFromISODate(isoDate) {
+  if (!isoDate) return '';
+  const str = String(isoDate).trim();
+  // Match YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss or YYYY-MM
+  let m = str.match(/^(\d{4})-(\d{2})(?:-\d{2})?/);
+  if (m) {
+    const monthIdx = Number(m[2]) - 1;
+    if (monthIdx >= 0 && monthIdx <= 11) {
+      const months = [
+        'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+        'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+      ];
+      return `${months[monthIdx]}/${m[1]}`;
+    }
+  }
+  // Match DD/MM/YYYY
+  m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (m) {
+    const monthIdx = Number(m[2]) - 1;
+    if (monthIdx >= 0 && monthIdx <= 11) {
+      const months = [
+        'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+        'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+      ];
+      return `${months[monthIdx]}/${m[3]}`;
+    }
+  }
+  return '';
+}
+
 function periodLabelsMatch(labelA = '', labelB = '') {
   const a = normalizePeriod(labelA).toLowerCase();
   const b = normalizePeriod(labelB).toLowerCase();
@@ -894,7 +924,7 @@ function extractContractPeriodMonths(contract) {
   return [];
 }
 
-function contractMatchesPeriod(contract, monthFilter = 'ALL') {
+function contractMatchesPeriod(contract, monthFilter = 'ALL', client = null) {
   if (!monthFilter || monthFilter === 'ALL') return true;
   if (!contract) return false;
 
@@ -914,11 +944,37 @@ function contractMatchesPeriod(contract, monthFilter = 'ALL') {
         const checkYear = target.year > 0 ? target.year : start.getFullYear();
         const monthStart = new Date(checkYear, target.month - 1, 1, 0, 0, 0, 0);
         const monthEnd = new Date(checkYear, target.month, 0, 23, 59, 59, 999);
-        return start <= monthEnd && end >= monthStart;
+        if (start <= monthEnd && end >= monthStart) return true;
       }
     }
     if (parsePeriodSortKey(rawPeriod) > 0 && periodLabelsMatch(rawPeriod, monthFilter)) {
       return true;
+    }
+  }
+
+  // Verifica se há postagens vinculadas a este contrato dentro do mês/ano filtrado
+  const ownerClient = client || (typeof appData !== 'undefined' && appData.clients
+    ? appData.clients.find(cl => (cl.contracts || []).some(cnt => cnt.id === contract.id))
+    : null);
+
+  if (ownerClient && Array.isArray(ownerClient.posts)) {
+    const hasPostInMonth = ownerClient.posts.some(p => {
+      const linked = getLinkedContractForPost(ownerClient, p);
+      if (!linked || linked.id !== contract.id) return false;
+      if (!p.date) return false;
+      const postMonth = getPeriodFromISODate(p.date);
+      return periodLabelsMatch(postMonth, monthFilter);
+    });
+    if (hasPostInMonth) return true;
+  }
+
+  // Se o contrato for Avulso ou Parceria sem datas de início/fim nem período mensal,
+  // verifica se foi criado no mês filtrado
+  if ((type === 'Avulso' || type === 'Parceria') && (contract.createdAt || contract.criado_em)) {
+    const createdISO = (contract.createdAt || contract.criado_em || '').slice(0, 10);
+    if (createdISO) {
+      const createdMonth = getPeriodFromISODate(createdISO);
+      if (periodLabelsMatch(createdMonth, monthFilter)) return true;
     }
   }
 
@@ -932,6 +988,22 @@ function getAllContractMonths() {
       extractContractPeriodMonths(c).forEach(p => {
         if (p) set.add(p);
       });
+      if (c.startDate || c.endDate) {
+        const d = c.startDate || c.endDate;
+        const p = getPeriodFromISODate(d);
+        if (p) set.add(p);
+      }
+      if (c.createdAt || c.criado_em) {
+        const d = (c.createdAt || c.criado_em || '').slice(0, 10);
+        const p = getPeriodFromISODate(d);
+        if (p) set.add(p);
+      }
+    });
+    (client.posts || []).forEach(p => {
+      if (p.date) {
+        const pm = getPeriodFromISODate(p.date);
+        if (pm) set.add(pm);
+      }
     });
   });
   return Array.from(set).sort((a, b) => comparePeriodsChronologically(a, b, true));
@@ -963,7 +1035,8 @@ function populateContractMonthFilters() {
   const sheetSelect = document.getElementById('sheetContractMonthFilter');
 
   const currentVal = globalSelect?.value || sheetSelect?.value || 'ALL';
-  const validVal = months.includes(currentVal) ? currentVal : 'ALL';
+  const matched = months.find(m => m === currentVal || periodLabelsMatch(m, currentVal));
+  const validVal = currentVal === 'ALL' ? 'ALL' : (matched || (months.includes(currentVal) ? currentVal : 'ALL'));
 
   if (globalSelect) {
     globalSelect.innerHTML = optionsHtml;
@@ -1099,7 +1172,7 @@ function getClientMetrics(client, monthFilter = 'ALL', includeCancelled = false,
   const consideredContracts = allContracts.filter(c => {
     if (!includeCancelled && c.status === 'Cancelado') return false;
     if (categoryFilter !== 'ALL' && c.agreementType !== categoryFilter) return false;
-    if (monthFilter !== 'ALL' && !contractMatchesPeriod(c, monthFilter)) return false;
+    if (monthFilter !== 'ALL' && !contractMatchesPeriod(c, monthFilter, client)) return false;
     return true;
   });
 
@@ -1135,7 +1208,7 @@ function getClientMetrics(client, monthFilter = 'ALL', includeCancelled = false,
     const linked = getLinkedContractForPost(client, p);
     if (!includeCancelled && linked && linked.status === 'Cancelado') return false;
     if (monthFilter === 'ALL') return true;
-    return linked ? contractMatchesPeriod(linked, monthFilter) : false;
+    return linked ? contractMatchesPeriod(linked, monthFilter, client) : false;
   });
 
   const countPendente = postsInPeriod.filter(p => p.status === 'Pendente').length;
@@ -1530,9 +1603,15 @@ function renderDashboard() {
     if (monthFilter !== 'ALL' && portfolioConditionFilter !== 'NO_CONTRACT') {
       const hasContractInMonth = (c.contracts || []).some(cnt => {
         if (!includeCancelled && cnt.status === 'Cancelado') return false;
-        return contractMatchesPeriod(cnt, monthFilter);
+        return contractMatchesPeriod(cnt, monthFilter, c);
       });
-      if (!hasContractInMonth) return false;
+      const hasPostInMonth = (c.posts || []).some(p => {
+        if (!p.date) return false;
+        const linked = getLinkedContractForPost(c, p);
+        if (!includeCancelled && linked && linked.status === 'Cancelado') return false;
+        return periodLabelsMatch(getPeriodFromISODate(p.date), monthFilter);
+      });
+      if (!hasContractInMonth && !hasPostInMonth) return false;
     }
 
     return true;
@@ -1545,7 +1624,7 @@ function renderDashboard() {
       const linked = getLinkedContractForPost(c, p);
       if (!includeCancelled && linked && linked.status === 'Cancelado') return false;
       if (monthFilter === 'ALL') return true;
-      return linked ? contractMatchesPeriod(linked, monthFilter) : false;
+      return linked ? contractMatchesPeriod(linked, monthFilter, c) : false;
     });
 
     clientPostsInMonth.forEach(p => {
@@ -1586,7 +1665,7 @@ function renderDashboard() {
       if (!includeCancelled && linked && linked.status === 'Cancelado') return false;
       if (activeClientCategory !== 'ALL' && (!linked || linked.agreementType !== activeClientCategory)) return false;
       if (monthFilter === 'ALL') return true;
-      return linked ? contractMatchesPeriod(linked, monthFilter) : false;
+      return linked ? contractMatchesPeriod(linked, monthFilter, c) : false;
     });
     return clientPostsInMonth.some(p => p.status === statusFilter);
   });
@@ -2202,7 +2281,7 @@ function renderGlobalPostsFeed(monthFilter, statusFilter, clientFilter, queryStr
       if (monthFilter !== 'ALL') {
         const matches = periodMode === 'date'
           ? periodLabelsMatch(postDatePeriod, monthFilter)
-          : (linked ? contractMatchesPeriod(linked, monthFilter) : false);
+          : (periodLabelsMatch(postDatePeriod, monthFilter) || (linked ? contractMatchesPeriod(linked, monthFilter, client) : false));
         if (!matches) return;
       }
       if (statusFilter !== 'ALL' && post.status !== statusFilter) {
@@ -3835,7 +3914,7 @@ function getClientLastPublishedDates(client, monthFilter = 'ALL', includeCancell
     if (!includeCancelled && linked && linked.status === 'Cancelado') return;
     if (monthFilter === 'ALL') {
       if (!lastInPeriod || p.date > lastInPeriod) lastInPeriod = p.date;
-    } else if (linked && contractMatchesPeriod(linked, monthFilter)) {
+    } else if (linked && contractMatchesPeriod(linked, monthFilter, client)) {
       if (!lastInPeriod || p.date > lastInPeriod) lastInPeriod = p.date;
     }
   });
