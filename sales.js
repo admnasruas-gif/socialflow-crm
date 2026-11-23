@@ -685,7 +685,6 @@ function renderSalesKPIs(filteredSales) {
   const k = computeSalesKPIs(filteredSales, state, salesFilterState);
 
   const items = [
-    { group: 'Receita', label: 'Qtd. de vendas', value: String(k.qtdVendas), sub: 'Lançamentos filtrados', tone: '' },
     { group: 'Receita', label: 'Total vendido', value: formatCentsBR(k.totalVendidoCentavos), sub: 'Contabilizado 1x por venda', tone: '' },
     { group: 'Receita', label: 'Recebido no período', value: formatCentsBR(k.totalRecebidoNoPeriodoCentavos), sub: salesFilterState.competencia === 'ALL' ? 'Todos os movimentos ativos' : `Movimentos de ${formatCompetenceLabel(salesFilterState.competencia)}`, tone: 'kpi-green' },
     { group: 'Receita', label: 'Recebido acumulado', value: formatCentsBR(k.totalRecebidoCentavos), sub: 'Todos os movimentos ativos', tone: 'kpi-green' },
