@@ -82,6 +82,13 @@
             </svg>
             <span>Postagens</span>
           </button>
+          <button type="button" class="nav-item" id="navSalesBtn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="1" x2="12" y2="23"></line>
+              <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+            </svg>
+            <span>Vendas</span>
+          </button>
           <button type="button" class="nav-item" id="navVideosBtn">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
               <polygon points="23 7 16 12 23 17 23 7"></polygon>
@@ -444,6 +451,9 @@
             </div>
           </div>
 
+          <!-- Vendas do Cliente (Integração direta sem repetir formulário financeiro) -->
+          <div id="profileSalesSummaryMount" class="profile-sales-summary-mount"></div>
+
           <!-- Histórico Mensal do Cliente -->
           <div class="profile-monthly-history-section" id="profileMonthlyHistorySection">
             <div class="profile-posts-header">
@@ -531,6 +541,153 @@
           </div>
 
           <div id="videosList" class="posts-list"></div>
+        </div>
+      </section>
+
+      <!-- ==================== TELA: VENDAS DO MÊS (FINANCEIRO & COMISSÕES) ==================== -->
+      <section id="salesView" class="view-section hidden">
+        <header class="ios-clients-header sales-page-header">
+          <div class="ios-brand-header-left">
+            <img src="./logo-nasruas.png" alt="NasRuas de ITZ" class="ios-header-logo" onerror="handleLogoError(this)">
+            <div class="screen-header-titles">
+              <span class="app-hero-kicker">CONTROLE FINANCEIRO</span>
+              <h1 class="ios-page-title">Vendas do mês</h1>
+            </div>
+          </div>
+          <div class="sales-header-actions">
+            <button type="button" class="btn btn-secondary btn-sm sales-desktop-only-btn" id="btnOpenSalesConfig">
+              Beneficiários e regras
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" id="btnOpenSalesReports">
+              Relatórios
+            </button>
+            <button type="button" class="btn btn-yellow-brand btn-sm" id="btnOpenSalesClosure">
+              Fechar mês
+            </button>
+            <button type="button" class="btn btn-primary btn-sm" id="btnNewSale">
+              + Nova venda
+            </button>
+          </div>
+        </header>
+
+        <div class="ios-screen-body">
+          <div id="salesMigrationBanner" class="warning-banner hidden">
+            <strong>Tabelas de Vendas não detectadas no Supabase.</strong> Os lançamentos locais continuam protegidos; execute <code>supabase/migration_v6_vendas_financeiro.sql</code> no SQL Editor para sincronizar em nuvem.
+          </div>
+
+          <div class="sales-toolbar-row">
+            <div class="sales-period-select-wrap">
+              <label for="salesCompetenceFilter" class="visually-hidden">Competência</label>
+              <select id="salesCompetenceFilter" class="select-filter" aria-label="Selecionar competência (mês e ano)"></select>
+            </div>
+            <div class="sales-period-select-wrap">
+              <label for="salesDateModeFilter" class="visually-hidden">Visão de data</label>
+              <select id="salesDateModeFilter" class="select-filter" aria-label="Visão de data">
+                <option value="competencia">Por competência da venda</option>
+                <option value="recebimento">Por data de recebimento</option>
+              </select>
+            </div>
+            <button type="button" class="btn btn-secondary btn-sm sales-mobile-cfg-btn" id="btnOpenSalesConfigMobile">
+              Regras e equipe
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" id="btnOpenSalesFiltersSheet">
+              Filtros <span id="salesActiveFiltersBadge" class="app-tile-badge hidden">0</span>
+            </button>
+            <button type="button" class="ios-clear-filter-btn hidden" id="btnClearSalesFilters">Limpar filtros</button>
+          </div>
+
+          <div id="salesDateModeNotice" class="filter-info-banner hidden">
+            <span>Exibindo vendas que receberam pagamento do cliente na competência selecionada (<strong>visão por data de recebimento</strong> — não altera a competência original da venda).</span>
+          </div>
+
+          <!-- Sub-visões dentro de Vendas -->
+          <div class="status-chips-scroll sales-subtabs" id="salesSubTabs" role="tablist" aria-label="Visões financeiras">
+            <button type="button" class="status-chip active" data-sales-subtab="lancamentos">Lançamentos</button>
+            <button type="button" class="status-chip" data-sales-subtab="comissoes">Comissões e baixas</button>
+            <button type="button" class="status-chip" data-sales-subtab="fechamentos">Fechamentos</button>
+          </div>
+
+          <!-- Indicadores (8 métricas exigidas) -->
+          <div id="salesKpisGrid" class="sales-kpi-grid" aria-label="Indicadores de vendas e comissões"></div>
+          <div id="salesAlertsBanner" class="sales-alerts-banner hidden"></div>
+
+          <!-- Painel Lançamentos -->
+          <div id="salesTabLancamentos">
+            <div class="sales-filters-panel">
+              <div class="ios-search-pill">
+                <svg class="ios-search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <label for="salesSearchInput" class="visually-hidden">Buscar venda</label>
+                <input type="search" id="salesSearchInput" class="ios-search-input" placeholder="Buscar cliente, @instagram, descrição ou acordo..." autocomplete="off">
+              </div>
+
+              <div class="sales-desktop-filters-grid">
+                <select id="salesClientFilter" class="select-filter" aria-label="Filtrar por cliente"><option value="ALL">Todos os clientes</option></select>
+                <select id="salesContractFilter" class="select-filter" aria-label="Filtrar por contrato"><option value="ALL">Todos os contratos</option></select>
+                <select id="salesAgreementTypeFilter" class="select-filter" aria-label="Tipo de acordo">
+                  <option value="ALL">Tipo: Todos</option>
+                  <option value="Mensal">Mensal</option>
+                  <option value="Avulso">Avulso</option>
+                  <option value="Parceria">Parceria</option>
+                </select>
+                <select id="salesConferenceFilter" class="select-filter" aria-label="Conferência">
+                  <option value="ALL">Conferência: Todas</option>
+                  <option value="pendente">Pendente</option>
+                  <option value="conferida">Conferida</option>
+                  <option value="divergencia">Com divergência</option>
+                </select>
+                <select id="salesReceiptFilter" class="select-filter" aria-label="Recebimento">
+                  <option value="ALL">Recebimento: Todos</option>
+                  <option value="nao_informado">Não informado</option>
+                  <option value="pendente">Pendente</option>
+                  <option value="parcial">Parcial</option>
+                  <option value="recebido">Recebido</option>
+                </select>
+                <select id="salesBeneficiaryFilter" class="select-filter" aria-label="Beneficiário"><option value="ALL">Beneficiário: Todos</option></select>
+                <select id="salesCommissionStatusFilter" class="select-filter" aria-label="Situação da comissão">
+                  <option value="ALL">Comissão: Todas</option>
+                  <option value="a_definir">A definir</option>
+                  <option value="apurada">Apurada</option>
+                  <option value="paga">Paga</option>
+                  <option value="nao_se_aplica">Não se aplica</option>
+                </select>
+                <select id="salesModalityFilter" class="select-filter" aria-label="Modalidade">
+                  <option value="ALL">Modalidade: Todas</option>
+                  <option value="midia_pronta">Mídia pronta</option>
+                  <option value="criacao_conteudo">Criação de conteúdo</option>
+                  <option value="outro">Outro</option>
+                  <option value="nao_informado">Não informado</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Barra de seleção em lote para baixa de comissões -->
+            <div id="salesBulkBar" class="sales-bulk-bar hidden">
+              <div class="sales-bulk-summary">
+                <strong id="salesBulkCountLabel">0 selecionada(s)</strong>
+                <span id="salesBulkTotalLabel" class="tabular-nums">Total comissão: R$ 0,00</span>
+                <span id="salesBulkWarningLabel" class="sales-bulk-warn"></span>
+              </div>
+              <div class="sales-bulk-actions">
+                <button type="button" class="btn btn-ghost btn-sm" id="btnSalesBulkClear" style="color: #FFFFFF;">Limpar</button>
+                <button type="button" class="btn btn-yellow-brand btn-sm" id="btnSalesBulkPayout">Dar baixa por beneficiário</button>
+              </div>
+            </div>
+
+            <div id="salesListContainer"></div>
+          </div>
+
+          <!-- Painel Comissões e Baixas -->
+          <div id="salesTabComissoes" class="hidden">
+            <div id="salesCommissionsContainer"></div>
+          </div>
+
+          <!-- Painel Fechamentos -->
+          <div id="salesTabFechamentos" class="hidden">
+            <div id="salesClosuresContainer"></div>
+          </div>
         </div>
       </section>
 
@@ -762,7 +919,7 @@
       </section>
     </div>
 
-    <!-- ==================== NAVEGAÇÃO INFERIOR iOS (CELULAR) ==================== -->
+    <!-- ==================== NAVEGAÇÃO INFERIOR iOS (CELULAR — 4 ITENS) ==================== -->
     <nav class="mobile-bottom-nav no-print" id="mobileBottomNav" aria-label="Navegação Principal Mobile">
       <button type="button" class="bottom-nav-item active" id="mobileNavClients">
         <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -782,21 +939,51 @@
         </svg>
         <span class="bottom-nav-label">Postagens</span>
       </button>
-      <button type="button" class="bottom-nav-item" id="mobileNavVideos">
+      <button type="button" class="bottom-nav-item" id="mobileNavSales">
         <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <polygon points="23 7 16 12 23 17 23 7"></polygon>
-          <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+          <line x1="12" y1="1" x2="12" y2="23"></line>
+          <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
         </svg>
-        <span class="bottom-nav-label">Vídeos</span>
+        <span class="bottom-nav-label">Vendas</span>
       </button>
-      <button type="button" class="bottom-nav-item" id="mobileNavSettings">
+      <button type="button" class="bottom-nav-item" id="mobileNavMore">
         <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <circle cx="12" cy="12" r="3"></circle>
-          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          <line x1="3" y1="12" x2="21" y2="12"></line>
+          <line x1="3" y1="6" x2="21" y2="6"></line>
+          <line x1="3" y1="18" x2="21" y2="18"></line>
         </svg>
-        <span class="bottom-nav-label">Ajustes</span>
+        <span class="bottom-nav-label">Mais</span>
       </button>
     </nav>
+  </div>
+
+  <!-- ==================== PAINEL INFERIOR: MAIS MÓDULOS (VÍDEOS, AJUSTES, LIXEIRA) ==================== -->
+  <div class="modal-backdrop bottom-sheet-backdrop hidden no-print" id="moreNavSheetModal" role="dialog" aria-modal="true" aria-labelledby="moreNavSheetTitle">
+    <div class="bottom-sheet-card">
+      <div class="bottom-sheet-handle"></div>
+      <div class="modal-header">
+        <h3 class="modal-title" id="moreNavSheetTitle">Mais opções</h3>
+        <button type="button" class="btn-icon-close" data-close-modal="moreNavSheetModal" aria-label="Fechar">&times;</button>
+      </div>
+      <div class="modal-body" style="gap: 10px;">
+        <button type="button" class="more-sheet-row" id="mobileNavVideos">
+          <span>Vídeos</span>
+          <span class="more-sheet-sub">Quadro Kanban independente</span>
+        </button>
+        <button type="button" class="more-sheet-row" id="mobileNavSettings">
+          <span>Ajustes</span>
+          <span class="more-sheet-sub">Conta, backup, dados e aplicativo</span>
+        </button>
+        <button type="button" class="more-sheet-row" id="mobileNavGeneralReport">
+          <span>Relatório geral</span>
+          <span class="more-sheet-sub">Resumo consolidado de contratos</span>
+        </button>
+        <button type="button" class="more-sheet-row" id="mobileNavTrash">
+          <span>Lixeira</span>
+          <span class="more-sheet-sub">Restaurar registros arquivados</span>
+        </button>
+      </div>
+    </div>
   </div>
 
   <!-- ==================== PAINEL INFERIOR (BOTTOM SHEET): FILTROS ==================== -->
@@ -1579,9 +1766,313 @@
     </div>
   </div>
 
+  <!-- ==================== MODAIS DO MÓDULO VENDAS DO MÊS ==================== -->
+  <!-- 1. Formulário Manual de Venda -->
+  <div class="modal-backdrop fullscreen-mobile-backdrop hidden no-print" id="saleModal" role="dialog" aria-modal="true" aria-labelledby="saleModalTitle">
+    <div class="modal-card fullscreen-mobile-card sales-form-modal-card">
+      <div class="modal-header">
+        <div>
+          <h3 class="modal-title" id="saleModalTitle">Nova venda</h3>
+          <p class="modal-subtitle">Vincule a um cliente e acordo existente</p>
+        </div>
+        <button type="button" class="btn-icon-close" data-close-modal="saleModal" aria-label="Fechar">&times;</button>
+      </div>
+      <form id="saleForm" class="modal-form-layout" novalidate>
+        <div class="modal-body" style="background: var(--bg);">
+          <input type="hidden" id="saleId">
+
+          <!-- Seção 1: Vínculo existente -->
+          <div class="sales-form-section-card">
+            <div class="sales-form-sec-head">
+              <span class="sales-step-num">1</span>
+              <span class="sales-sec-title">VÍNCULO EXISTENTE</span>
+            </div>
+
+            <div class="form-group">
+              <label for="saleClientSearchInput">Cliente <span class="req">*</span></label>
+              <input type="search" id="saleClientSearchInput" placeholder="Buscar cliente por nome, empresa ou @instagram..." autocomplete="off">
+              <select id="saleClientSelect" required></select>
+              <div class="sales-inline-links-row">
+                <button type="button" class="btn btn-ghost btn-sm" id="btnSaleOpenClientProfile">Ver perfil</button>
+                <button type="button" class="btn btn-secondary btn-sm" id="btnSaleCreateNewClient">+ Novo cliente</button>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="saleContractSelect">Contrato / Acordo <span class="req">*</span></label>
+              <select id="saleContractSelect" required></select>
+              <div id="saleContractMetaBox" class="sales-contract-ref-box hidden"></div>
+              <div id="salePartnershipWarning" class="warning-banner hidden">
+                Este acordo é uma <strong>Parceria</strong>. Parcerias não geram vendas pagas automaticamente — continue apenas se houver lançamento comercial específico.
+              </div>
+              <div class="sales-inline-links-row">
+                <button type="button" class="btn btn-secondary btn-sm" id="btnSaleCreateNewContract">+ Novo acordo</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Seção 2: Dados da venda -->
+          <div class="sales-form-section-card">
+            <div class="sales-form-sec-head">
+              <span class="sales-step-num">2</span>
+              <span class="sales-sec-title">DADOS DA VENDA</span>
+            </div>
+
+            <div class="form-group">
+              <label for="saleTitleInput">Identificação da venda <span class="req">*</span></label>
+              <input type="text" id="saleTitleInput" required placeholder="Ex: Pacote mensal de conteúdo ou ação contratada">
+            </div>
+
+            <div class="sales-form-2col">
+              <div class="form-group">
+                <label for="saleDateInput">Data da venda <span class="req">*</span></label>
+                <input type="date" id="saleDateInput" required>
+              </div>
+              <div class="form-group">
+                <label for="saleCompetenceInput">Competência (Mês/Ano) <span class="req">*</span></label>
+                <input type="month" id="saleCompetenceInput" required>
+              </div>
+            </div>
+            <p class="form-helper-text">A competência organiza o fechamento mensal e não se confunde com o período do contrato ou data de publicação.</p>
+
+            <div class="form-group">
+              <label for="saleValueInput">Valor deste lançamento (R$) <span class="req">*</span></label>
+              <input type="text" id="saleValueInput" inputmode="decimal" required placeholder="0,00">
+              <div class="sales-value-actions-row">
+                <button type="button" class="btn btn-yellow-brand btn-sm hidden" id="btnUseContractValue">Usar valor do contrato</button>
+                <span class="form-helper-text" id="saleContractValueHint"></span>
+              </div>
+            </div>
+
+            <div id="saleDuplicateWarning" class="warning-banner hidden"></div>
+          </div>
+
+          <!-- Seção 3: Detalhes opcionais, pacote e publicações (recolhível) -->
+          <div class="sales-form-section-card">
+            <button type="button" class="expandable-trigger" id="btnToggleSaleOptionalSection" aria-expanded="false" style="padding: 4px 0;">
+              <span>Detalhes opcionais, pacote e publicações</span>
+              <span class="expandable-chevron" id="saleOptionalChevron">▾</span>
+            </button>
+
+            <div id="saleOptionalBody" class="hidden" style="display: flex; flex-direction: column; gap: 14px; padding-top: 10px;">
+              <div class="form-group">
+                <label for="saleModalitySelect">Modalidade do material / serviço</label>
+                <select id="saleModalitySelect">
+                  <option value="nao_informado">Não informado</option>
+                  <option value="midia_pronta">Mídia pronta</option>
+                  <option value="criacao_conteudo">Criação de conteúdo</option>
+                  <option value="outro">Outro</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label>Pacote do contrato selecionado (somente consulta)</label>
+                <div id="saleContractPackageSummary" class="sales-readonly-box">Selecione um acordo para ver os itens contratados.</div>
+              </div>
+
+              <div class="form-group">
+                <label for="salePackageNoteInput">Descrição complementar do pacote (opcional)</label>
+                <input type="text" id="salePackageNoteInput" placeholder="Ex: Detalhamento adicional opcional">
+              </div>
+
+              <div class="form-group">
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;">
+                  <label style="margin: 0;">Publicações vinculadas (opcional)</label>
+                  <button type="button" class="btn btn-secondary btn-sm" id="btnSaleCreateNewPost">+ Registrar postagem</button>
+                </div>
+                <p class="form-helper-text">A venda pode ser salva antes da publicação. Vincular várias publicações não multiplica o valor da venda.</p>
+                <div id="saleLinkedPostsList" class="sales-posts-check-list"></div>
+              </div>
+
+              <div class="form-group">
+                <label for="saleInternalNotesInput">Observações internas</label>
+                <textarea id="saleInternalNotesInput" rows="2" placeholder="Anotações internas financeiras (nunca aparece nos relatórios de clientes)"></textarea>
+              </div>
+            </div>
+          </div>
+
+          <div class="sales-info-footnote">
+            Recebimento e comissão iniciam como "Não informado" / "A definir" e podem ser registrados independentemente após salvar.
+          </div>
+
+          <p id="saleFormError" class="auth-error hidden"></p>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" data-close-modal="saleModal">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="btnSaveSale">Salvar venda</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 2. Detalhe da Venda (Conferência, Recebimentos, Comissão e Vínculos independentes) -->
+  <div class="modal-backdrop fullscreen-mobile-backdrop hidden no-print" id="saleDetailModal" role="dialog" aria-modal="true" aria-labelledby="saleDetailModalTitle">
+    <div class="modal-card modal-lg fullscreen-mobile-card">
+      <div class="modal-header">
+        <div>
+          <h3 class="modal-title" id="saleDetailModalTitle">Detalhes da venda</h3>
+          <p class="modal-subtitle" id="saleDetailSubtitle"></p>
+        </div>
+        <button type="button" class="btn-icon-close" data-close-modal="saleDetailModal" aria-label="Fechar">&times;</button>
+      </div>
+      <div class="modal-body" id="saleDetailBody" style="background: var(--bg);"></div>
+    </div>
+  </div>
+
+  <!-- 3. Painel Inferior de Filtros (Mobile Vendas) -->
+  <div class="modal-backdrop bottom-sheet-backdrop hidden no-print" id="salesFiltersSheetModal" role="dialog" aria-modal="true" aria-labelledby="salesFiltersSheetTitle">
+    <div class="bottom-sheet-card">
+      <div class="bottom-sheet-handle"></div>
+      <div class="modal-header">
+        <h3 class="modal-title" id="salesFiltersSheetTitle">Filtros de vendas</h3>
+        <button type="button" class="btn-icon-close" data-close-modal="salesFiltersSheetModal" aria-label="Fechar">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="salesSheetClientFilter">Cliente</label>
+          <select id="salesSheetClientFilter"><option value="ALL">Todos os clientes</option></select>
+        </div>
+        <div class="form-group">
+          <label for="salesSheetAgreementTypeFilter">Tipo de acordo</label>
+          <select id="salesSheetAgreementTypeFilter">
+            <option value="ALL">Todos</option>
+            <option value="Mensal">Mensal</option>
+            <option value="Avulso">Avulso</option>
+            <option value="Parceria">Parceria</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="salesSheetConferenceFilter">Conferência</label>
+          <select id="salesSheetConferenceFilter">
+            <option value="ALL">Todas</option>
+            <option value="pendente">Pendente</option>
+            <option value="conferida">Conferida</option>
+            <option value="divergencia">Com divergência</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="salesSheetReceiptFilter">Recebimento</label>
+          <select id="salesSheetReceiptFilter">
+            <option value="ALL">Todos</option>
+            <option value="nao_informado">Não informado</option>
+            <option value="pendente">Pendente</option>
+            <option value="parcial">Parcial</option>
+            <option value="recebido">Recebido</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="salesSheetBeneficiaryFilter">Beneficiário</label>
+          <select id="salesSheetBeneficiaryFilter"><option value="ALL">Todos</option></select>
+        </div>
+        <div class="form-group">
+          <label for="salesSheetCommissionStatusFilter">Situação da comissão</label>
+          <select id="salesSheetCommissionStatusFilter">
+            <option value="ALL">Todas</option>
+            <option value="a_definir">A definir</option>
+            <option value="apurada">Apurada</option>
+            <option value="paga">Paga</option>
+            <option value="nao_se_aplica">Não se aplica</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="salesSheetModalityFilter">Modalidade</label>
+          <select id="salesSheetModalityFilter">
+            <option value="ALL">Todas</option>
+            <option value="midia_pronta">Mídia pronta</option>
+            <option value="criacao_conteudo">Criação de conteúdo</option>
+            <option value="outro">Outro</option>
+            <option value="nao_informado">Não informado</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" id="btnResetSalesSheetFilters">Limpar</button>
+        <button type="button" class="btn btn-primary" data-close-modal="salesFiltersSheetModal">Aplicar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. Beneficiários & Regras de Comissão -->
+  <div class="modal-backdrop fullscreen-mobile-backdrop hidden no-print" id="salesConfigModal" role="dialog" aria-modal="true" aria-labelledby="salesConfigModalTitle">
+    <div class="modal-card modal-lg fullscreen-mobile-card">
+      <div class="modal-header">
+        <div>
+          <h3 class="modal-title" id="salesConfigModalTitle">Beneficiários e regras de comissão</h3>
+          <p class="modal-subtitle">Cadastro mínimo sem clientes fictícios e regras opcionais configuráveis</p>
+        </div>
+        <button type="button" class="btn-icon-close" data-close-modal="salesConfigModal" aria-label="Fechar">&times;</button>
+      </div>
+      <div class="modal-body" id="salesConfigModalBody" style="background: var(--bg);"></div>
+    </div>
+  </div>
+
+  <!-- 5. Fechamento do Mês -->
+  <div class="modal-backdrop fullscreen-mobile-backdrop hidden no-print" id="salesClosureModal" role="dialog" aria-modal="true" aria-labelledby="salesClosureModalTitle">
+    <div class="modal-card modal-lg fullscreen-mobile-card">
+      <div class="modal-header">
+        <div>
+          <h3 class="modal-title" id="salesClosureModalTitle">Fechamento do mês</h3>
+          <p class="modal-subtitle">Conferência final, resumo por beneficiário e congelamento da competência</p>
+        </div>
+        <button type="button" class="btn-icon-close" data-close-modal="salesClosureModal" aria-label="Fechar">&times;</button>
+      </div>
+      <div class="modal-body" id="salesClosureModalBody" style="background: var(--bg);"></div>
+    </div>
+  </div>
+
+  <!-- 6. Baixa de Comissão -->
+  <div class="modal-backdrop fullscreen-mobile-backdrop hidden no-print" id="salesPayoutModal" role="dialog" aria-modal="true" aria-labelledby="salesPayoutModalTitle">
+    <div class="modal-card fullscreen-mobile-card">
+      <div class="modal-header">
+        <div>
+          <h3 class="modal-title" id="salesPayoutModalTitle">Registrar baixa de comissão</h3>
+          <p class="modal-subtitle">Quitação integral por beneficiário sem alterar recebimento do cliente</p>
+        </div>
+        <button type="button" class="btn-icon-close" data-close-modal="salesPayoutModal" aria-label="Fechar">&times;</button>
+      </div>
+      <div class="modal-body" id="salesPayoutModalBody" style="background: var(--bg);"></div>
+    </div>
+  </div>
+
+  <!-- 7. Relatórios Internos (Vendas, Comissões, Fechamento) -->
+  <div class="modal-backdrop fullscreen-mobile-backdrop hidden" id="salesReportModal" role="dialog" aria-modal="true" aria-labelledby="salesReportModalTitle">
+    <div class="modal-card modal-lg fullscreen-mobile-card">
+      <div class="modal-header no-print">
+        <div>
+          <h3 class="modal-title" id="salesReportModalTitle">Relatórios internos (Vendas e Comissões)</h3>
+          <p class="modal-subtitle">Uso interno exclusivo da equipe — não enviado nos relatórios de clientes</p>
+        </div>
+        <button type="button" class="btn-icon-close" data-close-modal="salesReportModal" aria-label="Fechar">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="report-controls no-print">
+          <div class="form-group" style="flex: 1; min-width: 180px;">
+            <label for="salesReportTypeSelect">Tipo de relatório</label>
+            <select id="salesReportTypeSelect">
+              <option value="vendas_mes">A. Vendas do mês</option>
+              <option value="comissoes">B. Comissões</option>
+              <option value="fechamento">C. Fechamento</option>
+            </select>
+          </div>
+          <div class="form-group hidden" id="salesReportClosureSelectWrap" style="flex: 1; min-width: 180px;">
+            <label for="salesReportClosureSelect">Fechamento</label>
+            <select id="salesReportClosureSelect"></select>
+          </div>
+          <div class="report-actions-bar">
+            <button type="button" class="btn btn-secondary" id="btnExportSalesReportCsv">Exportar CSV</button>
+            <button type="button" class="btn btn-primary" id="btnPrintSalesReport">Imprimir / PDF</button>
+          </div>
+        </div>
+        <div id="printableSalesReportArea" class="printable-report"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast feedback -->
   <div id="toastContainer" class="toast-container no-print"></div>
 
   <script type="module" src="/app.js"></script>
+  <script type="module" src="/sales.js"></script>
 </body>
 </html>

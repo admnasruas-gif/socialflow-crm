@@ -273,13 +273,16 @@ const SAMPLE_DATA = {
 // Estado da aplicação
 let appData = { clients: [], videos: [] };
 let currentClientId = null;
-let dashboardMode = 'clients'; // 'clients' | 'posts' | 'videos'
+let contractModalClientId = null;
+let dashboardMode = 'clients'; // 'clients' | 'posts' | 'sales' | 'videos'
 let activeClientCategory = 'ALL'; // 'Mensal' | 'Avulso' | 'Parceria' | 'ALL'
 let videoStatusFilter = 'ALL';
 let pendingConfirmCallback = null;
 let pendingConfirmRequiredWord = null;
 let uploadedAvatarBase64 = '';
 let supabase = null;
+let currentAuthUserId = null;
+let currentAuthUserEmail = '';
 let isSubmittingClient = false;
 let isSubmittingContract = false;
 let isSubmittingPost = false;
@@ -554,6 +557,7 @@ async function fetchFromSupabase() {
   if (resPostagens.error) throw resPostagens.error;
 
   const videosData = resVideos && !resVideos.error ? (resVideos.data || []) : [];
+  const prevSalesState = appData && appData.salesState ? appData.salesState : null;
 
   appData = mapSupabaseRowsToAppData(
     resClientes.data || [],
@@ -561,6 +565,13 @@ async function fetchFromSupabase() {
     resPostagens.data || [],
     videosData
   );
+  if (prevSalesState && !appData.salesState) {
+    appData.salesState = prevSalesState;
+  }
+  ensureRecoveryStructures();
+  if (typeof window !== 'undefined' && window.__nasruasSales?.fetchSalesFromSupabase) {
+    await window.__nasruasSales.fetchSalesFromSupabase();
+  }
 }
 
 function loadData() {
@@ -602,6 +613,22 @@ function ensureRecoveryStructures() {
   if (!Array.isArray(appData.trash.contracts)) appData.trash.contracts = [];
   if (!Array.isArray(appData.trash.posts)) appData.trash.posts = [];
   if (!Array.isArray(appData.auditLog)) appData.auditLog = [];
+  if (!appData.salesState || typeof appData.salesState !== 'object') {
+    appData.salesState = {
+      beneficiaries: [],
+      rules: [],
+      sales: [],
+      salePosts: [],
+      receipts: [],
+      commissions: [],
+      closures: [],
+      closureItems: [],
+      payouts: [],
+      payoutItems: [],
+      migrationMissing: false,
+      lastError: null
+    };
+  }
 }
 
 async function recordAuditEvent(entidade, entidadeId, acao, detalhes = {}) {
@@ -716,13 +743,20 @@ async function initBackendAndAuth() {
 
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) {
+    currentAuthUserId = null;
+    currentAuthUserEmail = '';
     showAuthScreen(true);
   } else {
+    currentAuthUserId = session.user?.id || null;
+    currentAuthUserEmail = session.user?.email || '';
     showAuthScreen(false);
     updateDbStatusUI(true, session.user?.email || '');
     try {
       await fetchFromSupabase();
       renderDashboard();
+      if (dashboardMode === 'sales' && window.__nasruasSales?.renderSalesView) {
+        window.__nasruasSales.renderSalesView();
+      }
     } catch (err) {
       showToast('Erro ao carregar dados do Supabase: ' + (err.message || ''));
     }
@@ -730,14 +764,21 @@ async function initBackendAndAuth() {
 
   supabase.auth.onAuthStateChange(async (_event, newSession) => {
     if (!newSession) {
+      currentAuthUserId = null;
+      currentAuthUserEmail = '';
       showAuthScreen(true);
       updateDbStatusUI(false);
     } else {
+      currentAuthUserId = newSession.user?.id || null;
+      currentAuthUserEmail = newSession.user?.email || '';
       showAuthScreen(false);
       updateDbStatusUI(true, newSession.user?.email || '');
       try {
         await fetchFromSupabase();
         renderDashboard();
+        if (dashboardMode === 'sales' && window.__nasruasSales?.renderSalesView) {
+          window.__nasruasSales.renderSalesView();
+        }
       } catch (err) {
         console.error(err);
       }
@@ -1400,6 +1441,7 @@ function updateNavActiveState(activeSection) {
   const navMap = {
     clients: ['navClientsBtn', 'mobileNavClients'],
     posts: ['navPipelineBtn', 'mobileNavPosts'],
+    sales: ['navSalesBtn', 'mobileNavSales'],
     videos: ['navVideosBtn', 'mobileNavVideos'],
     settings: ['navSettingsBtn', 'mobileNavSettings']
   };
@@ -1415,17 +1457,28 @@ function updateNavActiveState(activeSection) {
       }
     });
   });
+
+  const moreBtn = document.getElementById('mobileNavMore');
+  if (moreBtn) {
+    if (activeSection === 'videos' || activeSection === 'settings') {
+      moreBtn.classList.add('active');
+    } else {
+      moreBtn.classList.remove('active');
+    }
+  }
 }
 
 function showMainView(viewName) {
   const dashView = document.getElementById('dashboardView');
   const postsView = document.getElementById('globalPostsSubView');
+  const salesView = document.getElementById('salesView');
   const videosView = document.getElementById('videosView');
   const profView = document.getElementById('profileView');
   const setView = document.getElementById('settingsView');
 
   dashView?.classList.add('hidden');
   postsView?.classList.add('hidden');
+  salesView?.classList.add('hidden');
   videosView?.classList.add('hidden');
   profView?.classList.add('hidden');
   setView?.classList.add('hidden');
@@ -1437,6 +1490,14 @@ function showMainView(viewName) {
     currentClientId = null;
     setView?.classList.remove('hidden');
     updateNavActiveState('settings');
+  } else if (viewName === 'sales') {
+    currentClientId = null;
+    dashboardMode = 'sales';
+    salesView?.classList.remove('hidden');
+    updateNavActiveState('sales');
+    if (typeof window !== 'undefined' && window.__nasruasSales?.renderSalesView) {
+      window.__nasruasSales.renderSalesView();
+    }
   } else if (viewName === 'videos') {
     currentClientId = null;
     dashboardMode = 'videos';
@@ -1459,6 +1520,8 @@ function showMainView(viewName) {
 function setDashboardMode(mode) {
   if (mode === 'posts') {
     showMainView('posts');
+  } else if (mode === 'sales') {
+    showMainView('sales');
   } else if (mode === 'videos') {
     showMainView('videos');
   } else {
@@ -2622,6 +2685,9 @@ function renderClientProfile() {
 
   renderContractsList(client, selectedProfileMonth, includeCancelled);
   renderPostsList(client, includeCancelled);
+  if (typeof window !== 'undefined' && window.__nasruasSales?.renderClientProfileSalesSection) {
+    window.__nasruasSales.renderClientProfileSalesSection(client);
+  }
 }
 
 function renderContractsList(client, selectedProfileMonth = 'ALL', includeCancelled = false) {
@@ -2659,6 +2725,7 @@ function renderContractsList(client, selectedProfileMonth = 'ALL', includeCancel
             ${cm.published} de ${cm.totalContracted} entregues • ${cm.remaining} restantes
             ${formattedVal ? ` • ${formattedVal}` : ''}
           </div>
+          ${typeof window !== 'undefined' && window.__nasruasSales?.getContractSalesBadgeHtml ? window.__nasruasSales.getContractSalesBadgeHtml(contract.id) : ''}
         </div>
 
         <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
@@ -2685,6 +2752,9 @@ function renderContractsList(client, selectedProfileMonth = 'ALL', includeCancel
               </button>
               <button type="button" class="dropdown-item" onclick="openDeliveryReportModal('${escapeHtml(client.id)}', '${escapeHtml(contract.id)}')">
                 Relatório deste contrato
+              </button>
+              <button type="button" class="dropdown-item" onclick="openSaleForContract('${escapeHtml(client.id)}', '${escapeHtml(contract.id)}')">
+                Ver / Registrar venda
               </button>
               <button type="button" class="dropdown-item danger" onclick="confirmDeleteContract('${escapeHtml(contract.id)}')">
                 Excluir contrato
@@ -3146,6 +3216,7 @@ async function handlePostSubmit(e) {
   }
 
   try {
+    let savedPostId = id || '';
     if (supabase) {
       const payload = {
         cliente_id: client.id,
@@ -3162,8 +3233,9 @@ async function handlePostSubmit(e) {
         const { error } = await supabase.from('postagens').update(payload).eq('id', id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('postagens').insert([payload]);
-        if (error) throw error;
+        const res = await supabase.from('postagens').insert([payload]).select('id').single();
+        if (res.error) throw res.error;
+        savedPostId = res.data?.id || '';
       }
       await fetchFromSupabase();
       showToast(id ? 'Postagem atualizada!' : (status === 'Publicado' ? 'Publicação registrada!' : 'Postagem salva!'));
@@ -3182,8 +3254,9 @@ async function handlePostSubmit(e) {
         }
         showToast('Postagem atualizada!');
       } else {
+        savedPostId = uid('pst');
         client.posts.unshift({
-          id: uid('pst'),
+          id: savedPostId,
           contractId,
           date,
           type,
@@ -3215,6 +3288,9 @@ async function handlePostSubmit(e) {
       renderClientProfile();
     } else {
       renderDashboard();
+    }
+    if (typeof window !== 'undefined' && window.__nasruasSales?.handleExternalEntityCreated) {
+      window.__nasruasSales.handleExternalEntityCreated('post', savedPostId || id, { clientId: client.id, contractId });
     }
   } catch (err) {
     postSubmitKeepOpen = false;
@@ -3991,7 +4067,7 @@ function exportGeneralReportCsv() {
 // ==================== MODAIS DE CLIENTE E CONTRATO ====================
 function syncBodyFullscreenModalState() {
   if (typeof document === 'undefined' || !document.body) return;
-  const fullscreenIds = ['clientModal', 'contractModal', 'renewContractModal', 'postModal', 'reportModal', 'generalReportModal', 'trashModal', 'auditLogModal', 'legacyClassificationModal', 'videoModal'];
+  const fullscreenIds = ['clientModal', 'contractModal', 'renewContractModal', 'postModal', 'reportModal', 'generalReportModal', 'trashModal', 'auditLogModal', 'legacyClassificationModal', 'videoModal', 'saleModal', 'saleDetailModal', 'salesConfigModal', 'salesClosureModal', 'salesPayoutModal', 'salesReportModal'];
   const anyOpen = fullscreenIds.some(id => {
     const el = document.getElementById(id);
     return el && !el.classList.contains('hidden');
@@ -4268,6 +4344,7 @@ async function handleClientSubmit(e) {
   }
 
   try {
+    let savedClientId = id || '';
     if (supabase) {
       if (uploadedAvatarBase64 && uploadedAvatarBase64.startsWith('data:image/')) {
         finalAvatar = await uploadAvatarToStorageIfAvailable(uploadedAvatarBase64);
@@ -4300,11 +4377,12 @@ async function handleClientSubmit(e) {
         }
         if (res.error) throw res.error;
       } else {
-        let res = await supabase.from('clientes').insert([payload]);
+        let res = await supabase.from('clientes').insert([payload]).select('id').single();
         if (res.error && String(res.error.message || '').includes('status')) {
-          res = await supabase.from('clientes').insert([basePayload]);
+          res = await supabase.from('clientes').insert([basePayload]).select('id').single();
         }
         if (res.error) throw res.error;
+        savedClientId = res.data?.id || '';
       }
       await fetchFromSupabase();
       updateDbStatusUI(true);
@@ -4324,8 +4402,9 @@ async function handleClientSubmit(e) {
         }
         showToast('Cliente atualizado!');
       } else {
+        savedClientId = uid('cli');
         const newClient = {
-          id: uid('cli'),
+          id: savedClientId,
           name,
           company,
           instagram,
@@ -4349,6 +4428,9 @@ async function handleClientSubmit(e) {
       renderClientProfile();
     } else {
       renderDashboard();
+    }
+    if (typeof window !== 'undefined' && window.__nasruasSales?.handleExternalEntityCreated) {
+      window.__nasruasSales.handleExternalEntityCreated('client', savedClientId || id);
     }
   } catch (err) {
     if (errEl) {
@@ -4487,9 +4569,10 @@ function syncContractAgreementFields() {
 }
 
 // --- Modal Contrato ---
-function openContractModal(contractId = null) {
+function openContractModal(contractId = null, preselectedClientId = null) {
   closeAllKebabMenus();
-  const client = appData.clients.find(c => c.id === currentClientId);
+  contractModalClientId = preselectedClientId || currentClientId;
+  const client = appData.clients.find(c => c.id === contractModalClientId);
   if (!client) return;
 
   const form = document.getElementById('contractForm');
@@ -4550,7 +4633,8 @@ async function handleContractSubmit(e) {
   e.preventDefault();
   if (isSubmittingContract) return;
 
-  const client = appData.clients.find(c => c.id === currentClientId);
+  const targetClientId = contractModalClientId || currentClientId;
+  const client = appData.clients.find(c => c.id === targetClientId);
   if (!client) return;
 
   const id = document.getElementById('contractId').value;
@@ -4631,6 +4715,7 @@ async function handleContractSubmit(e) {
   }
 
   try {
+    let savedContractId = id || '';
     if (supabase) {
       const fullPayload = {
         cliente_id: client.id,
@@ -4670,12 +4755,14 @@ async function handleContractSubmit(e) {
           opError = res.error;
         }
       } else {
-        const res = await supabase.from('contratos').insert([fullPayload]);
+        const res = await supabase.from('contratos').insert([fullPayload]).select('id').single();
         if (res.error && /(tipo_acordo|titulo_acordo|subtipo_parceria|quantidade_definida|descricao_combinado|duracao_meses)/.test(String(res.error.message || ''))) {
-          const fallback = await supabase.from('contratos').insert([basePayload]);
+          const fallback = await supabase.from('contratos').insert([basePayload]).select('id').single();
           opError = fallback.error;
+          if (!opError) savedContractId = fallback.data?.id || '';
         } else {
           opError = res.error;
+          if (!opError) savedContractId = res.data?.id || '';
         }
       }
 
@@ -4703,8 +4790,9 @@ async function handleContractSubmit(e) {
         }
         showToast('Acordo atualizado!');
       } else {
+        savedContractId = uid('cnt');
         client.contracts.push({
-          id: uid('cnt'),
+          id: savedContractId,
           agreementType,
           agreementTitle,
           partnershipSubtype,
@@ -4725,6 +4813,7 @@ async function handleContractSubmit(e) {
       saveData();
     }
 
+    contractModalClientId = null;
     closeModal('contractModal');
     // Seleciona automaticamente o período recém-criado/editado no perfil
     const profileSelect = document.getElementById('filterProfileContractMonth');
@@ -4732,7 +4821,14 @@ async function handleContractSubmit(e) {
       populateContractMonthFilters();
       profileSelect.value = period;
     }
-    renderClientProfile();
+    if (currentClientId === client.id) {
+      renderClientProfile();
+    } else {
+      renderDashboard();
+    }
+    if (typeof window !== 'undefined' && window.__nasruasSales?.handleExternalEntityCreated) {
+      window.__nasruasSales.handleExternalEntityCreated('contract', savedContractId || id, { clientId: client.id });
+    }
   } catch (err) {
     if (errEl) {
       errEl.textContent = 'Erro ao salvar contrato: ' + (err.message || '');
@@ -5242,6 +5338,13 @@ async function restoreFromTrash(type, id) {
 
 async function hardDeleteFromTrash(type, id) {
   ensureRecoveryStructures();
+  if (typeof window !== 'undefined' && window.__nasruasSales?.checkFinancialDeletionGuard) {
+    const guard = window.__nasruasSales.checkFinancialDeletionGuard(type, id);
+    if (guard?.blocked) {
+      showToast(guard.message || 'Registro vinculado ao histórico financeiro não pode ser excluído definitivamente.');
+      return;
+    }
+  }
   try {
     if (supabase) {
       const table = type === 'cliente' ? 'clientes' : (type === 'contrato' ? 'contratos' : 'postagens');
@@ -6592,7 +6695,42 @@ function initPwaSupport() {
 
 // Expõe funções chamadas via onclick no HTML
 if (typeof window !== 'undefined') {
-  Object.assign(window, {
+  window.__nasruasCore = {
+  getAppData: () => appData,
+  ensureRecoveryStructures,
+  getSupabase: () => supabase,
+  getCurrentUserId: () => currentAuthUserId,
+  getCurrentUserEmail: () => currentAuthUserEmail,
+  getCurrentClientId: () => currentClientId,
+  getDashboardMode: () => dashboardMode,
+  saveData,
+  fetchFromSupabase,
+  uid,
+  escapeHtml,
+  formatCurrency,
+  formatDateBR,
+  sanitizeCsvCell,
+  getAgreementTypeBadgeText,
+  getContractDisplayLabel,
+  openModal,
+  closeModal,
+  openConfirmModal,
+  showToast,
+  recordAuditEvent,
+  openClientModal,
+  openContractModal,
+  openPostModal,
+  openClientProfile,
+  openGeneralReportModal,
+  openTrashModal,
+  renderDashboard,
+  renderClientProfile,
+  showMainView,
+  setDashboardMode,
+  syncBodyFullscreenModalState
+};
+
+Object.assign(window, {
     openClientProfile,
     backToDashboard,
     openClientModal,
@@ -6652,8 +6790,23 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('navPipelineBtn')?.addEventListener('click', () => setDashboardMode('posts'));
   document.getElementById('mobileNavPosts')?.addEventListener('click', () => setDashboardMode('posts'));
 
+  document.getElementById('navSalesBtn')?.addEventListener('click', () => setDashboardMode('sales'));
+  document.getElementById('mobileNavSales')?.addEventListener('click', () => setDashboardMode('sales'));
+  document.getElementById('mobileNavMore')?.addEventListener('click', () => openModal('moreNavSheetModal'));
+  document.getElementById('mobileNavGeneralReport')?.addEventListener('click', () => {
+    closeModal('moreNavSheetModal');
+    openGeneralReportModal();
+  });
+  document.getElementById('mobileNavTrash')?.addEventListener('click', () => {
+    closeModal('moreNavSheetModal');
+    openTrashModal();
+  });
+
   document.getElementById('navSettingsBtn')?.addEventListener('click', () => showMainView('settings'));
-  document.getElementById('mobileNavSettings')?.addEventListener('click', () => showMainView('settings'));
+  document.getElementById('mobileNavSettings')?.addEventListener('click', () => {
+    closeModal('moreNavSheetModal');
+    showMainView('settings');
+  });
 
   // Botões de ação nos cabeçalhos
   document.getElementById('btnNewClientHeader')?.addEventListener('click', () => openClientModal());
@@ -6867,7 +7020,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Aba independente Vídeos
   document.getElementById('navVideosBtn')?.addEventListener('click', () => setDashboardMode('videos'));
-  document.getElementById('mobileNavVideos')?.addEventListener('click', () => setDashboardMode('videos'));
+  document.getElementById('mobileNavVideos')?.addEventListener('click', () => {
+    closeModal('moreNavSheetModal');
+    setDashboardMode('videos');
+  });
   document.getElementById('btnNewVideoHeader')?.addEventListener('click', () => openVideoModal());
   document.getElementById('videosSearchInput')?.addEventListener('input', renderVideosView);
   document.getElementById('toggleShowArchivedVideos')?.addEventListener('change', renderVideosView);
@@ -6973,6 +7129,13 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btnConfirmImportPosts')?.addEventListener('click', handleConfirmImportPosts);
 
   document.getElementById('btnClearData')?.addEventListener('click', () => {
+    if (typeof window !== 'undefined' && window.__nasruasSales?.checkFinancialDeletionGuard) {
+      const guard = window.__nasruasSales.checkFinancialDeletionGuard('all');
+      if (guard?.blocked) {
+        showToast(guard.message || 'Existem registros financeiros vinculados. A exclusão em massa está bloqueada para preservar o histórico.');
+        return;
+      }
+    }
     openConfirmModal(
       'Exclusão em Massa',
       'Esta ação apagará TODOS os clientes, contratos e postagens salvos. Exporte um backup JSON antes de continuar.',
