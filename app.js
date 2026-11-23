@@ -570,6 +570,11 @@ function loadData() {
       }
       appData.clients.forEach(c => {
         if (Array.isArray(c.contracts)) {
+          if (c.isSample) {
+            c.contracts.forEach(cnt => {
+              if (!cnt.agreementType) cnt.agreementType = 'Mensal';
+            });
+          }
           c.contracts = sortContractsChronologically(c.contracts, true);
         }
       });
@@ -1281,6 +1286,7 @@ function setClientsViewMode(mode) {
 }
 
 function setClientCategory(cat) {
+  window.__userPickedCategory = true;
   activeClientCategory = ['Mensal', 'Avulso', 'Parceria', 'ALL'].includes(cat) ? cat : 'Mensal';
   document.querySelectorAll('[data-client-category]').forEach(btn => {
     btn.classList.toggle('active', btn.getAttribute('data-client-category') === activeClientCategory);
@@ -1403,6 +1409,16 @@ function renderDashboard() {
     });
   });
 
+  // Se ainda houver acordos legados sem classificação e nenhum Mensal classificado, exibe 'Todos' automaticamente para não ocultar os clientes existentes
+  const legacyList = getUnclassifiedLegacyContracts();
+  const hasAnyMensal = (appData.clients || []).some(c => (c.contracts || []).some(cnt => cnt.agreementType === 'Mensal'));
+  if (!hasAnyMensal && legacyList.length > 0 && activeClientCategory === 'Mensal' && !window.__userPickedCategory) {
+    activeClientCategory = 'ALL';
+    document.querySelectorAll('[data-client-category]').forEach(btn => {
+      btn.classList.toggle('active', btn.getAttribute('data-client-category') === activeClientCategory);
+    });
+  }
+
   // 2. Filtra clientes exibidos por categoria, status de postagem e situação da carteira
   const filteredClients = clientsInPeriod.filter(c => {
     const m = getClientMetrics(c, monthFilter, includeCancelled, getLocalTodayISO(), activeClientCategory);
@@ -1445,7 +1461,6 @@ function renderDashboard() {
   setTxt('catCountAll', clientsInPeriod.length);
 
   // Banner de classificação de acordos legados (sem tipo_acordo definido)
-  const legacyList = getUnclassifiedLegacyContracts();
   const legacyBanner = document.getElementById('legacyClassificationBanner');
   const legacyText = document.getElementById('legacyClassificationText');
   if (legacyBanner) {

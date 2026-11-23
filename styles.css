@@ -1944,6 +1944,22 @@ body.fullscreen-modal-open .mobile-bottom-nav {
   overflow-wrap: anywhere;
 }
 
+.legacy-banner-row {
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.category-chips-container {
+  position: relative;
+  width: 100%;
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+
 .clients-group-header {
   grid-column: 1 / -1;
   display: flex;
