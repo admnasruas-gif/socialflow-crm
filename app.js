@@ -4129,25 +4129,34 @@ function getExecutiveData(period = 'ALL') {
   return { clients: scopedClients, contracts, contractRows, posts, sales, financial, published, pending, health, delivery, state };
 }
 
+function openSaleOrClient(sale) {
+  if (!sale) return;
+  if (typeof window.openSaleDetailModal === 'function') {
+    window.openSaleDetailModal(sale.id);
+    return;
+  }
+  if (sale.clienteId) openClientProfile(sale.clienteId);
+}
+
 function getDataQualityIssues() {
   const clients = appData?.clients || [];
   const state = ensureSalesState(appData || {});
   const issues = [];
-  const add = (category, label, detail, action = null) => issues.push({ category, label, detail, action });
+  const add = (category, label, detail, action = null, actionLabel = 'Revisar') => issues.push({ category, label, detail, action, actionLabel });
   clients.forEach(client => {
     const activeContracts = (client.contracts || []).filter(c => !['Cancelado', 'Concluído'].includes(c.status));
-    if (activeContracts.length === 0) add('Clientes', client.name || 'Cliente', 'Sem contrato ativo', () => openClientProfile(client.id));
+    if (activeContracts.length === 0) add('Clientes', client.name || 'Cliente', 'Sem contrato ativo', () => openContractModal(null, client.id), 'Criar contrato');
     (client.contracts || []).forEach(contract => {
       const missingContract = [];
       if (!String(contract.period || '').trim()) missingContract.push('período');
       if (contract.value === null || contract.value === undefined || contract.value === '') missingContract.push('valor');
       if (!String(contract.status || '').trim()) missingContract.push('status');
-      if (missingContract.length) add('Contratos', `${client.name || 'Cliente'} • ${contract.period || 'sem período'}`, `Campos ausentes: ${missingContract.join(', ')}`, () => openClientProfile(client.id));
+      if (missingContract.length) add('Contratos', `${client.name || 'Cliente'} • ${contract.period || 'sem período'}`, `Campos ausentes: ${missingContract.join(', ')}`, () => openContractModal(contract.id, client.id), 'Editar acordo');
     });
     (client.posts || []).forEach(post => {
       const contractExists = (client.contracts || []).some(c => c.id === post.contractId);
-      if (!String(post.link || '').trim()) add('Publicações', post.title || 'Publicação sem título', `${client.name || 'Cliente'} • sem link`, () => openClientProfile(client.id));
-      if (!post.contractId || !contractExists) add('Publicações', post.title || 'Publicação sem contrato', `${client.name || 'Cliente'} • vínculo de contrato ausente ou inválido`, () => openClientProfile(client.id));
+      if (!String(post.link || '').trim()) add('Publicações', post.title || 'Publicação sem título', `${client.name || 'Cliente'} • sem link`, () => openPostModal(post.id, client.id), 'Adicionar link');
+      if (!post.contractId || !contractExists) add('Publicações', post.title || 'Publicação sem contrato', `${client.name || 'Cliente'} • vínculo de contrato ausente ou inválido`, () => openPostModal(post.id, client.id), 'Vincular acordo');
     });
   });
   const linkedSaleIds = new Set((state.salePosts || []).map(link => link.vendaId));
@@ -4157,7 +4166,7 @@ function getDataQualityIssues() {
     if (!sale.contratoId) missing.push('contrato');
     if (!sale.valorCentavos && sale.valorCentavos !== 0) missing.push('valor');
     if (!linkedSaleIds.has(sale.id)) missing.push('publicação vinculada');
-    if (missing.length) add('Vendas', sale.titulo || 'Venda sem título', `Campos ausentes: ${missing.join(', ')}`);
+    if (missing.length) add('Vendas', sale.titulo || 'Venda sem título', `Campos ausentes: ${missing.join(', ')}`, () => openSaleOrClient(sale), 'Revisar venda');
   });
   const duplicateKeys = new Map();
   (state.sales || []).filter(s => !s.arquivado).forEach(sale => {
@@ -4166,7 +4175,7 @@ function getDataQualityIssues() {
     duplicateKeys.get(key).push(sale);
   });
   duplicateKeys.forEach(group => {
-    if (group.length > 1) add('Possíveis duplicidades', group.map(s => s.titulo || s.id).join(' + '), `${group.length} vendas com cliente, contrato, competência e valor iguais`);
+    if (group.length > 1) add('Possíveis duplicidades', group.map(s => s.titulo || s.id).join(' + '), `${group.length} vendas com cliente, contrato, competência e valor iguais`, () => openSaleOrClient(group[0]), 'Comparar venda');
   });
   return issues;
 }
@@ -4190,15 +4199,38 @@ function renderDataQuality() {
         <section class="settings-group quality-section">
           <span class="ios-settings-section-label">${escapeHtml(category)} <small>(${rows.length})</small></span>
           <div class="settings-group-card">
-            ${rows.map(issue => `<div class="settings-row quality-issue"><div class="settings-row-icon quality-issue-icon" aria-hidden="true">!</div><div class="settings-row-info"><div class="settings-row-label">${escapeHtml(issue.label)}</div><div class="settings-row-sub">${escapeHtml(issue.detail)}</div></div>${issue.action ? `<button type="button" class="btn btn-secondary btn-sm quality-open" data-quality-index="${issues.indexOf(issue)}">Abrir</button>` : '<span class="quality-issue-badge">Revisar</span>'}</div>`).join('')}
+            ${rows.map(issue => `<div class="settings-row quality-issue"><div class="settings-row-icon quality-issue-icon" aria-hidden="true">!</div><div class="settings-row-info"><div class="settings-row-label">${escapeHtml(issue.label)}</div><div class="settings-row-sub">${escapeHtml(issue.detail)}</div></div>${issue.action ? `<button type="button" class="btn btn-secondary btn-sm quality-open" data-quality-index="${issues.indexOf(issue)}">${escapeHtml(issue.actionLabel)}</button>` : '<span class="quality-issue-badge">Revisar</span>'}</div>`).join('')}
           </div>
         </section>
       `).join('')}
+    ${issues.length ? '<p class="quality-return-note">Ao salvar a correção, o diagnóstico é atualizado ao voltar para esta janela.</p>' : ''}
   `;
   area.querySelectorAll('.quality-open').forEach(button => {
     const issue = issues[Number(button.dataset.qualityIndex)];
-    if (issue?.action) button.addEventListener('click', () => { closeModal('dataQualityModal'); issue.action(); });
+    if (!issue?.action) return;
+    button.addEventListener('click', () => {
+      qualityReturnModalIds = new Set(['clientModal', 'contractModal', 'postModal', 'saleDetailModal']);
+      closeModal('dataQualityModal');
+      try {
+        issue.action();
+      } catch (error) {
+        qualityReturnModalIds = null;
+        console.error('Não foi possível abrir a correção:', error);
+        showToast('Não foi possível abrir o cadastro para correção.');
+      }
+    });
   });
+}
+
+let qualityReturnModalIds = null;
+
+function reopenQualityAfterCorrection(modalId) {
+  if (!qualityReturnModalIds?.has(modalId)) return false;
+  qualityReturnModalIds = null;
+  openDataQualityModal();
+  const target = document.querySelector('#dataQualityContent .quality-open') || document.getElementById('btnRefreshDataQuality');
+  target?.focus?.();
+  return true;
 }
 
 function openDataQualityModal() {
@@ -4236,20 +4268,51 @@ function renderExecutiveReport() {
     return { client, metrics };
   }).sort((a, b) => b.metrics.published - a.metrics.published).slice(0, 8);
   const attention = [];
+  const recommended = [];
+  const pushRecommended = item => {
+    if (!item?.action) return;
+    if (recommended.some(entry => entry.title === item.title && entry.detail === item.detail)) return;
+    recommended.push(item);
+  };
   data.contractRows.forEach(row => {
     if (row.metrics.isOverdue && row.metrics.remaining > 0) {
-      attention.push({ title: row.client.name, detail: `Prazo encerrado com ${row.metrics.remaining} publicação(ões) restante(s).` });
+      const item = {
+        title: row.client.name,
+        detail: `Prazo encerrado com ${row.metrics.remaining} publicação(ões) restante(s).`,
+        actionLabel: 'Abrir cliente',
+        action: () => openClientProfile(row.client.id)
+      };
+      attention.push(item);
+      pushRecommended(item);
     }
   });
   data.sales.forEach(sale => {
     const receipt = computeSaleReceiptSummary(sale, data.state.receipts || []);
-    if (receipt.saldoCentavos > 0) attention.push({ title: sale.titulo || 'Venda sem título', detail: `Saldo a receber: ${formatCentsBR(receipt.saldoCentavos)}.` });
-    if (sale.conferenciaStatus === 'pendente' || sale.conferenciaStatus === 'divergencia') attention.push({ title: sale.titulo || 'Venda sem título', detail: 'Venda aguardando conferência.' });
+    if (receipt.saldoCentavos > 0) {
+      attention.push({
+        title: sale.titulo || 'Venda sem título',
+        detail: `Saldo a receber: ${formatCentsBR(receipt.saldoCentavos)}.`,
+        actionLabel: 'Abrir venda',
+        action: () => openSaleOrClient(sale)
+      });
+    }
+    if (sale.conferenciaStatus === 'pendente' || sale.conferenciaStatus === 'divergencia') {
+      const item = {
+        title: sale.titulo || 'Venda sem título',
+        detail: 'Venda aguardando conferência.',
+        actionLabel: 'Conferir venda',
+        action: () => openSaleOrClient(sale)
+      };
+      attention.push(item);
+      pushRecommended(item);
+    }
   });
   (data.state.commissions || []).filter(c => !c.arquivado && c.status === 'a_definir').forEach(commission => {
     attention.push({ title: 'Comissão', detail: 'Há comissão a definir para uma venda.' });
   });
-  const visibleAttention = attention.slice(0, 8);
+  const visibleRecommended = recommended.slice(0, 3);
+  const recommendedSet = new Set(visibleRecommended);
+  const otherAttention = attention.filter(item => !recommendedSet.has(item)).slice(0, 8);
   const contractTypes = ['Mensal', 'Avulso', 'Parceria'];
   const contractTypeSummary = contractTypes.map(type => {
     const rows = data.contractRows.filter(row => row.contract.agreementType === type);
@@ -4274,16 +4337,18 @@ function renderExecutiveReport() {
         <span><b>Financeiro:</b> vendas vinculadas aos contratos acima; recebimentos acumulados dessas vendas, sem filtro pela data do recebimento.</span>
       </section>
       <section class="executive-report-section">
-        <div class="executive-report-section-heading"><span>01</span><div><h3>Carteira e publicações</h3><p>Contagens do recorte de contratos selecionado.</p></div></div>
-      <section class="executive-report-kpis">
-        <div><span>Clientes únicos</span><strong>${data.clients.length}</strong><small>com contrato no recorte</small></div>
-        <div><span>Contratos</span><strong>${data.contracts.length}</strong><small>no recorte</small></div>
-        <div><span>Quantidade contratada</span><strong>${data.delivery.contracted}</strong><small>metas definidas</small></div>
+        <div class="executive-report-section-heading"><span>01</span><div><h3>Carteira e publicações</h3><p>Indicadores principais do recorte; totais de apoio logo abaixo.</p></div></div>
+      <section class="executive-report-kpis executive-report-kpis-primary">
         <div><span>Publicações publicadas</span><strong>${data.delivery.published}</strong><small>de ${data.delivery.contracted} contratadas</small></div>
         <div><span>Quantidade restante</span><strong>${data.delivery.remaining}</strong><small>sem compensar contratos</small></div>
-        <div><span>Excedentes</span><strong>${data.delivery.excess}</strong><small>em contratos com meta</small></div>
         <div><span>Conclusão</span><strong>${publishedRate === null ? 'Não se aplica' : `${publishedRate}%`}</strong><small>${data.delivery.contracted ? 'publicadas ÷ contratadas' : 'sem base válida'}</small></div>
       </section>
+      <div class="executive-report-kpi-detail">
+        <div><span>Clientes únicos</span><strong>${data.clients.length}</strong></div>
+        <div><span>Contratos</span><strong>${data.contracts.length}</strong></div>
+        <div><span>Quantidade contratada</span><strong>${data.delivery.contracted}</strong></div>
+        <div><span>Excedentes</span><strong>${data.delivery.excess}</strong></div>
+      </div>
       </section>
       <section class="executive-report-section">
         <div class="executive-report-section-heading"><span>02</span><div><h3>Resumo financeiro</h3><p>Vendas vinculadas ao recorte de contratos. Não representa inadimplência.</p></div></div>
@@ -4297,8 +4362,16 @@ function renderExecutiveReport() {
       </section>
       </section>
       <section class="executive-report-section">
-        <div class="executive-report-section-heading"><span>03</span><div><h3>Pontos de atenção</h3><p>Somente exceções verificáveis nos dados atuais.</p></div></div>
-        <div class="executive-report-panel"><div class="executive-attention-list">${visibleAttention.map(row => `<div><strong>${escapeHtml(row.title)}</strong><span>${escapeHtml(row.detail)}</span></div>`).join('') || '<div><strong>Nenhuma pendência nos critérios avaliados</strong><span>Não foram encontrados saldos, conferências ou prazos que exijam atenção.</span></div>'}</div></div>
+        <div class="executive-report-section-heading"><span>03</span><div><h3>Ações recomendadas</h3><p>Até três correções com maior impacto, com acesso direto ao cadastro.</p></div></div>
+        <div class="executive-report-panel">
+          <div class="executive-recommended-list">
+            ${visibleRecommended.map((item, index) => `<div class="executive-recommended-item"><div class="executive-recommended-text"><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(item.detail)}</span></div><button type="button" class="btn btn-secondary btn-sm executive-recommended-action" data-report-action="${index}">${escapeHtml(item.actionLabel)}</button></div>`).join('') || '<div class="executive-recommended-empty"><strong>Nenhuma correção prioritária</strong><span>Prazos, conferências e vínculos estão em ordem no recorte atual.</span></div>'}
+          </div>
+        </div>
+        <div class="executive-report-panel">
+          <div class="executive-report-panel-title"><h3>Também monitorado</h3><span>sem ação imediata</span></div>
+          <div class="executive-attention-list">${otherAttention.map(row => `<div><strong>${escapeHtml(row.title)}</strong><span>${escapeHtml(row.detail)}</span></div>`).join('') || '<div><strong>Nada além das ações acima</strong><span>Não foram encontrados outros saldos, conferências ou prazos pendentes.</span></div>'}</div>
+        </div>
       </section>
       <section class="executive-report-section">
         <div class="executive-report-section-heading"><span>04</span><div><h3>Situação dos contratos</h3><p>Entrega por tipo de acordo; parceiros sem meta não recebem percentual fictício.</p></div></div>
@@ -4307,7 +4380,8 @@ function renderExecutiveReport() {
       <section class="executive-report-section">
         <div class="executive-report-section-heading"><span>05</span><div><h3>Clientes por volume de publicações</h3><p>Exibindo ${topClients.length} de ${data.clients.length} clientes do recorte, ordenados por publicações realizadas.</p></div></div>
       <section class="executive-report-panel executive-report-ranking">
-        <table><thead><tr><th>Cliente</th><th>Acordo</th><th>Contratadas</th><th>Publicadas</th><th>Restantes</th><th>Conclusão</th><th>Situação</th></tr></thead><tbody>${topClients.map(row => `<tr><td><strong>${escapeHtml(row.client.name || 'Cliente')}</strong></td><td>${escapeHtml([...row.metrics.types].join(', '))}</td><td>${row.metrics.hasDefinedQuantity ? row.metrics.contracted : 'Não se aplica'}</td><td>${row.metrics.published}</td><td>${row.metrics.hasDefinedQuantity ? row.metrics.remaining : 'Não se aplica'}</td><td>${row.metrics.percentage === null ? 'Não se aplica' : `${row.metrics.percentage}%`}</td><td>${row.metrics.hasDefinedQuantity ? (row.metrics.remaining ? 'Saldo restante' : 'Pacote completo') : 'Sem meta definida'}</td></tr>`).join('') || '<tr><td colspan="7">Não foi possível avaliar: sem clientes no recorte.</td></tr>'}</tbody></table>
+        <table class="executive-report-ranking-table"><thead><tr><th>Cliente</th><th>Acordo</th><th>Contratadas</th><th>Publicadas</th><th>Restantes</th><th>Conclusão</th><th>Situação</th></tr></thead><tbody>${topClients.map(row => `<tr><td><strong>${escapeHtml(row.client.name || 'Cliente')}</strong></td><td>${escapeHtml([...row.metrics.types].join(', '))}</td><td>${row.metrics.hasDefinedQuantity ? row.metrics.contracted : 'Não se aplica'}</td><td>${row.metrics.published}</td><td>${row.metrics.hasDefinedQuantity ? row.metrics.remaining : 'Não se aplica'}</td><td>${row.metrics.percentage === null ? 'Não se aplica' : `${row.metrics.percentage}%`}</td><td>${row.metrics.hasDefinedQuantity ? (row.metrics.remaining ? 'Saldo restante' : 'Pacote completo') : 'Sem meta definida'}</td></tr>`).join('') || '<tr><td colspan="7">Não foi possível avaliar: sem clientes no recorte.</td></tr>'}</tbody></table>
+        <div class="executive-report-ranking-cards">${topClients.map(row => `<article class="executive-ranking-card"><div class="executive-ranking-card-head"><strong>${escapeHtml(row.client.name || 'Cliente')}</strong><span>${row.metrics.hasDefinedQuantity ? (row.metrics.remaining ? 'Saldo restante' : 'Pacote completo') : 'Sem meta definida'}</span></div><p class="executive-ranking-card-agreement">${escapeHtml([...row.metrics.types].join(', ') || 'A classificar')}</p><dl><div><dt>Contratadas</dt><dd>${row.metrics.hasDefinedQuantity ? row.metrics.contracted : 'Não se aplica'}</dd></div><div><dt>Publicadas</dt><dd>${row.metrics.published}</dd></div><div><dt>Restantes</dt><dd>${row.metrics.hasDefinedQuantity ? row.metrics.remaining : 'Não se aplica'}</dd></div><div><dt>Conclusão</dt><dd>${row.metrics.percentage === null ? 'Não se aplica' : `${row.metrics.percentage}%`}</dd></div></dl></article>`).join('') || '<div class="executive-recommended-empty"><strong>Sem clientes no recorte</strong><span>Não há clientes para exibir neste período.</span></div>'}</div>
       </section>
       </section>
       <section class="executive-report-section executive-report-criteria">
@@ -4317,6 +4391,20 @@ function renderExecutiveReport() {
       <footer class="executive-report-footer"><strong>NasRuas de ITZ</strong><span>Relatório interno • Uso interno — contém informações financeiras</span></footer>
     </div>
   `;
+
+  area.querySelectorAll('[data-report-action]').forEach(button => {
+    button.addEventListener('click', () => {
+      const item = visibleRecommended[Number(button.dataset.reportAction)];
+      if (!item?.action) return;
+      closeModal('executiveReportModal');
+      try {
+        item.action();
+      } catch (error) {
+        console.error('Não foi possível abrir a ação recomendada:', error);
+        showToast('Não foi possível abrir o cadastro indicado.');
+      }
+    });
+  });
 }
 
 function openExecutiveReportModal() {
@@ -4348,6 +4436,7 @@ function openModal(modalId) {
 function closeModal(modalId) {
   document.getElementById(modalId)?.classList.add('hidden');
   syncBodyFullscreenModalState();
+  if (reopenQualityAfterCorrection(modalId)) return;
   if (lastFocusedTriggerEl && typeof lastFocusedTriggerEl.focus === 'function') {
     try {
       lastFocusedTriggerEl.focus();
