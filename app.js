@@ -4189,10 +4189,10 @@ function renderDataQuality() {
     return acc;
   }, {});
   area.innerHTML = `
-    <div class="report-summary-grid quality-overview">
-      <div class="report-stat-box"><span class="report-stat-label">Ocorrências para revisar</span><strong class="report-stat-val">${issues.length}</strong></div>
-      <div class="report-stat-box"><span class="report-stat-label">Categorias com ocorrências</span><strong class="report-stat-val">${Object.keys(grouped).length}</strong></div>
-      <div class="report-stat-box"><span class="report-stat-label">Classificação</span><strong class="report-stat-val ${issues.length ? 'text-warning' : 'text-success'}">${issues.length ? 'Atenção' : 'OK'}</strong><small>${issues.length ? 'correção manual' : 'nenhuma inconsistência'}</small></div>
+    <div class="quality-overview">
+      <div class="quality-stat-card"><span>Ocorrências para revisar</span><strong class="tabular-nums">${issues.length}</strong></div>
+      <div class="quality-stat-card"><span>Categorias com ocorrências</span><strong class="tabular-nums">${Object.keys(grouped).length}</strong></div>
+      <div class="quality-stat-card ${issues.length ? 'is-warning' : 'is-success'}"><span>Classificação</span><strong>${issues.length ? 'Atenção' : 'OK'}</strong><small>${issues.length ? 'correção manual' : 'nenhuma inconsistência'}</small></div>
     </div>
     ${issues.length === 0 ? '<div class="empty-state"><h4>Dados em ordem</h4><p>Não encontramos inconsistências nos registros ativos.</p></div>' :
       Object.entries(grouped).map(([category, rows]) => `
