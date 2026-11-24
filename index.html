@@ -131,14 +131,13 @@
             <div class="app-hero-greeting">
               <img src="./logo-nasruas.png" alt="NasRuas de ITZ" class="ios-header-logo" onerror="handleLogoError(this)">
               <div>
-                <span class="app-hero-kicker">PAINEL DE GESTÃO</span>
                 <h1 class="app-hero-title" id="dashboardTitle">
                   <span class="app-hero-brand">NasRuas</span> hoje?
                 </h1>
               </div>
             </div>
-            <button type="button" class="btn btn-primary btn-sm" onclick="openClientModal()" aria-label="Novo cliente">
-              + Novo
+            <button type="button" class="btn btn-primary btn-sm" onclick="openClientModal()" aria-label="Adicionar cliente">
+              + Cliente
             </button>
           </div>
 
@@ -204,7 +203,7 @@
           <!-- Banner discreto de classificação de acordos legados -->
           <div id="legacyClassificationBanner" class="warning-banner legacy-banner-row hidden">
             <span id="legacyClassificationText">Existem acordos antigos aguardando classificação (Mensal, Avulso ou Parceria).</span>
-            <button type="button" class="btn btn-secondary btn-sm" id="btnOpenLegacyClassificationModal">Revisar</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="btnOpenLegacyClassificationModal">Classificar acordos</button>
           </div>
 
           <!-- Visões internas da carteira (Todos por padrão, com destaque para Mensais ativos no topo) -->
@@ -276,7 +275,6 @@
           <div class="ios-brand-header-left">
             <img src="./logo-nasruas.png" alt="NasRuas de ITZ" class="ios-header-logo" onerror="handleLogoError(this)">
             <div class="screen-header-titles">
-              <span class="app-hero-kicker">GERENCIAMENTO DE CONTEÚDO</span>
               <h1 class="ios-page-title">Postagens</h1>
               <span class="screen-count-meta hidden" id="globalPostsCountLabel">0 postagens</span>
             </div>
@@ -415,10 +413,10 @@
               </button>
               <div class="profile-secondary-actions-row">
                 <button type="button" class="btn btn-secondary" id="btnOpenDeliveryReport">
-                  Relatório
+                  Ver relatório de entregas
                 </button>
                 <button type="button" class="btn btn-secondary" id="btnRenewContractOneClick">
-                  Renovar
+                  Renovar contrato
                 </button>
               </div>
             </div>
@@ -481,7 +479,7 @@
                   Importar CSV
                 </button>
                 <button type="button" class="btn btn-ghost btn-sm" id="btnNewPost">
-                  Cadastro completo
+                  Nova postagem detalhada
                 </button>
               </div>
             </div>
@@ -507,7 +505,7 @@
               <span class="screen-count-meta" id="videosCountLabel">0 vídeos</span>
             </div>
           </div>
-          <button type="button" class="ios-add-btn" id="btnNewVideoHeader" aria-label="Novo vídeo" title="Novo vídeo">
+          <button type="button" class="ios-add-btn" id="btnNewVideoHeader" aria-label="Adicionar vídeo" title="Adicionar vídeo">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <line x1="12" y1="5" x2="12" y2="19"></line>
               <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -550,19 +548,18 @@
           <div class="ios-brand-header-left">
             <img src="./logo-nasruas.png" alt="NasRuas de ITZ" class="ios-header-logo" onerror="handleLogoError(this)">
             <div class="screen-header-titles">
-              <span class="app-hero-kicker">CONTROLE FINANCEIRO</span>
               <h1 class="ios-page-title">Vendas do mês</h1>
             </div>
           </div>
           <div class="sales-header-actions">
             <button type="button" class="btn btn-secondary btn-sm sales-desktop-only-btn" id="btnOpenSalesConfig">
-              Beneficiários e regras
+              Configurar comissões
             </button>
             <button type="button" class="btn btn-secondary btn-sm" id="btnOpenSalesReports">
               Relatórios
             </button>
             <button type="button" class="btn btn-yellow-brand btn-sm" id="btnOpenSalesClosure">
-              Fechar mês
+              Confirmar fechamento do mês
             </button>
             <button type="button" class="btn btn-primary btn-sm" id="btnNewSale">
               + Nova venda
@@ -588,7 +585,7 @@
               </select>
             </div>
             <button type="button" class="btn btn-secondary btn-sm sales-mobile-cfg-btn" id="btnOpenSalesConfigMobile">
-              Regras e equipe
+              Configurar comissões
             </button>
             <button type="button" class="btn btn-secondary btn-sm" id="btnOpenSalesFiltersSheet">
               Filtros <span id="salesActiveFiltersBadge" class="app-tile-badge hidden">0</span>
@@ -733,7 +730,7 @@
                     <div class="settings-row-sub" id="loggedUserEmail"></div>
                   </div>
                   <button type="button" class="btn btn-secondary btn-sm" id="btnLogout">
-                    Sair
+                    Sair da conta
                   </button>
                 </div>
               </div>
@@ -758,7 +755,7 @@
                     Instalar
                   </button>
                   <button type="button" class="btn btn-ghost btn-sm" id="btnTogglePwaInstructions" aria-expanded="false">
-                    Instruções ›
+                    Ver instruções ›
                   </button>
                 </div>
 
@@ -779,7 +776,7 @@
                     <div class="settings-row-sub">Atualiza arquivos visuais sem apagar seus dados</div>
                   </div>
                   <button type="button" class="btn btn-secondary btn-sm" id="btnClearPwaCache">
-                    Limpar cache
+                    Atualizar arquivos
                   </button>
                 </div>
               </div>
@@ -802,7 +799,7 @@
                     <div class="settings-row-sub">Baixar cópia dos dados em arquivo .JSON</div>
                   </div>
                   <button type="button" class="btn btn-secondary btn-sm" id="btnExportDataJson">
-                    Exportar
+                    Baixar backup
                   </button>
                 </div>
 
@@ -818,7 +815,7 @@
                     <div class="settings-row-sub">Encontre cadastros incompletos, vínculos quebrados e possíveis duplicidades</div>
                   </div>
                   <button type="button" class="btn btn-secondary btn-sm" id="btnOpenDataQuality">
-                    Diagnosticar
+                    Verificar dados
                   </button>
                 </div>
 
@@ -836,7 +833,7 @@
                     <div class="settings-row-sub">Resumo gerencial da carteira, operação e financeiro em PDF</div>
                   </div>
                   <button type="button" class="btn btn-primary btn-sm" id="btnOpenExecutiveReport">
-                    Gerar PDF
+                    Gerar relatório PDF
                   </button>
                 </div>
 
@@ -854,7 +851,7 @@
                   </div>
                   <input type="file" id="importBackupFile" accept=".json,application/json" class="sr-only-file-input">
                   <button type="button" class="btn btn-secondary btn-sm" id="btnImportDataJson">
-                    Importar
+                    Selecionar backup
                   </button>
                 </div>
 
@@ -889,7 +886,7 @@
                     <div class="settings-row-sub" id="trashCountSub">Restaurar clientes, contratos ou postagens excluídos</div>
                   </div>
                   <button type="button" class="btn btn-secondary btn-sm" id="btnOpenTrashModal">
-                    Abrir
+                    Abrir lixeira
                   </button>
                 </div>
 
@@ -905,7 +902,7 @@
                     <div class="settings-row-sub">Registro de edições de contrato, status e restaurações</div>
                   </div>
                   <button type="button" class="btn btn-secondary btn-sm" id="btnOpenAuditLogModal">
-                    Ver log
+                    Ver histórico
                   </button>
                 </div>
 
@@ -921,7 +918,7 @@
                     <div class="settings-row-sub">Restaurar clientes de demonstração no modo local</div>
                   </div>
                   <button type="button" class="btn btn-secondary btn-sm" id="btnResetDemo">
-                    Restaurar
+                    Restaurar dados de exemplo
                   </button>
                 </div>
               </div>
@@ -943,7 +940,7 @@
                     <div class="settings-row-sub">Remove todos os registros mediante confirmação</div>
                   </div>
                   <button type="button" class="btn btn-outline-danger btn-sm" id="btnClearData">
-                    Apagar tudo
+                     Apagar todos os dados
                   </button>
                 </div>
               </div>
