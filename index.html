@@ -751,12 +751,14 @@
                     <div class="settings-row-label">Instalar aplicativo</div>
                     <div class="settings-row-sub" id="pwaInstallInstructions">Adicionar NasRuas à tela inicial do celular</div>
                   </div>
-                  <button type="button" class="btn btn-secondary btn-sm hidden" id="btnInstallPwa">
-                    Instalar
-                  </button>
-                  <button type="button" class="btn btn-ghost btn-sm" id="btnTogglePwaInstructions" aria-expanded="false">
-                    Ver instruções ›
-                  </button>
+                  <div class="settings-row-actions">
+                    <button type="button" class="btn btn-secondary btn-sm hidden" id="btnInstallPwa">
+                      Instalar
+                    </button>
+                    <button type="button" class="btn btn-ghost btn-sm" id="btnTogglePwaInstructions" aria-expanded="false">
+                      Ver instruções ›
+                    </button>
+                  </div>
                 </div>
 
                 <div class="settings-collapsible-help hidden" id="pwaManualTips">
@@ -1760,14 +1762,14 @@
         <div class="form-group" style="margin-top: 14px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 6px;">
             <label class="form-label-bold" for="importPostsRawText">Conteúdo CSV (ou cole do Excel / Planilhas)</label>
-            <label class="btn btn-secondary btn-sm" style="cursor: pointer; margin: 0; display: inline-flex; align-items: center;">
+            <label for="importPostsFileInput" class="btn btn-secondary btn-sm file-upload-trigger" style="cursor: pointer; margin: 0; display: inline-flex; align-items: center;">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-right: 4px;">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                 <polyline points="17 8 12 3 7 8"></polyline>
                 <line x1="12" y1="3" x2="12" y2="15"></line>
               </svg>
               <span>Escolher arquivo .csv</span>
-              <input type="file" id="importPostsFileInput" accept=".csv, .txt, text/csv" style="display: none;">
+              <input type="file" id="importPostsFileInput" accept=".csv, .txt, text/csv" class="sr-only-file-input">
             </label>
           </div>
           <textarea id="importPostsRawText" rows="6" placeholder="Cole aqui o texto CSV com cabeçalhos (separado por ponto e vírgula, vírgula ou tabulação)...&#10;Exemplo:&#10;Nº;Link da publicação;Título;Resumo;Data de postagem;Tipo de publicação;Tema principal;Observações&#10;1;https://www.instagram.com/reel/DCpn0Y7ScWN/;Vestibular FEST 2025;Resumo;21/11/2024;Reel;Vestibular;Cursos" style="font-family: monospace; font-size: 12px; line-height: 1.4; width: 100%; border-radius: 8px;"></textarea>
@@ -1788,7 +1790,7 @@
           <div id="importPostsSummaryBanner" class="filter-info-banner" style="display: block; margin-bottom: 10px;">
             <div id="importPostsSummaryText"></div>
           </div>
-          <div style="max-height: 220px; overflow-y: auto; border: 1px solid var(--border-color, #E5E7EB); border-radius: 8px;">
+          <div style="max-height: 220px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px;">
             <table class="ios-table w-full" style="font-size: 12px; margin: 0;">
               <thead>
                 <tr>
@@ -1831,11 +1833,10 @@
           <label for="confirmHardInput" id="confirmHardLabel">Digite EXCLUIR para confirmar:</label>
           <input type="text" id="confirmHardInput" placeholder="EXCLUIR" autocomplete="off">
         </div>
-
-        <div class="modal-footer">
-          <button type="button" class="btn btn-ghost" data-close-modal="confirmModal">Cancelar</button>
-          <button type="button" class="btn btn-danger" id="btnConfirmAction">Confirmar</button>
-        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" data-close-modal="confirmModal">Cancelar</button>
+        <button type="button" class="btn btn-danger" id="btnConfirmAction">Confirmar</button>
       </div>
     </div>
   </div>

@@ -3953,7 +3953,7 @@ function renderGeneralReportContent() {
 
   const data = getGeneralReportData();
   const now = new Date();
-  const generatedLabel = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} às ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const generatedLabel = formatDateTimeBR(now);
 
   area.innerHTML = `
     <div class="report-doc-header">
@@ -6151,11 +6151,11 @@ function processPostsCsvPreview() {
       <tr style="${row.isDuplicate && skipDuplicates ? 'opacity: 0.5; text-decoration: line-through;' : ''}">
         <td style="padding: 6px 8px; font-weight: 600;">${idx + 1}</td>
         <td style="padding: 6px 8px;"><span class="badge badge-neutral" style="font-size: 11px;">${escapeHtml(row.type)}</span></td>
-        <td style="padding: 6px 8px; font-size: 11px; white-space: nowrap;">${escapeHtml(row.rawDate || row.date)}</td>
+        <td style="padding: 6px 8px; font-size: 11px; white-space: nowrap;">${escapeHtml(row.date ? formatDateBR(row.date) : (row.rawDate || 'Sem data'))}</td>
         <td style="padding: 6px 8px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(row.title)}">${escapeHtml(row.title)}</td>
         <td style="padding: 6px 8px; font-size: 11px; white-space: nowrap;">${escapeHtml(row.period)}</td>
         <td style="padding: 6px 8px; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-          ${row.link ? `<a href="${escapeHtml(row.link)}" target="_blank" rel="noopener" style="color:var(--brand-primary); font-size: 11px;">Abrir</a>` : '—'}
+          ${row.link ? `<a href="${escapeHtml(row.link)}" target="_blank" rel="noopener" style="color: var(--primary); font-size: 11px;">Abrir</a>` : '—'}
           ${row.isDuplicate ? `<span class="badge badge-warning" style="font-size: 10px; margin-left: 4px;">Já existe</span>` : ''}
         </td>
       </tr>
@@ -7059,6 +7059,7 @@ if (typeof window !== 'undefined') {
   escapeHtml,
   formatCurrency,
   formatDateBR,
+  formatDateTimeBR,
   sanitizeCsvCell,
   getAgreementTypeBadgeText,
   getContractDisplayLabel,

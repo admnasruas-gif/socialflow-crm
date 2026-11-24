@@ -120,6 +120,8 @@ function formatDateTimeBR(isoStr) {
   if (!isoStr) return '—';
   const d = new Date(isoStr);
   if (Number.isNaN(d.getTime())) return String(isoStr);
+  const c = core();
+  if (c?.formatDateTimeBR) return c.formatDateTimeBR(d);
   return d.toLocaleString('pt-BR', {
     day: '2-digit',
     month: '2-digit',
