@@ -1760,6 +1760,15 @@ async function handleSaleFormSubmit(e) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dataVenda)) return showFormErr('Informe uma data da venda válida.');
   if (!/^\d{4}-\d{2}$/.test(competencia)) return showFormErr('Informe uma competência válida (AAAA-MM).');
   if (valorCentavos === null || valorCentavos < 0) return showFormErr('Informe um valor monetário válido.');
+  if (linkedPostIds.length === 0) {
+    setSaleOptionalExpanded(true);
+    const postsList = el('saleLinkedPostsList');
+    if (postsList) {
+      postsList.focus?.();
+      postsList.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+    }
+    return showFormErr('Vincule pelo menos uma publicação antes de salvar a venda. Se ela ainda não existir, use “+ Registrar postagem”.');
+  }
 
   const closedForComp = state.closures.find(cl => cl.competencia === competencia && cl.status === 'fechado');
   if (closedForComp && !saleId) {
@@ -3565,15 +3574,36 @@ export function renderSalesReportContent() {
       ])
     };
     area.innerHTML = `
-      <h3>${escapeStr(rpt.title)}</h3>
-      <p class="sales-table-sub">Recorte: ${escapeStr(rpt.periodLabel)} • ${escapeStr(rpt.dateModeLabel)}</p>
-      <div class="sales-detail-amounts-grid tabular-nums" style="margin:12px 0;">
-        <div><span>Vendas</span><strong>${rpt.totals.qtdVendas}</strong></div>
-        <div><span>Vendido</span><strong>${escapeStr(formatCentsBR(rpt.totals.totalVendidoCentavos))}</strong></div>
-        <div><span>Recebido</span><strong>${escapeStr(formatCentsBR(rpt.totals.totalRecebidoCentavos))}</strong></div>
-        <div><span>Saldo</span><strong>${escapeStr(formatCentsBR(rpt.totals.saldoReceberCentavos))}</strong></div>
-      </div>
-      <table class="sales-table">
+      <div class="sales-report-document sales-report-sales">
+        <header class="sales-report-hero">
+          <div class="sales-report-hero-mark">NR</div>
+          <div class="sales-report-hero-copy">
+            <span class="sales-report-eyebrow">NASRUAS • VISÃO FINANCEIRA</span>
+            <h3>${escapeStr(rpt.title)}</h3>
+            <p>Recorte: <strong>${escapeStr(rpt.periodLabel)}</strong> <span>•</span> ${escapeStr(rpt.dateModeLabel)}</p>
+          </div>
+          <div class="sales-report-hero-meta">USO INTERNO<br><strong>${escapeStr(formatDateTimeBR(new Date().toISOString()))}</strong></div>
+        </header>
+        <div class="sales-report-gradient-line"></div>
+        <section class="sales-report-kpis tabular-nums" aria-label="Resumo financeiro">
+          <div class="sales-report-kpi kpi-count"><span>Lançamentos</span><strong>${rpt.totals.qtdVendas}</strong><small>vendas no recorte</small></div>
+          <div class="sales-report-kpi kpi-sold"><span>Total vendido</span><strong>${escapeStr(formatCentsBR(rpt.totals.totalVendidoCentavos))}</strong><small>valor contratado</small></div>
+          <div class="sales-report-kpi kpi-received"><span>Recebido</span><strong>${escapeStr(formatCentsBR(rpt.totals.totalRecebidoCentavos))}</strong><small>movimentos registrados</small></div>
+          <div class="sales-report-kpi kpi-balance"><span>Saldo em aberto</span><strong>${escapeStr(formatCentsBR(rpt.totals.saldoReceberCentavos))}</strong><small>acompanhar cobrança</small></div>
+        </section>
+        <div class="sales-report-reading-bar">
+          <span class="sales-report-reading-dot"></span>
+          <strong>Leitura rápida</strong>
+          <span>${rpt.totals.qtdVendas} ${rpt.totals.qtdVendas === 1 ? 'lançamento no recorte' : 'lançamentos no recorte'}</span>
+          <span class="sales-report-reading-separator">|</span>
+          <span>${rpt.totals.saldoReceberCentavos > 0 ? 'Existem valores pendentes de recebimento' : 'Nenhum saldo pendente'}</span>
+        </div>
+        <div class="sales-report-section-heading">
+          <div><span>DETALHAMENTO</span><h4>Vendas do período</h4></div>
+          <span class="sales-report-count">${rpt.rows.length} ${rpt.rows.length === 1 ? 'registro' : 'registros'}</span>
+        </div>
+        <div class="sales-report-table-wrap">
+        <table class="sales-table sales-report-table">
         <thead><tr><th>Cliente / Venda</th><th>Acordo</th><th>Comp.</th><th>Valor</th><th>Recebido</th><th>Saldo</th><th>Situações</th></tr></thead>
         <tbody>${rpt.rows.map(r => `
           <tr>
@@ -3583,10 +3613,13 @@ export function renderSalesReportContent() {
             <td class="tabular-nums">${escapeStr(formatCentsBR(r.valorCentavos))}</td>
             <td class="tabular-nums">${escapeStr(formatCentsBR(r.recebidoCentavos))}</td>
             <td class="tabular-nums">${escapeStr(formatCentsBR(r.saldoCentavos))}</td>
-            <td>${escapeStr(r.conferencia)} / ${escapeStr(r.recebimento)}</td>
+            <td><span class="sales-report-status status-${r.recebimento === 'Recebido' ? 'success' : 'warning'}">${escapeStr(r.recebimento)}</span><span class="sales-report-status status-neutral">${escapeStr(r.conferencia)}</span></td>
           </tr>`).join('') || '<tr><td colspan="7">Sem vendas neste recorte.</td></tr>'}
         </tbody>
       </table>
+        </div>
+        <footer class="sales-report-footer-note">NasRuas de ITZ • Documento interno • Valores em reais • Gerado pelo sistema de gestão</footer>
+      </div>
     `;
   } else if (type === 'comissoes') {
     const rpt = buildCommissionsReport(state, clients, salesFilterState);
@@ -3600,13 +3633,18 @@ export function renderSalesReportContent() {
       ])
     };
     area.innerHTML = `
-      <h3>${escapeStr(rpt.title)}</h3>
-      <div class="sales-detail-amounts-grid tabular-nums" style="margin:12px 0;">
+      <div class="sales-report-document sales-report-commissions">
+      <header class="sales-report-hero compact">
+        <div class="sales-report-hero-mark">NR</div>
+        <div class="sales-report-hero-copy"><span class="sales-report-eyebrow">NASRUAS • CONTROLE DE COMISSÕES</span><h3>${escapeStr(rpt.title)}</h3><p>Recorte por competência e vendas filtradas</p></div>
+      </header>
+      <div class="sales-report-gradient-line"></div>
+      <div class="sales-report-kpis three tabular-nums">
         <div><span>Total apurado</span><strong>${escapeStr(formatCentsBR(rpt.totals.totalApuradoCentavos))}</strong></div>
         <div><span>Pago</span><strong>${escapeStr(formatCentsBR(rpt.totals.totalPagoCentavos))}</strong></div>
         <div><span>Pendente</span><strong>${escapeStr(formatCentsBR(rpt.totals.totalPendenteCentavos))}</strong></div>
       </div>
-      <table class="sales-table">
+      <div class="sales-report-table-wrap"><table class="sales-table sales-report-table">
         <thead><tr><th>Beneficiário</th><th>Cliente / Venda</th><th>Regra</th><th>Apurado</th><th>Situação</th></tr></thead>
         <tbody>${rpt.rows.map(r => `
           <tr>
@@ -3618,6 +3656,7 @@ export function renderSalesReportContent() {
           </tr>`).join('') || '<tr><td colspan="5">Sem dados para exibir.</td></tr>'}
         </tbody>
       </table>
+      </div></div>
     `;
   } else {
     const closureId = el('salesReportClosureSelect')?.value || '';
@@ -3637,7 +3676,12 @@ export function renderSalesReportContent() {
       ])
     };
     area.innerHTML = `
-      <h3>${escapeStr(rpt.title)}</h3>
+      <div class="sales-report-document sales-report-closure">
+      <header class="sales-report-hero compact">
+        <div class="sales-report-hero-mark">NR</div>
+        <div class="sales-report-hero-copy"><span class="sales-report-eyebrow">NASRUAS • FECHAMENTO</span><h3>${escapeStr(rpt.title)}</h3><p>Status: <strong>${rpt.closure.status === 'fechado' ? 'Fechado' : 'Reaberto'}</strong> • Confirmado em ${escapeStr(formatDateTimeBR(rpt.closure.confirmadoEm))}</p></div>
+      </header>
+      <div class="sales-report-gradient-line"></div>
       <p class="sales-table-sub">Status: <strong>${rpt.closure.status === 'fechado' ? 'Fechado' : 'Reaberto'}</strong> • Confirmado em ${escapeStr(formatDateTimeBR(rpt.closure.confirmadoEm))} por ${escapeStr(rpt.closure.confirmadoPorEmail || 'usuário')}</p>
       <div class="sales-detail-amounts-grid tabular-nums" style="margin:12px 0;">
         <div><span>Vendas</span><strong>${rpt.closure.qtdVendas}</strong></div>
@@ -3661,6 +3705,7 @@ export function renderSalesReportContent() {
           </tr>`).join('')}
         </tbody>
       </table>
+      </div>
     `;
   }
 }
