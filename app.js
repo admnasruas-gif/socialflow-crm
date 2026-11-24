@@ -1,3 +1,5 @@
+import { ensureSalesState, computeSaleReceiptSummary, formatCentsBR } from './sales-domain.js';
+
 /**
  * SocialFlow CRM — Gerenciador de Clientes de Social Media
  * Redesign Mobile-First & App Experience (v3):
@@ -4064,10 +4066,180 @@ function exportGeneralReportCsv() {
   showToast('CSV exportado com sucesso!');
 }
 
+// ==================== DIAGNÓSTICO & RELATÓRIO EXECUTIVO ====================
+function getExecutiveData(period = 'ALL') {
+  const clients = (appData?.clients || []).filter(c => !c.archived && !c.isArchived);
+  const allContracts = clients.flatMap(client => (client.contracts || []).map(contract => ({ client, contract })));
+  const contracts = period === 'ALL' ? allContracts : allContracts.filter(({ contract }) => contract.period === period);
+  const scopedClientIds = new Set(contracts.map(({ client }) => client.id));
+  const scopedClients = period === 'ALL' ? clients : clients.filter(client => scopedClientIds.has(client.id));
+  const contractIds = new Set(contracts.map(({ contract }) => contract.id));
+  const posts = scopedClients.flatMap(client => (client.posts || []).map(post => ({ client, post })))
+    .filter(({ post }) => period === 'ALL' || contractIds.has(post.contractId));
+  const state = ensureSalesState(appData || {});
+  const sales = (state.sales || []).filter(s => !s.arquivado && (period === 'ALL' || contractIds.has(s.contratoId)));
+  const receipts = state.receipts || [];
+  const financial = sales.reduce((acc, sale) => {
+    const summary = computeSaleReceiptSummary(sale, receipts);
+    acc.sold += Math.max(0, Math.round(Number(sale.valorCentavos) || 0));
+    acc.received += summary.totalRecebidoCentavos;
+    acc.balance += summary.saldoCentavos;
+    return acc;
+  }, { sold: 0, received: 0, balance: 0 });
+  const published = posts.filter(({ post }) => String(post.status || '').toLowerCase() === 'publicado').length;
+  const pending = posts.length - published;
+  const health = scopedClients.map(client => {
+    const clientContracts = contracts.filter(item => item.client.id === client.id);
+    const clientPosts = posts.filter(item => item.client.id === client.id);
+    const active = clientContracts.some(({ contract }) => contract.status !== 'Cancelado' && contract.status !== 'Concluído');
+    const remaining = clientContracts.reduce((sum, { contract }) => {
+      const total = Number(contract.totalPosts);
+      const done = clientPosts.filter(({ post }) => post.contractId === contract.id && String(post.status || '').toLowerCase() === 'publicado').length;
+      return sum + (Number.isFinite(total) ? Math.max(0, total - done) : 0);
+    }, 0);
+    return { client, active, posts: clientPosts.length, remaining };
+  });
+  return { clients: scopedClients, contracts, posts, sales, financial, published, pending, health, state };
+}
+
+function getDataQualityIssues() {
+  const clients = appData?.clients || [];
+  const state = ensureSalesState(appData || {});
+  const issues = [];
+  const add = (category, label, detail, action = null) => issues.push({ category, label, detail, action });
+  clients.forEach(client => {
+    const missing = [];
+    if (!String(client.instagram || '').trim()) missing.push('Instagram');
+    if (!String(client.phone || '').trim()) missing.push('telefone');
+    if (!String(client.email || '').trim()) missing.push('e-mail');
+    if (missing.length) add('Clientes', client.name || 'Cliente sem nome', `Campos ausentes: ${missing.join(', ')}`, () => openClientProfile(client.id));
+    const activeContracts = (client.contracts || []).filter(c => !['Cancelado', 'Concluído'].includes(c.status));
+    if (activeContracts.length === 0) add('Clientes', client.name || 'Cliente', 'Sem contrato ativo', () => openClientProfile(client.id));
+    (client.contracts || []).forEach(contract => {
+      const missingContract = [];
+      if (!String(contract.period || '').trim()) missingContract.push('período');
+      if (contract.value === null || contract.value === undefined || contract.value === '') missingContract.push('valor');
+      if (!String(contract.status || '').trim()) missingContract.push('status');
+      if (missingContract.length) add('Contratos', `${client.name || 'Cliente'} • ${contract.period || 'sem período'}`, `Campos ausentes: ${missingContract.join(', ')}`, () => openClientProfile(client.id));
+    });
+    (client.posts || []).forEach(post => {
+      const contractExists = (client.contracts || []).some(c => c.id === post.contractId);
+      if (!String(post.link || '').trim()) add('Publicações', post.title || 'Publicação sem título', `${client.name || 'Cliente'} • sem link`, () => openClientProfile(client.id));
+      if (!post.contractId || !contractExists) add('Publicações', post.title || 'Publicação sem contrato', `${client.name || 'Cliente'} • vínculo de contrato ausente ou inválido`, () => openClientProfile(client.id));
+    });
+  });
+  const linkedSaleIds = new Set((state.salePosts || []).map(link => link.vendaId));
+  (state.sales || []).filter(s => !s.arquivado).forEach(sale => {
+    const missing = [];
+    if (!sale.clienteId) missing.push('cliente');
+    if (!sale.contratoId) missing.push('contrato');
+    if (!sale.valorCentavos && sale.valorCentavos !== 0) missing.push('valor');
+    if (!linkedSaleIds.has(sale.id)) missing.push('publicação vinculada');
+    if (missing.length) add('Vendas', sale.titulo || 'Venda sem título', `Campos ausentes: ${missing.join(', ')}`);
+  });
+  const duplicateKeys = new Map();
+  (state.sales || []).filter(s => !s.arquivado).forEach(sale => {
+    const key = [sale.clienteId, sale.contratoId, sale.competencia, sale.valorCentavos].join('|');
+    if (!duplicateKeys.has(key)) duplicateKeys.set(key, []);
+    duplicateKeys.get(key).push(sale);
+  });
+  duplicateKeys.forEach(group => {
+    if (group.length > 1) add('Possíveis duplicidades', group.map(s => s.titulo || s.id).join(' + '), `${group.length} vendas com cliente, contrato, competência e valor iguais`);
+  });
+  return issues;
+}
+
+function renderDataQuality() {
+  const area = document.getElementById('dataQualityContent');
+  if (!area) return;
+  const issues = getDataQualityIssues();
+  const grouped = issues.reduce((acc, issue) => {
+    (acc[issue.category] ||= []).push(issue);
+    return acc;
+  }, {});
+  area.innerHTML = `
+    <div class="quality-overview">
+      <div><strong>${issues.length}</strong><span>pontos para revisar</span></div>
+      <div><strong>${Object.keys(grouped).length}</strong><span>categorias encontradas</span></div>
+      <div class="${issues.length ? 'is-warning' : 'is-success'}"><strong>${issues.length ? 'Atenção' : 'OK'}</strong><span>${issues.length ? 'há ajustes manuais' : 'nenhuma inconsistência'}</span></div>
+    </div>
+    ${issues.length === 0 ? '<div class="empty-state"><h4>Dados em ordem</h4><p>Não encontramos inconsistências nos registros ativos.</p></div>' :
+      Object.entries(grouped).map(([category, rows]) => `
+        <section class="quality-section">
+          <div class="quality-section-heading"><h4>${escapeHtml(category)}</h4><span>${rows.length}</span></div>
+          ${rows.map(issue => `<div class="quality-issue"><div><strong>${escapeHtml(issue.label)}</strong><span>${escapeHtml(issue.detail)}</span></div>${issue.action ? `<button type="button" class="btn btn-ghost btn-sm quality-open" data-quality-index="${issues.indexOf(issue)}">Abrir</button>` : ''}</div>`).join('')}
+        </section>
+      `).join('')}
+  `;
+  area.querySelectorAll('.quality-open').forEach(button => {
+    const issue = issues[Number(button.dataset.qualityIndex)];
+    if (issue?.action) button.addEventListener('click', () => { closeModal('dataQualityModal'); issue.action(); });
+  });
+}
+
+function openDataQualityModal() {
+  renderDataQuality();
+  openModal('dataQualityModal');
+}
+
+function populateExecutivePeriodSelect() {
+  const select = document.getElementById('executiveReportPeriodSelect');
+  if (!select) return;
+  const periods = [...new Set((appData?.clients || []).flatMap(c => (c.contracts || []).map(contract => contract.period).filter(Boolean)))];
+  select.innerHTML = '<option value="ALL">Todos os períodos</option>' + periods.map(period => `<option value="${escapeHtml(period)}">${escapeHtml(period)}</option>`).join('');
+}
+
+function renderExecutiveReport() {
+  const area = document.getElementById('printableExecutiveReportArea');
+  if (!area) return;
+  const period = document.getElementById('executiveReportPeriodSelect')?.value || 'ALL';
+  const data = getExecutiveData(period);
+  const publishedRate = data.posts.length ? Math.round((data.published / data.posts.length) * 100) : 0;
+  const topClients = data.health.slice().sort((a, b) => b.posts - a.posts).slice(0, 6);
+  const attention = data.health.filter(row => row.remaining > 0 || !row.active).slice(0, 6);
+  const now = new Date();
+  area.innerHTML = `
+    <div class="executive-report-document">
+      <header class="executive-report-hero">
+        <div><span class="executive-report-eyebrow">NASRUAS DE ITZ • GESTÃO</span><h2>Relatório executivo</h2><p>Carteira, operação e financeiro em uma única leitura.</p></div>
+        <div class="executive-report-meta"><strong>${escapeHtml(period === 'ALL' ? 'Todos os períodos' : period)}</strong><span>Gerado em ${escapeHtml(formatDateBR(now.toISOString()))}</span></div>
+      </header>
+      <div class="executive-report-accent"></div>
+      <section class="executive-report-kpis">
+        <div><span>Clientes</span><strong>${data.clients.length}</strong><small>na carteira</small></div>
+        <div><span>Contratos</span><strong>${data.contracts.length}</strong><small>no recorte</small></div>
+        <div><span>Publicações</span><strong>${data.published}/${data.posts.length}</strong><small>${publishedRate}% concluídas</small></div>
+        <div><span>Saldo em aberto</span><strong>${escapeHtml(formatCentsBR(data.financial.balance))}</strong><small>acompanhar recebimento</small></div>
+      </section>
+      <section class="executive-report-columns">
+        <div class="executive-report-panel"><div class="executive-report-panel-title"><h3>Leitura financeira</h3><span>vendas ativas</span></div>
+          <div class="executive-finance-lines"><div><span>Total vendido</span><strong>${escapeHtml(formatCentsBR(data.financial.sold))}</strong></div><div><span>Recebido acumulado</span><strong>${escapeHtml(formatCentsBR(data.financial.received))}</strong></div><div><span>Saldo em aberto</span><strong>${escapeHtml(formatCentsBR(data.financial.balance))}</strong></div></div>
+        </div>
+        <div class="executive-report-panel"><div class="executive-report-panel-title"><h3>Saúde da carteira</h3><span>${data.health.filter(row => row.active && row.remaining === 0).length} em dia</span></div>
+          <div class="executive-health-list">${data.health.slice(0, 6).map(row => `<div><span class="executive-health-dot ${row.active && row.remaining === 0 ? 'good' : 'attention'}"></span><strong>${escapeHtml(row.client.name || 'Cliente')}</strong><span>${row.remaining ? `${row.remaining} restantes` : row.active ? 'Em dia' : 'Sem contrato ativo'}</span></div>`).join('') || '<p>Sem clientes no recorte.</p>'}</div>
+        </div>
+      </section>
+      <section class="executive-report-panel executive-report-ranking"><div class="executive-report-panel-title"><h3>Clientes por volume de operação</h3><span>publicações</span></div>
+        <table><thead><tr><th>Cliente</th><th>Publicações</th><th>Restantes</th><th>Situação</th></tr></thead><tbody>${topClients.map(row => `<tr><td><strong>${escapeHtml(row.client.name || 'Cliente')}</strong></td><td>${row.posts}</td><td>${row.remaining}</td><td>${row.active ? (row.remaining ? 'Acompanhar' : 'Em dia') : 'Sem contrato ativo'}</td></tr>`).join('') || '<tr><td colspan="4">Sem dados.</td></tr>'}</tbody></table>
+      </section>
+      <section class="executive-report-panel"><div class="executive-report-panel-title"><h3>Próximos pontos de atenção</h3><span>${attention.length} itens</span></div>
+        <div class="executive-attention-list">${attention.map(row => `<div><strong>${escapeHtml(row.client.name || 'Cliente')}</strong><span>${row.remaining ? `${row.remaining} publicação(ões) restante(s)` : 'Contrato ativo não identificado'}</span></div>`).join('') || '<div><strong>Nenhuma pendência encontrada</strong><span>A carteira está sem alertas neste recorte.</span></div>'}</div>
+      </section>
+      <footer class="executive-report-footer">NasRuas de ITZ • Relatório interno • Os valores distinguem vendido, recebido acumulado e saldo em aberto.</footer>
+    </div>
+  `;
+}
+
+function openExecutiveReportModal() {
+  populateExecutivePeriodSelect();
+  renderExecutiveReport();
+  openModal('executiveReportModal');
+}
+
 // ==================== MODAIS DE CLIENTE E CONTRATO ====================
 function syncBodyFullscreenModalState() {
   if (typeof document === 'undefined' || !document.body) return;
-  const fullscreenIds = ['clientModal', 'contractModal', 'renewContractModal', 'postModal', 'reportModal', 'generalReportModal', 'trashModal', 'auditLogModal', 'legacyClassificationModal', 'videoModal', 'saleModal', 'saleDetailModal', 'salesConfigModal', 'salesClosureModal', 'salesPayoutModal', 'salesReportModal'];
+  const fullscreenIds = ['clientModal', 'contractModal', 'renewContractModal', 'postModal', 'reportModal', 'generalReportModal', 'dataQualityModal', 'executiveReportModal', 'trashModal', 'auditLogModal', 'legacyClassificationModal', 'videoModal', 'saleModal', 'saleDetailModal', 'salesConfigModal', 'salesClosureModal', 'salesPayoutModal', 'salesReportModal'];
   const anyOpen = fullscreenIds.some(id => {
     const el = document.getElementById(id);
     return el && !el.classList.contains('hidden');
@@ -6940,6 +7112,12 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('generalReportPeriodSelect')?.addEventListener('change', renderGeneralReportContent);
   document.getElementById('btnExportGeneralCsv')?.addEventListener('click', exportGeneralReportCsv);
   document.getElementById('btnPrintGeneralReport')?.addEventListener('click', () => window.print());
+
+  document.getElementById('btnOpenDataQuality')?.addEventListener('click', openDataQualityModal);
+  document.getElementById('btnRefreshDataQuality')?.addEventListener('click', renderDataQuality);
+  document.getElementById('btnOpenExecutiveReport')?.addEventListener('click', openExecutiveReportModal);
+  document.getElementById('executiveReportPeriodSelect')?.addEventListener('change', renderExecutiveReport);
+  document.getElementById('btnPrintExecutiveReport')?.addEventListener('click', () => window.print());
 
   // Busca e Filtros
   document.getElementById('searchInput')?.addEventListener('input', renderDashboard);

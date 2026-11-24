@@ -807,6 +807,40 @@
                 </div>
 
                 <div class="settings-row">
+                  <div class="settings-row-icon settings-row-icon-accent">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M12 3 4 7v5c0 4.5 3.4 7.7 8 9 4.6-1.3 8-4.5 8-9V7l-8-4Z"></path>
+                      <path d="m9 12 2 2 4-4"></path>
+                    </svg>
+                  </div>
+                  <div class="settings-row-info">
+                    <div class="settings-row-label">Qualidade dos dados</div>
+                    <div class="settings-row-sub">Encontre cadastros incompletos, vínculos quebrados e possíveis duplicidades</div>
+                  </div>
+                  <button type="button" class="btn btn-secondary btn-sm" id="btnOpenDataQuality">
+                    Diagnosticar
+                  </button>
+                </div>
+
+                <div class="settings-row">
+                  <div class="settings-row-icon settings-row-icon-report">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                      <polyline points="14 2 14 8 20 8"></polyline>
+                      <line x1="8" y1="13" x2="16" y2="13"></line>
+                      <line x1="8" y1="17" x2="14" y2="17"></line>
+                    </svg>
+                  </div>
+                  <div class="settings-row-info">
+                    <div class="settings-row-label">Relatório executivo</div>
+                    <div class="settings-row-sub">Resumo gerencial da carteira, operação e financeiro em PDF</div>
+                  </div>
+                  <button type="button" class="btn btn-primary btn-sm" id="btnOpenExecutiveReport">
+                    Gerar PDF
+                  </button>
+                </div>
+
+                <div class="settings-row">
                   <div class="settings-row-icon">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -1500,6 +1534,49 @@
         </div>
 
         <div id="printableGeneralReportArea" class="printable-report"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop fullscreen-mobile-backdrop hidden no-print" id="dataQualityModal" role="dialog" aria-modal="true" aria-labelledby="dataQualityModalTitle">
+    <div class="modal-card modal-lg fullscreen-mobile-card">
+      <div class="modal-header">
+        <div>
+          <h3 class="modal-title" id="dataQualityModalTitle">Qualidade dos dados</h3>
+          <p class="modal-subtitle">Diagnóstico somente leitura para correção manual dos cadastros</p>
+        </div>
+        <button type="button" class="btn-icon-close" data-close-modal="dataQualityModal" aria-label="Fechar">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="dataQualityContent"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-close-modal="dataQualityModal">Fechar</button>
+        <button type="button" class="btn btn-primary" id="btnRefreshDataQuality">Atualizar diagnóstico</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop fullscreen-mobile-backdrop hidden" id="executiveReportModal" role="dialog" aria-modal="true" aria-labelledby="executiveReportModalTitle">
+    <div class="modal-card modal-lg fullscreen-mobile-card">
+      <div class="modal-header no-print">
+        <div>
+          <h3 class="modal-title" id="executiveReportModalTitle">Relatório executivo</h3>
+          <p class="modal-subtitle">Visão consolidada da carteira, operação e financeiro</p>
+        </div>
+        <button type="button" class="btn-icon-close" data-close-modal="executiveReportModal" aria-label="Fechar">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="report-controls no-print">
+          <div class="form-group">
+            <label for="executiveReportPeriodSelect">Período dos contratos</label>
+            <select id="executiveReportPeriodSelect"><option value="ALL">Todos os períodos</option></select>
+          </div>
+          <div class="report-actions-bar">
+            <button type="button" class="btn btn-primary" id="btnPrintExecutiveReport">Imprimir / PDF</button>
+          </div>
+        </div>
+        <div id="printableExecutiveReportArea" class="printable-report"></div>
       </div>
     </div>
   </div>
