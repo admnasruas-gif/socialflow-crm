@@ -1146,15 +1146,18 @@ function setSaleOptionalExpanded(expanded) {
 
 function populateSaleModalClients(searchText = '', selectedClientId = '') {
   const select = el('saleClientSelect');
+  const suggestions = el('saleClientSuggestions');
   if (!select) return;
   const q = String(searchText || '').trim().toLowerCase();
-  const clients = (getAppDataSafe().clients || [])
+  const allClients = getAppDataSafe().clients || [];
+  const clients = allClients
     .filter(c => !q || `${c.name || ''} ${c.company || ''} ${c.instagram || ''}`.toLowerCase().includes(q))
     .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
   if (clients.length === 0) {
     select.innerHTML = '<option value="">Nenhum cliente encontrado</option>';
     select.value = '';
+    renderSaleClientSuggestions([], q);
     return;
   }
 
@@ -1167,6 +1170,62 @@ function populateSaleModalClients(searchText = '', selectedClientId = '') {
   if (selectedClientId && clients.some(c => c.id === selectedClientId)) {
     select.value = selectedClientId;
   }
+
+  const selected = allClients.find(c => c.id === select.value);
+  if (selected && !q && el('saleClientSearchInput')) {
+    el('saleClientSearchInput').value = selected.name || '';
+  }
+  renderSaleClientSuggestions(clients, q, select.value);
+}
+
+function renderSaleClientSuggestions(clients, query = '', selectedClientId = '') {
+  const container = el('saleClientSuggestions');
+  if (!container) return;
+
+  if (!query) {
+    container.classList.add('hidden');
+    container.innerHTML = '';
+    return;
+  }
+
+  if (clients.length === 0) {
+    container.classList.remove('hidden');
+    container.innerHTML = `
+      <div class="sales-client-empty">
+        <span>Nenhum cliente encontrado.</span>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="openNewClientFromSaleSearch()">+ Adicionar cliente</button>
+      </div>
+    `;
+    return;
+  }
+
+  container.classList.remove('hidden');
+  container.innerHTML = clients.slice(0, 8).map(client => {
+    const detail = [client.company, client.instagram].filter(Boolean).join(' • ');
+    return `
+      <button type="button" class="sales-client-suggestion ${client.id === selectedClientId ? 'is-selected' : ''}" onclick="selectSaleClientFromSuggestion('${escapeStr(client.id)}')">
+        <strong>${escapeStr(client.name || 'Sem nome')}</strong>
+        ${detail ? `<span>${escapeStr(detail)}</span>` : ''}
+      </button>
+    `;
+  }).join('');
+}
+
+export function selectSaleClientFromSuggestion(clientId) {
+  const client = (getAppDataSafe().clients || []).find(c => c.id === clientId);
+  if (!client) return;
+  const select = el('saleClientSelect');
+  if (select) select.value = client.id;
+  if (el('saleClientSearchInput')) el('saleClientSearchInput').value = client.name || '';
+  el('saleClientSuggestions')?.classList.add('hidden');
+  populateSaleModalContracts(client.id, '');
+  syncSelectedContractMetadataInSaleForm();
+}
+
+export function openNewClientFromSaleSearch() {
+  captureSaleModalDraft('client');
+  core()?.closeModal?.('saleModal');
+  core()?.openClientModal?.(null);
 }
 
 function populateSaleModalContracts(clientId, selectedContractId = '') {
@@ -3707,9 +3766,9 @@ function bindSalesDomEvents() {
   // Eventos dentro do modal manual de venda (#saleModal)
   el('saleForm')?.addEventListener('submit', handleSaleFormSubmit);
   el('saleClientSearchInput')?.addEventListener('input', (e) => {
-    const prevClientId = el('saleClientSelect')?.value || '';
-    populateSaleModalClients(e.target.value, prevClientId);
-    populateSaleModalContracts(el('saleClientSelect')?.value || '', '');
+    populateSaleModalClients(e.target.value, '');
+    const clientId = el('saleClientSelect')?.value || '';
+    populateSaleModalContracts(clientId, '');
   });
   el('saleContractSearchInput')?.addEventListener('input', () => {
     populateSaleModalContracts(el('saleClientSelect')?.value || '', '');
@@ -3827,6 +3886,8 @@ if (typeof window !== 'undefined') {
     openSaleReceiptModal,
     applySalesQuickFilter,
     focusSaleDetailPanel,
+    selectSaleClientFromSuggestion,
+    openNewClientFromSaleSearch,
     openSaleForContract,
     openSalesForClient,
     openSalesConfigModal,

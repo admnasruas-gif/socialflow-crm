@@ -1791,12 +1791,13 @@
             <div class="form-group">
               <label for="saleClientSearchInput">Cliente <span class="req">*</span></label>
                <input type="search" id="saleClientSearchInput" placeholder="Buscar cliente por nome, empresa ou @instagram..." autocomplete="off">
-               <select id="saleClientSelect" required></select>
+               <div id="saleClientSuggestions" class="sales-client-suggestions hidden" role="listbox" aria-label="Clientes encontrados"></div>
+               <select id="saleClientSelect" class="sales-client-native-select" required aria-hidden="true" tabindex="-1"></select>
                <div id="saleClientContext" class="form-helper-text"></div>
-              <div class="sales-inline-links-row">
-                <button type="button" class="btn btn-ghost btn-sm" id="btnSaleOpenClientProfile">Ver perfil</button>
-                <button type="button" class="btn btn-secondary btn-sm" id="btnSaleCreateNewClient">+ Novo cliente</button>
-              </div>
+               <div class="sales-inline-links-row">
+                 <button type="button" class="btn btn-ghost btn-sm" id="btnSaleOpenClientProfile">Ver perfil</button>
+                 <button type="button" class="btn btn-secondary btn-sm" id="btnSaleCreateNewClient">+ Adicionar cliente</button>
+               </div>
             </div>
 
              <div class="form-group">
