@@ -159,6 +159,7 @@ a {
 }
 
 .text-success { color: var(--success); }
+.text-warning { color: #B45309; }
 .text-primary { color: var(--primary); }
 .text-danger { color: var(--danger); }
 
@@ -1651,6 +1652,8 @@ select.post-status-quick-select {
   background: var(--danger-soft);
   color: var(--danger);
 }
+.settings-row-icon-accent { background: #FFF7CC; color: #9A7200; }
+.settings-row-icon-report { background: #EDE9FE; color: #6D28D9; }
 
 .settings-group { display: flex; flex-direction: column; gap: 6px; width: 100%; min-width: 0; }
 .settings-group-title { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-secondary); padding: 0 4px; }
@@ -1680,6 +1683,79 @@ select.post-status-quick-select {
 .report-delivery-item:last-child { border-bottom: none; }
 .report-delivery-main { font-size: 14px; font-weight: 500; }
 .report-delivery-link { font-size: 13px; color: var(--primary); word-break: break-all; overflow-wrap: anywhere; }
+
+.quality-overview { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+.quality-overview > div { padding: 14px; border: 1px solid var(--border); border-radius: 14px; background: var(--bg); display: flex; flex-direction: column; gap: 3px; }
+.quality-overview strong { font-size: 20px; color: var(--text); }
+.quality-overview span { font-size: 12px; color: var(--text-secondary); }
+.quality-overview .is-warning strong { color: #B45309; }
+.quality-overview .is-success strong { color: #15803D; }
+.quality-section { margin-bottom: 14px; }
+.quality-section-heading { display: flex; justify-content: space-between; align-items: center; padding: 11px 14px; background: var(--bg); }
+.quality-section-heading h4 { margin: 0; font-size: 14px; }
+.quality-section-heading span { font-size: 12px; font-weight: 700; color: var(--text-secondary); }
+.quality-issue { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 14px; border-top: 1px solid var(--border); }
+.quality-issue-icon { width: 28px; height: 28px; min-width: 28px; border-radius: 8px; background: #FFF7CC; color: #9A7200; font-weight: 800; }
+.quality-issue-badge { color: var(--text-secondary); font-size: 11px; white-space: nowrap; }
+
+.executive-report-document { color: #17171C; background: #fff; }
+.executive-report-hero { display: flex; justify-content: space-between; gap: 18px; padding: 4px 0 18px; }
+.executive-report-brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.executive-report-logo { width: 48px; height: 48px; object-fit: contain; flex: 0 0 auto; }
+.executive-report-eyebrow { color: #806900; font-size: 11px; font-weight: 800; letter-spacing: .12em; }
+.executive-report-hero h2 { margin: 5px 0 3px; font-size: 28px; letter-spacing: -.03em; }
+.executive-report-hero p { margin: 0; color: #62626B; font-size: 13px; }
+.executive-report-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; font-size: 12px; color: #62626B; text-align: right; }
+.executive-report-meta strong { color: #17171C; font-size: 13px; }
+.executive-report-accent { height: 5px; border-radius: 5px; background: linear-gradient(90deg, #FFE600, #FFB800 45%, #7C3AED); margin-bottom: 16px; }
+.executive-report-scope { display: grid; gap: 5px; padding: 11px 13px; margin-bottom: 18px; background: #FAFAFB; border: 1px solid #E3E3E8; border-left: 4px solid #FFE600; border-radius: 10px; color: #62626B; font-size: 11px; line-height: 1.45; }
+.executive-report-scope strong { color: #17171C; font-size: 12px; }
+.executive-report-scope b { color: #3E3E45; }
+.executive-report-section { margin: 0 0 22px; }
+.executive-report-section-heading { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 11px; }
+.executive-report-section-heading > span { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; flex: 0 0 auto; border-radius: 7px; background: #FFE600; color: #17171C; font-size: 11px; font-weight: 800; }
+.executive-report-section-heading h3 { margin: 0; font-size: 16px; line-height: 1.25; }
+.executive-report-section-heading p { margin: 3px 0 0; color: #62626B; font-size: 11px; line-height: 1.4; }
+.executive-report-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 0; }
+.executive-report-kpis > div { padding: 13px; border-radius: 14px; background: #FFFBE6; border: 1px solid #F2E7A6; }
+.executive-report-kpis > div:nth-child(2) { background: #F3EEFF; border-color: #DDD0FF; }
+.executive-report-kpis > div:nth-child(3) { background: #EAFBF2; border-color: #C6EED8; }
+.executive-report-kpis > div:nth-child(4) { background: #FFF0ED; border-color: #FFD4CA; }
+.executive-report-kpis span, .executive-report-kpis small { display: block; color: #62626B; font-size: 11px; }
+.executive-report-kpis strong { display: block; margin: 4px 0 2px; font-size: 19px; }
+.executive-report-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+.executive-report-panel { border: 1px solid #E3E3E8; border-radius: 14px; padding: 14px; margin-bottom: 12px; }
+.executive-report-panel-title { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+.executive-report-panel-title h3 { margin: 0; font-size: 15px; }
+.executive-report-panel-title span { color: #7A7A83; font-size: 11px; }
+.executive-finance-lines { display: grid; gap: 8px; }
+.executive-finance-lines div, .executive-health-list div, .executive-attention-list div { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; }
+.executive-finance-lines span, .executive-finance-lines strong { display: block; }
+.executive-finance-lines strong { white-space: nowrap; }
+.executive-report-note { margin: 0; color: #62626B; font-size: 12px; line-height: 1.5; }
+.executive-finance-lines span, .executive-health-list span:last-child, .executive-attention-list span { color: #62626B; }
+.executive-health-list, .executive-attention-list { display: grid; gap: 9px; }
+.executive-health-list div { justify-content: flex-start; align-items: center; }
+.executive-health-list div span:last-child { margin-left: auto; }
+.executive-health-dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
+.executive-health-dot.good { background: #16A34A; }
+.executive-health-dot.attention { background: #F59E0B; }
+.executive-report-ranking { padding-bottom: 4px; }
+.executive-report-ranking table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.executive-report-ranking th { color: #7A7A83; font-size: 10px; text-transform: uppercase; letter-spacing: .06em; text-align: left; }
+.executive-report-ranking th, .executive-report-ranking td { padding: 8px 6px; border-bottom: 1px solid #EEEEF1; }
+.executive-report-ranking th:not(:first-child), .executive-report-ranking td:not(:first-child) { text-align: right; }
+.executive-report-ranking td:first-child { min-width: 150px; text-align: left; }
+.executive-report-ranking td, .executive-report-ranking th { vertical-align: top; }
+.executive-report-ranking td { line-height: 1.35; }
+.executive-report-contract-types { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.executive-report-contract-types > div { display: grid; gap: 4px; padding: 12px; border: 1px solid #E3E3E8; border-radius: 12px; background: #FAFAFB; }
+.executive-report-contract-types strong { font-size: 13px; }
+.executive-report-contract-types span, .executive-report-contract-types b { color: #62626B; font-size: 11px; font-weight: 500; line-height: 1.4; }
+.executive-report-criteria ul { display: grid; gap: 6px; margin: 0; padding-left: 20px; color: #62626B; font-size: 11px; line-height: 1.45; }
+.executive-report-footer { border-top: 1px solid #E3E3E8; margin-top: 3px; padding-top: 12px; color: #7A7A83; font-size: 10px; }
+.executive-report-footer { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.executive-report-footer strong { color: #17171C; }
 
 .empty-state { text-align: center; padding: 32px 16px; color: var(--text-secondary); border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--surface); display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .empty-state h4 { color: var(--text); font-size: 16px; font-weight: 600; }
@@ -5291,11 +5367,12 @@ select.post-status-quick-select {
 
 /* Impressão / PDF */
 @media print {
+  @page { size: A4; margin: 14mm 12mm; }
   body { background: #FFFFFF !important; }
-  .no-print, #appShell, #authScreen, #clientModal, #contractModal, #renewContractModal, #postModal, #filtersSheetModal, #moreNavSheetModal, #saleModal, #saleDetailModal, #salesFiltersSheetModal, #salesConfigModal, #salesClosureModal, #salesPayoutModal, #confirmModal, #toastContainer, .modal-backdrop.hidden {
+  .no-print, #appShell, #authScreen, #clientModal, #contractModal, #renewContractModal, #postModal, #filtersSheetModal, #moreNavSheetModal, #saleModal, #saleDetailModal, #salesFiltersSheetModal, #salesConfigModal, #salesClosureModal, #salesPayoutModal, #dataQualityModal, #confirmModal, #toastContainer, .modal-backdrop.hidden {
     display: none !important;
   }
-  #reportModal:not(.hidden), #generalReportModal:not(.hidden), #salesReportModal:not(.hidden) {
+  #reportModal:not(.hidden), #generalReportModal:not(.hidden), #salesReportModal:not(.hidden), #executiveReportModal:not(.hidden) {
     position: static !important;
     background: none !important;
     padding: 0 !important;
@@ -5303,14 +5380,14 @@ select.post-status-quick-select {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-  #reportModal:not(.hidden) .modal-card, #generalReportModal:not(.hidden) .modal-card, #salesReportModal:not(.hidden) .modal-card {
+  #reportModal:not(.hidden) .modal-card, #generalReportModal:not(.hidden) .modal-card, #salesReportModal:not(.hidden) .modal-card, #executiveReportModal:not(.hidden) .modal-card {
     max-width: 100% !important;
     max-height: none !important;
     box-shadow: none !important;
     border: none !important;
     background: #FFFFFF !important;
   }
-  #reportModal .modal-body, #generalReportModal .modal-body, #salesReportModal .modal-body, .printable-report {
+  #reportModal .modal-body, #generalReportModal .modal-body, #salesReportModal .modal-body, #executiveReportModal .modal-body, .printable-report {
     padding: 0 !important;
     border: none !important;
     background: #FFFFFF !important;
@@ -5339,4 +5416,23 @@ select.post-status-quick-select {
     word-break: break-all !important;
     white-space: normal !important;
   }
+  .executive-report-document { max-width: 100%; }
+  .executive-report-kpis > div, .executive-report-contract-types > div, .executive-report-section-heading { break-inside: avoid; page-break-inside: avoid; }
+  .executive-report-section { break-inside: auto; page-break-inside: auto; }
+  .executive-report-ranking thead { display: table-header-group; }
+  .executive-report-ranking tr { break-inside: avoid; page-break-inside: avoid; }
+  .executive-report-ranking th, .executive-report-ranking td { padding: 7px 5px; }
+}
+
+@media (max-width: 640px) {
+  .quality-overview { grid-template-columns: 1fr; }
+  .executive-report-hero, .executive-report-columns { grid-template-columns: 1fr; display: grid; }
+  .executive-report-brand { align-items: flex-start; }
+  .executive-report-logo { width: 40px; height: 40px; }
+  .executive-report-meta { align-items: flex-start; text-align: left; }
+  .executive-report-kpis { grid-template-columns: repeat(2, 1fr); }
+  .executive-report-hero h2 { font-size: 23px; }
+  .executive-report-ranking { overflow-x: auto; }
+  .executive-report-ranking table { min-width: 480px; }
+  .executive-report-contract-types { grid-template-columns: 1fr; }
 }

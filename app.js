@@ -1407,6 +1407,15 @@ function formatDateBR(isoDate = '') {
   return `${parts[2]}/${parts[1]}/${parts[0]}`;
 }
 
+function formatDateTimeBR(value = new Date()) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Data indisponível';
+  return new Intl.DateTimeFormat('pt-BR', {
+    dateStyle: 'short',
+    timeStyle: 'short'
+  }).format(date);
+}
+
 function getPostStatusBadgeClass(status) {
   switch (status) {
     case 'Pendente': return 'badge-pendente';
@@ -4076,6 +4085,24 @@ function getExecutiveData(period = 'ALL') {
   const contractIds = new Set(contracts.map(({ contract }) => contract.id));
   const posts = scopedClients.flatMap(client => (client.posts || []).map(post => ({ client, post })))
     .filter(({ post }) => period === 'ALL' || contractIds.has(post.contractId));
+  const contractRows = contracts.map(({ client, contract }) => ({
+    client,
+    contract,
+    metrics: getContractMetrics(client, contract)
+  }));
+  const delivery = contractRows.reduce((acc, row) => {
+    const cm = row.metrics;
+    acc.contracted += cm.hasDefinedQuantity ? cm.totalContracted : 0;
+    acc.published += cm.published;
+    acc.remaining += cm.hasDefinedQuantity ? cm.remaining : 0;
+    acc.excess += cm.hasDefinedQuantity ? cm.excess : 0;
+    acc.definedContracts += cm.hasDefinedQuantity ? 1 : 0;
+    acc.undefinedContracts += cm.hasDefinedQuantity ? 0 : 1;
+    return acc;
+  }, { contracted: 0, published: 0, remaining: 0, excess: 0, definedContracts: 0, undefinedContracts: 0 });
+  delivery.percentage = delivery.contracted > 0
+    ? Math.min(100, Math.round((delivery.published / delivery.contracted) * 100))
+    : null;
   const state = ensureSalesState(appData || {});
   const sales = (state.sales || []).filter(s => !s.arquivado && (period === 'ALL' || contractIds.has(s.contratoId)));
   const receipts = state.receipts || [];
@@ -4099,7 +4126,7 @@ function getExecutiveData(period = 'ALL') {
     }, 0);
     return { client, active, posts: clientPosts.length, remaining };
   });
-  return { clients: scopedClients, contracts, posts, sales, financial, published, pending, health, state };
+  return { clients: scopedClients, contracts, contractRows, posts, sales, financial, published, pending, health, delivery, state };
 }
 
 function getDataQualityIssues() {
@@ -4108,11 +4135,6 @@ function getDataQualityIssues() {
   const issues = [];
   const add = (category, label, detail, action = null) => issues.push({ category, label, detail, action });
   clients.forEach(client => {
-    const missing = [];
-    if (!String(client.instagram || '').trim()) missing.push('Instagram');
-    if (!String(client.phone || '').trim()) missing.push('telefone');
-    if (!String(client.email || '').trim()) missing.push('e-mail');
-    if (missing.length) add('Clientes', client.name || 'Cliente sem nome', `Campos ausentes: ${missing.join(', ')}`, () => openClientProfile(client.id));
     const activeContracts = (client.contracts || []).filter(c => !['Cancelado', 'Concluído'].includes(c.status));
     if (activeContracts.length === 0) add('Clientes', client.name || 'Cliente', 'Sem contrato ativo', () => openClientProfile(client.id));
     (client.contracts || []).forEach(contract => {
@@ -4158,16 +4180,18 @@ function renderDataQuality() {
     return acc;
   }, {});
   area.innerHTML = `
-    <div class="quality-overview">
-      <div><strong>${issues.length}</strong><span>pontos para revisar</span></div>
-      <div><strong>${Object.keys(grouped).length}</strong><span>categorias encontradas</span></div>
-      <div class="${issues.length ? 'is-warning' : 'is-success'}"><strong>${issues.length ? 'Atenção' : 'OK'}</strong><span>${issues.length ? 'há ajustes manuais' : 'nenhuma inconsistência'}</span></div>
+    <div class="report-summary-grid quality-overview">
+      <div class="report-stat-box"><span class="report-stat-label">Ocorrências para revisar</span><strong class="report-stat-val">${issues.length}</strong></div>
+      <div class="report-stat-box"><span class="report-stat-label">Categorias com ocorrências</span><strong class="report-stat-val">${Object.keys(grouped).length}</strong></div>
+      <div class="report-stat-box"><span class="report-stat-label">Classificação</span><strong class="report-stat-val ${issues.length ? 'text-warning' : 'text-success'}">${issues.length ? 'Atenção' : 'OK'}</strong><small>${issues.length ? 'correção manual' : 'nenhuma inconsistência'}</small></div>
     </div>
     ${issues.length === 0 ? '<div class="empty-state"><h4>Dados em ordem</h4><p>Não encontramos inconsistências nos registros ativos.</p></div>' :
       Object.entries(grouped).map(([category, rows]) => `
-        <section class="quality-section">
-          <div class="quality-section-heading"><h4>${escapeHtml(category)}</h4><span>${rows.length}</span></div>
-          ${rows.map(issue => `<div class="quality-issue"><div><strong>${escapeHtml(issue.label)}</strong><span>${escapeHtml(issue.detail)}</span></div>${issue.action ? `<button type="button" class="btn btn-ghost btn-sm quality-open" data-quality-index="${issues.indexOf(issue)}">Abrir</button>` : ''}</div>`).join('')}
+        <section class="settings-group quality-section">
+          <span class="ios-settings-section-label">${escapeHtml(category)} <small>(${rows.length})</small></span>
+          <div class="settings-group-card">
+            ${rows.map(issue => `<div class="settings-row quality-issue"><div class="settings-row-icon quality-issue-icon" aria-hidden="true">!</div><div class="settings-row-info"><div class="settings-row-label">${escapeHtml(issue.label)}</div><div class="settings-row-sub">${escapeHtml(issue.detail)}</div></div>${issue.action ? `<button type="button" class="btn btn-secondary btn-sm quality-open" data-quality-index="${issues.indexOf(issue)}">Abrir</button>` : '<span class="quality-issue-badge">Revisar</span>'}</div>`).join('')}
+          </div>
         </section>
       `).join('')}
   `;
@@ -4194,38 +4218,103 @@ function renderExecutiveReport() {
   if (!area) return;
   const period = document.getElementById('executiveReportPeriodSelect')?.value || 'ALL';
   const data = getExecutiveData(period);
-  const publishedRate = data.posts.length ? Math.round((data.published / data.posts.length) * 100) : 0;
-  const topClients = data.health.slice().sort((a, b) => b.posts - a.posts).slice(0, 6);
-  const attention = data.health.filter(row => row.remaining > 0 || !row.active).slice(0, 6);
   const now = new Date();
+  const publishedRate = data.delivery.percentage;
+  const topClients = data.clients.map(client => {
+    const rows = data.contractRows.filter(row => row.client.id === client.id);
+    const metrics = rows.reduce((acc, row) => {
+      const cm = row.metrics;
+      acc.contracted += cm.hasDefinedQuantity ? cm.totalContracted : 0;
+      acc.published += cm.published;
+      acc.remaining += cm.hasDefinedQuantity ? cm.remaining : 0;
+      acc.excess += cm.hasDefinedQuantity ? cm.excess : 0;
+      acc.hasDefinedQuantity ||= cm.hasDefinedQuantity;
+      acc.types.add(row.contract.agreementType || 'A classificar');
+      return acc;
+    }, { contracted: 0, published: 0, remaining: 0, excess: 0, hasDefinedQuantity: false, types: new Set() });
+    metrics.percentage = metrics.contracted > 0 ? Math.min(100, Math.round((metrics.published / metrics.contracted) * 100)) : null;
+    return { client, metrics };
+  }).sort((a, b) => b.metrics.published - a.metrics.published).slice(0, 8);
+  const attention = [];
+  data.contractRows.forEach(row => {
+    if (row.metrics.isOverdue && row.metrics.remaining > 0) {
+      attention.push({ title: row.client.name, detail: `Prazo encerrado com ${row.metrics.remaining} publicação(ões) restante(s).` });
+    }
+  });
+  data.sales.forEach(sale => {
+    const receipt = computeSaleReceiptSummary(sale, data.state.receipts || []);
+    if (receipt.saldoCentavos > 0) attention.push({ title: sale.titulo || 'Venda sem título', detail: `Saldo a receber: ${formatCentsBR(receipt.saldoCentavos)}.` });
+    if (sale.conferenciaStatus === 'pendente' || sale.conferenciaStatus === 'divergencia') attention.push({ title: sale.titulo || 'Venda sem título', detail: 'Venda aguardando conferência.' });
+  });
+  (data.state.commissions || []).filter(c => !c.arquivado && c.status === 'a_definir').forEach(commission => {
+    attention.push({ title: 'Comissão', detail: 'Há comissão a definir para uma venda.' });
+  });
+  const visibleAttention = attention.slice(0, 8);
+  const contractTypes = ['Mensal', 'Avulso', 'Parceria'];
+  const contractTypeSummary = contractTypes.map(type => {
+    const rows = data.contractRows.filter(row => row.contract.agreementType === type);
+    const defined = rows.filter(row => row.metrics.hasDefinedQuantity);
+    const contracted = defined.reduce((sum, row) => sum + row.metrics.totalContracted, 0);
+    const published = rows.reduce((sum, row) => sum + row.metrics.published, 0);
+    return { type, count: rows.length, contracted, published, remaining: defined.reduce((sum, row) => sum + row.metrics.remaining, 0), percentage: contracted ? Math.min(100, Math.round((published / contracted) * 100)) : null };
+  }).filter(item => item.count > 0);
   area.innerHTML = `
     <div class="executive-report-document">
       <header class="executive-report-hero">
-        <div><span class="executive-report-eyebrow">NASRUAS DE ITZ • GESTÃO</span><h2>Relatório executivo</h2><p>Carteira, operação e financeiro em uma única leitura.</p></div>
-        <div class="executive-report-meta"><strong>${escapeHtml(period === 'ALL' ? 'Todos os períodos' : period)}</strong><span>Gerado em ${escapeHtml(formatDateBR(now.toISOString()))}</span></div>
+        <div class="executive-report-brand">
+          <img src="./logo-nasruas.png" alt="NasRuas de ITZ" class="executive-report-logo" onerror="handleLogoError(this)">
+          <div><span class="executive-report-eyebrow">NASRUAS DE ITZ • GESTÃO</span><h2>Relatório executivo</h2><p>Carteira, operação e financeiro em uma única leitura.</p></div>
+        </div>
+        <div class="executive-report-meta"><strong>${escapeHtml(period === 'ALL' ? 'Todos os períodos' : period)}</strong><span>Gerado em ${escapeHtml(formatDateTimeBR(now))}</span><small>Uso interno — contém informações financeiras</small></div>
       </header>
       <div class="executive-report-accent"></div>
-      <section class="executive-report-kpis">
-        <div><span>Clientes</span><strong>${data.clients.length}</strong><small>na carteira</small></div>
-        <div><span>Contratos</span><strong>${data.contracts.length}</strong><small>no recorte</small></div>
-        <div><span>Publicações</span><strong>${data.published}/${data.posts.length}</strong><small>${publishedRate}% concluídas</small></div>
-        <div><span>Saldo em aberto</span><strong>${escapeHtml(formatCentsBR(data.financial.balance))}</strong><small>acompanhar recebimento</small></div>
+      <section class="executive-report-scope">
+        <strong>Recorte do relatório</strong>
+        <span><b>Contratos:</b> ${escapeHtml(period === 'ALL' ? 'todos os períodos' : `contratos com período “${period}”`)}</span>
+        <span><b>Financeiro:</b> vendas vinculadas aos contratos acima; recebimentos acumulados dessas vendas, sem filtro pela data do recebimento.</span>
       </section>
+      <section class="executive-report-section">
+        <div class="executive-report-section-heading"><span>01</span><div><h3>Carteira e publicações</h3><p>Contagens do recorte de contratos selecionado.</p></div></div>
+      <section class="executive-report-kpis">
+        <div><span>Clientes únicos</span><strong>${data.clients.length}</strong><small>com contrato no recorte</small></div>
+        <div><span>Contratos</span><strong>${data.contracts.length}</strong><small>no recorte</small></div>
+        <div><span>Quantidade contratada</span><strong>${data.delivery.contracted}</strong><small>metas definidas</small></div>
+        <div><span>Publicações publicadas</span><strong>${data.delivery.published}</strong><small>de ${data.delivery.contracted} contratadas</small></div>
+        <div><span>Quantidade restante</span><strong>${data.delivery.remaining}</strong><small>sem compensar contratos</small></div>
+        <div><span>Excedentes</span><strong>${data.delivery.excess}</strong><small>em contratos com meta</small></div>
+        <div><span>Conclusão</span><strong>${publishedRate === null ? 'Não se aplica' : `${publishedRate}%`}</strong><small>${data.delivery.contracted ? 'publicadas ÷ contratadas' : 'sem base válida'}</small></div>
+      </section>
+      </section>
+      <section class="executive-report-section">
+        <div class="executive-report-section-heading"><span>02</span><div><h3>Resumo financeiro</h3><p>Vendas vinculadas ao recorte de contratos. Não representa inadimplência.</p></div></div>
       <section class="executive-report-columns">
         <div class="executive-report-panel"><div class="executive-report-panel-title"><h3>Leitura financeira</h3><span>vendas ativas</span></div>
-          <div class="executive-finance-lines"><div><span>Total vendido</span><strong>${escapeHtml(formatCentsBR(data.financial.sold))}</strong></div><div><span>Recebido acumulado</span><strong>${escapeHtml(formatCentsBR(data.financial.received))}</strong></div><div><span>Saldo em aberto</span><strong>${escapeHtml(formatCentsBR(data.financial.balance))}</strong></div></div>
+          <div class="executive-finance-lines"><div><span>Total vendido</span><strong>${escapeHtml(formatCentsBR(data.financial.sold))}</strong></div><div><span>Recebido acumulado dessas vendas</span><strong>${escapeHtml(formatCentsBR(data.financial.received))}</strong></div><div><span>Saldo a receber dessas vendas</span><strong>${escapeHtml(formatCentsBR(data.financial.balance))}</strong></div></div>
         </div>
-        <div class="executive-report-panel"><div class="executive-report-panel-title"><h3>Saúde da carteira</h3><span>${data.health.filter(row => row.active && row.remaining === 0).length} em dia</span></div>
-          <div class="executive-health-list">${data.health.slice(0, 6).map(row => `<div><span class="executive-health-dot ${row.active && row.remaining === 0 ? 'good' : 'attention'}"></span><strong>${escapeHtml(row.client.name || 'Cliente')}</strong><span>${row.remaining ? `${row.remaining} restantes` : row.active ? 'Em dia' : 'Sem contrato ativo'}</span></div>`).join('') || '<p>Sem clientes no recorte.</p>'}</div>
+        <div class="executive-report-panel"><div class="executive-report-panel-title"><h3>Critério financeiro</h3><span>transparência</span></div>
+          <p class="executive-report-note">O recebido é acumulado para as vendas do recorte. A data de recebimento não é filtrada nesta versão.</p>
         </div>
       </section>
-      <section class="executive-report-panel executive-report-ranking"><div class="executive-report-panel-title"><h3>Clientes por volume de operação</h3><span>publicações</span></div>
-        <table><thead><tr><th>Cliente</th><th>Publicações</th><th>Restantes</th><th>Situação</th></tr></thead><tbody>${topClients.map(row => `<tr><td><strong>${escapeHtml(row.client.name || 'Cliente')}</strong></td><td>${row.posts}</td><td>${row.remaining}</td><td>${row.active ? (row.remaining ? 'Acompanhar' : 'Em dia') : 'Sem contrato ativo'}</td></tr>`).join('') || '<tr><td colspan="4">Sem dados.</td></tr>'}</tbody></table>
       </section>
-      <section class="executive-report-panel"><div class="executive-report-panel-title"><h3>Próximos pontos de atenção</h3><span>${attention.length} itens</span></div>
-        <div class="executive-attention-list">${attention.map(row => `<div><strong>${escapeHtml(row.client.name || 'Cliente')}</strong><span>${row.remaining ? `${row.remaining} publicação(ões) restante(s)` : 'Contrato ativo não identificado'}</span></div>`).join('') || '<div><strong>Nenhuma pendência encontrada</strong><span>A carteira está sem alertas neste recorte.</span></div>'}</div>
+      <section class="executive-report-section">
+        <div class="executive-report-section-heading"><span>03</span><div><h3>Pontos de atenção</h3><p>Somente exceções verificáveis nos dados atuais.</p></div></div>
+        <div class="executive-report-panel"><div class="executive-attention-list">${visibleAttention.map(row => `<div><strong>${escapeHtml(row.title)}</strong><span>${escapeHtml(row.detail)}</span></div>`).join('') || '<div><strong>Nenhuma pendência nos critérios avaliados</strong><span>Não foram encontrados saldos, conferências ou prazos que exijam atenção.</span></div>'}</div></div>
       </section>
-      <footer class="executive-report-footer">NasRuas de ITZ • Relatório interno • Os valores distinguem vendido, recebido acumulado e saldo em aberto.</footer>
+      <section class="executive-report-section">
+        <div class="executive-report-section-heading"><span>04</span><div><h3>Situação dos contratos</h3><p>Entrega por tipo de acordo; parceiros sem meta não recebem percentual fictício.</p></div></div>
+        <div class="executive-report-contract-types">${contractTypeSummary.map(item => `<div><strong>${escapeHtml(item.type)}</strong><span>${item.count} contrato(s)</span><b>${item.published} publicadas${item.contracted ? ` • ${item.remaining} restantes • ${item.percentage}%` : ' • meta não definida'}</b></div>`).join('') || '<div><strong>Não foi possível avaliar</strong><span>Não há contratos no recorte selecionado.</span></div>'}</div>
+      </section>
+      <section class="executive-report-section">
+        <div class="executive-report-section-heading"><span>05</span><div><h3>Clientes por volume de publicações</h3><p>Exibindo ${topClients.length} de ${data.clients.length} clientes do recorte, ordenados por publicações realizadas.</p></div></div>
+      <section class="executive-report-panel executive-report-ranking">
+        <table><thead><tr><th>Cliente</th><th>Acordo</th><th>Contratadas</th><th>Publicadas</th><th>Restantes</th><th>Conclusão</th><th>Situação</th></tr></thead><tbody>${topClients.map(row => `<tr><td><strong>${escapeHtml(row.client.name || 'Cliente')}</strong></td><td>${escapeHtml([...row.metrics.types].join(', '))}</td><td>${row.metrics.hasDefinedQuantity ? row.metrics.contracted : 'Não se aplica'}</td><td>${row.metrics.published}</td><td>${row.metrics.hasDefinedQuantity ? row.metrics.remaining : 'Não se aplica'}</td><td>${row.metrics.percentage === null ? 'Não se aplica' : `${row.metrics.percentage}%`}</td><td>${row.metrics.hasDefinedQuantity ? (row.metrics.remaining ? 'Saldo restante' : 'Pacote completo') : 'Sem meta definida'}</td></tr>`).join('') || '<tr><td colspan="7">Não foi possível avaliar: sem clientes no recorte.</td></tr>'}</tbody></table>
+      </section>
+      </section>
+      <section class="executive-report-section executive-report-criteria">
+        <div class="executive-report-section-heading"><span>06</span><div><h3>Critérios e observações</h3><p>Como interpretar este documento.</p></div></div>
+        <ul><li>“Publicado” considera somente publicações com status Publicado e vinculadas ao contrato.</li><li>Saldo a receber não é classificado como inadimplência; não há vencimento sendo avaliado aqui.</li><li>Contratos Avulsos e Parcerias sem quantidade definida mostram publicações realizadas, sem saldo ou percentual.</li></ul>
+      </section>
+      <footer class="executive-report-footer"><strong>NasRuas de ITZ</strong><span>Relatório interno • Uso interno — contém informações financeiras</span></footer>
     </div>
   `;
 }
@@ -7114,7 +7203,17 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btnPrintGeneralReport')?.addEventListener('click', () => window.print());
 
   document.getElementById('btnOpenDataQuality')?.addEventListener('click', openDataQualityModal);
-  document.getElementById('btnRefreshDataQuality')?.addEventListener('click', renderDataQuality);
+  document.getElementById('btnRefreshDataQuality')?.addEventListener('click', () => {
+    const button = document.getElementById('btnRefreshDataQuality');
+    if (!button || button.disabled) return;
+    button.disabled = true;
+    button.textContent = 'Atualizando…';
+    requestAnimationFrame(() => {
+      renderDataQuality();
+      button.disabled = false;
+      button.textContent = 'Atualizar diagnóstico';
+    });
+  });
   document.getElementById('btnOpenExecutiveReport')?.addEventListener('click', openExecutiveReportModal);
   document.getElementById('executiveReportPeriodSelect')?.addEventListener('change', renderExecutiveReport);
   document.getElementById('btnPrintExecutiveReport')?.addEventListener('click', () => window.print());
