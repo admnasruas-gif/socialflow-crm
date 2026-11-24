@@ -4,7 +4,7 @@
  * Usa estratégia Network-First para sempre buscar dados e código atualizados quando online.
  */
 
-const CACHE_NAME = 'socialflow-pwa-v10';
+const CACHE_NAME = 'socialflow-pwa-v11';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -42,8 +42,10 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     fetch(req)
       .then((networkRes) => {
-        const clone = networkRes.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(req, clone)).catch(() => {});
+        if (networkRes && networkRes.ok) {
+          const clone = networkRes.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(req, clone)).catch(() => {});
+        }
         return networkRes;
       })
       .catch(() => caches.match(req))

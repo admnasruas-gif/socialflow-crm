@@ -47,12 +47,21 @@ import {
   buildClosureReport,
   exportReportToCsvText
 } from './sales-domain.js';
+import logoNasruasUrl from './logo-nasruas.png';
 
 const core = () => (typeof window !== 'undefined' ? window.__nasruasCore : null);
 const el = (id) => (typeof document !== 'undefined' ? document.getElementById(id) : null);
 
 let salesModuleInitialized = false;
 let activeSalesSubtab = 'lancamentos';
+let salesExtraFiltersOpen = false;
+const SALES_SECONDARY_FILTER_KEYS = new Set([
+  'contratoId',
+  'agreementType',
+  'beneficiarioId',
+  'comissaoStatus',
+  'modalidadeMaterial'
+]);
 let competenceTouchedManually = false;
 let currentDetailSaleId = null;
 let selectedCommissionIds = new Set();
@@ -570,6 +579,7 @@ export function openSaleForContract(clientId, contractId) {
     salesFilterState.clienteId = clientId;
     salesFilterState.contratoId = contractId;
     salesFilterState.competencia = 'ALL';
+    salesExtraFiltersOpen = true;
     activeSalesSubtab = 'lancamentos';
     core()?.setDashboardMode?.('sales');
     return;
@@ -597,6 +607,23 @@ function populateSalesCompetenceFilter() {
   const opts = sorted.map(cmp => `<option value="${escapeStr(cmp)}">${escapeStr(formatCompetenceLabel(cmp))}</option>`).join('');
   select.innerHTML = `${opts}<option value="ALL">Todas as competências</option>`;
   select.value = salesFilterState.competencia || 'ALL';
+}
+
+function syncSalesExtraFiltersUI() {
+  const secondaryCount = Array.from(SALES_SECONDARY_FILTER_KEYS)
+    .filter(key => salesFilterState[key] && salesFilterState[key] !== 'ALL')
+    .length;
+  const badge = el('salesExtraFiltersBadge');
+  if (badge) {
+    badge.textContent = String(secondaryCount);
+    badge.classList.toggle('hidden', secondaryCount === 0);
+  }
+  el('salesDesktopExtraFilters')?.classList.toggle('hidden', !salesExtraFiltersOpen);
+  const toggleBtn = el('btnToggleSalesExtraFilters');
+  if (toggleBtn) {
+    toggleBtn.setAttribute('aria-expanded', salesExtraFiltersOpen ? 'true' : 'false');
+    toggleBtn.classList.toggle('is-open', salesExtraFiltersOpen);
+  }
 }
 
 function populateSalesFilterDropdowns() {
@@ -678,6 +705,7 @@ function populateSalesFilterDropdowns() {
   }
   el('btnClearSalesFilters')?.classList.toggle('hidden', extraCount === 0 && salesFilterState.dateMode === 'competencia');
   el('salesDateModeNotice')?.classList.toggle('hidden', salesFilterState.dateMode !== 'recebimento');
+  syncSalesExtraFiltersUI();
 }
 
 function renderSalesKPIs(filteredSales) {
@@ -919,10 +947,10 @@ function renderSalesLancamentosList(filteredSales) {
 
         <div class="sales-mobile-card-foot">
           <span class="sales-table-sub">Beneficiário: ${escapeStr(r.benef?.nome || 'A definir')}</span>
-          <div style="display:flex; gap:6px;">
+          <div class="sales-mobile-card-actions">
             ${!r.locked ? `<button type="button" class="btn btn-ghost btn-sm" onclick="openSaleModal('${escapeStr(r.sale.id)}')">Editar</button>` : ''}
             ${!r.locked && r.receipt.statusRecebimento !== 'recebido' ? `<button type="button" class="btn btn-primary btn-sm" onclick="openSaleReceiptModal('${escapeStr(r.sale.id)}')">Receber</button>` : ''}
-            <button type="button" class="btn btn-secondary btn-sm" onclick="openSaleDetailModal('${escapeStr(r.sale.id)}')">Abrir</button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="openSaleDetailModal('${escapeStr(r.sale.id)}')">Conferir</button>
           </div>
         </div>
       </div>
@@ -2021,6 +2049,9 @@ export function applySalesQuickFilter(key, value) {
   if (!Object.prototype.hasOwnProperty.call(salesFilterState, key)) return;
   activeSalesSubtab = 'lancamentos';
   salesFilterState[key] = value;
+  if (SALES_SECONDARY_FILTER_KEYS.has(key) && value !== 'ALL') {
+    salesExtraFiltersOpen = true;
+  }
   renderSalesView();
 }
 
@@ -3571,7 +3602,7 @@ function getSalesReportStatusClass(kind, label) {
 function renderSalesReportHeader({ eyebrow, title, subtitleHtml }) {
   return `
     <header class="sales-report-hero">
-      <img src="./logo-nasruas.png" alt="NasRuas de ITZ" class="sales-report-logo" onerror="handleLogoError(this)">
+      <img src="${logoNasruasUrl}" alt="NasRuas de ITZ" class="sales-report-logo" width="48" height="48" decoding="async" onerror="handleLogoError(this)">
       <div class="sales-report-hero-copy">
         <span class="sales-report-eyebrow">${escapeStr(eyebrow)}</span>
         <h3>${escapeStr(title)}</h3>
@@ -3788,6 +3819,10 @@ function bindSalesDomEvents() {
   el('btnOpenSalesClosure')?.addEventListener('click', () => openSalesClosureModal());
   el('btnOpenSalesReports')?.addEventListener('click', () => openSalesReportModal());
   el('btnOpenSalesFiltersSheet')?.addEventListener('click', () => core()?.openModal?.('salesFiltersSheetModal'));
+  el('btnToggleSalesExtraFilters')?.addEventListener('click', () => {
+    salesExtraFiltersOpen = !salesExtraFiltersOpen;
+    syncSalesExtraFiltersUI();
+  });
 
   el('salesCompetenceFilter')?.addEventListener('change', (e) => {
     salesFilterState.competencia = e.target.value;
@@ -3828,6 +3863,7 @@ function bindSalesDomEvents() {
   });
 
   const resetAllFilters = () => {
+    salesExtraFiltersOpen = false;
     Object.assign(salesFilterState, {
       dateMode: 'competencia',
       query: '',

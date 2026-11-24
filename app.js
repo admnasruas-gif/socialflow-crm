@@ -1,4 +1,5 @@
 import { ensureSalesState, computeSaleReceiptSummary, formatCentsBR } from './sales-domain.js';
+import logoNasruasUrl from './logo-nasruas.png';
 
 /**
  * SocialFlow CRM — Gerenciador de Clientes de Social Media
@@ -33,7 +34,7 @@ const isSupabaseConfigured = Boolean(
 window.handleLogoError = window.handleLogoError || function(img) {
   if (!img) return;
   img.onerror = null;
-  img.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='%23FFE600'/%3E%3Ctext x='50' y='38' font-family='Inter,Arial,sans-serif' font-weight='900' font-size='18' fill='%2317171C' text-anchor='middle'%3ENAS%3C/text%3E%3Ctext x='50' y='60' font-family='Inter,Arial,sans-serif' font-weight='900' font-size='21' fill='%2317171C' text-anchor='middle'%3ERUAS%3C/text%3E%3Ctext x='50' y='77' font-family='Inter,Arial,sans-serif' font-weight='700' font-size='13' fill='%2317171C' opacity='0.75' text-anchor='middle'%3EITZ%3C/text%3E%3C/svg%3E";
+  img.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='%23FFE600'/%3E%3Ctext x='50' y='38' font-family='Inter,Arial,sans-serif' font-weight='900' font-size='18' fill='%2317171C' text-anchor='middle'%3ENAS%3C/text%3E%3Ctext x='50' y='60' font-family='Inter,Arial,sans-serif' font-weight='900' font-size='21' fill='%2317171C' text-anchor='middle'%3ERUAS%3C/text%3E%3Ctext x='50' y='77' font-family='Inter,Arial,sans-serif' font-weight='700' font-size='13' fill='%2317171C' opacity='0.75' text-anchor='middle'%3EITZ%3C/text%3E%3C/svg%3E";
 };
 
 let supabaseInstance = null;
@@ -2534,7 +2535,7 @@ function renderClientProfile() {
         <span>Voltar</span>
       </button>
 
-      <img src="./logo-nasruas.png" alt="NasRuas de ITZ" class="profile-topbar-logo" onerror="handleLogoError(this)">
+      <img src="${logoNasruasUrl}" alt="NasRuas de ITZ" class="profile-topbar-logo" width="38" height="38" onerror="handleLogoError(this)">
 
       <div class="kebab-wrap">
         <button type="button" class="btn-icon-only" onclick="toggleKebabMenu('${escapeHtml(profileMenuId)}', event)" aria-label="Opções do cliente">
@@ -3630,7 +3631,7 @@ function renderDeliveryReportContent() {
         <div class="dr-lockup-row">
           <div class="dr-brand-left">
             <div class="dr-logo-ring">
-              <img src="./logo-nasruas.png" alt="NasRuas de ITZ" class="dr-logo-img" onerror="handleLogoError(this)">
+              <img src="${logoNasruasUrl}" alt="NasRuas de ITZ" class="dr-logo-img" width="38" height="38" onerror="handleLogoError(this)">
             </div>
             <div>
               <div class="dr-brand-kicker">NasRuas de ITZ • Gestão</div>
@@ -4325,7 +4326,7 @@ function renderExecutiveReport() {
     <div class="executive-report-document">
       <header class="executive-report-hero">
         <div class="executive-report-brand">
-          <img src="./logo-nasruas.png" alt="NasRuas de ITZ" class="executive-report-logo" onerror="handleLogoError(this)">
+          <img src="${logoNasruasUrl}" alt="NasRuas de ITZ" class="executive-report-logo" width="48" height="48" decoding="async" onerror="handleLogoError(this)">
           <div><span class="executive-report-eyebrow">NASRUAS DE ITZ • GESTÃO</span><h2>Relatório executivo</h2><p>Carteira, operação e financeiro em uma única leitura.</p></div>
         </div>
         <div class="executive-report-meta"><strong>${escapeHtml(period === 'ALL' ? 'Todos os períodos' : period)}</strong><span>Gerado em ${escapeHtml(formatDateTimeBR(now))}</span><small>Uso interno — contém informações financeiras</small></div>
